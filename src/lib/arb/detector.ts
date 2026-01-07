@@ -1,0 +1,408 @@
+// src/lib/arb/detector.ts
+import type {
+  SportEvent,
+  BookVsBookArb,
+  BookVsBetfairArb,
+  ArbOpportunity,
+  NormalizedEvent,
+  ValueBet,
+  BestOdds,
+  OpportunityType,
+  ScanStats,
+} from '../types';
+import { normalizeEvent, findMatchingOutcome } from '../normalization/eventMatcher';
+import { config } from '../config';
+
+interface DetectionResult {
+  arbs: BookVsBookArb[];
+  valueBets: ValueBet[];
+  bestOdds: BestOdds[];
+  stats: ScanStats;
+}
+
+// Sports that use 2-way markets (no draw)
+const TWO_WAY_SPORTS = [
+  'tennis',
+  'basketball',
+  'baseball',
+  'americanfootball',
+  'icehockey', // NHL has OT/shootout, effectively 2-way
+  'mma',
+  'boxing',
+  'cricket', // Most cricket markets are 2-way
+  'rugbyleague', // NRL usually 2-way
+  'aussierules', // AFL is 2-way
+];
+
+/**
+ * Determines if a sport uses 2-way markets (no draw possible)
+ */
+function isTwoWaySport(sportKey: string): boolean {
+  return TWO_WAY_SPORTS.some(s => sportKey.toLowerCase().includes(s));
+}
+
+/**
+ * Comprehensive detection of all opportunity types
+ */
+export function detectAllOpportunities(
+  events: SportEvent[],
+  nearArbThreshold: number = config.filters.nearArbThreshold,
+  valueThreshold: number = config.filters.valueThreshold
+): DetectionResult {
+  const arbs: BookVsBookArb[] = [];
+  const valueBets: ValueBet[] = [];
+  const bestOdds: BestOdds[] = [];
+
+  let eventsWithMultipleBookmakers = 0;
+  const allBookmakers = new Set<string>();
+  const sportsSet = new Set<string>();
+
+  for (const event of events) {
+    sportsSet.add(event.sportKey);
+    
+    // Track bookmakers
+    event.bookmakers.forEach(b => allBookmakers.add(b.bookmaker.key));
+
+    if (event.bookmakers.length >= 2) {
+      eventsWithMultipleBookmakers++;
+    }
+
+    const normalizedEvent = normalizeEvent(event);
+    const isTwoWay = isTwoWaySport(event.sportKey);
+
+    // Find arbs and near-arbs (only for valid market types)
+    const eventArbs = findArbitrageInEvent(event, normalizedEvent, nearArbThreshold, isTwoWay);
+    arbs.push(...eventArbs);
+
+    // Find value bets
+    const eventValueBets = findValueBets(event, normalizedEvent, valueThreshold);
+    valueBets.push(...eventValueBets);
+
+    // Find best odds
+    const eventBestOdds = findBestOdds(event, normalizedEvent);
+    if (eventBestOdds) {
+      bestOdds.push(eventBestOdds);
+    }
+  }
+
+  // Sort by profit/value
+  arbs.sort((a, b) => b.profitPercentage - a.profitPercentage);
+  valueBets.sort((a, b) => b.valuePercentage - a.valuePercentage);
+
+  const stats: ScanStats = {
+    totalEvents: events.length,
+    eventsWithMultipleBookmakers,
+    totalBookmakers: allBookmakers.size,
+    arbsFound: arbs.filter(a => a.type === 'arb').length,
+    nearArbsFound: arbs.filter(a => a.type === 'near-arb').length,
+    valueBetsFound: valueBets.length,
+    sportsScanned: sportsSet.size,
+  };
+
+  console.log(`[Detector] Stats:`, stats);
+
+  return { arbs, valueBets, bestOdds, stats };
+}
+
+/**
+ * Detects Book vs Book arbitrage and near-arbitrage opportunities
+ */
+export function detectBookVsBookArbs(
+  events: SportEvent[],
+  nearArbThreshold: number = config.filters.nearArbThreshold
+): BookVsBookArb[] {
+  const result = detectAllOpportunities(events, nearArbThreshold);
+  return result.arbs;
+}
+
+/**
+ * Finds arbitrage opportunities within a single event
+ * Handles both 2-way (tennis, basketball) and 3-way (soccer) markets
+ */
+function findArbitrageInEvent(
+  event: SportEvent,
+  normalizedEvent: NormalizedEvent,
+  nearArbThreshold: number,
+  isTwoWay: boolean
+): BookVsBookArb[] {
+  const arbs: BookVsBookArb[] = [];
+  const bookmakers = event.bookmakers;
+
+  if (bookmakers.length < 2) return arbs;
+
+  // Collect all h2h outcomes from all bookmakers
+  const outcomesByName = new Map<string, { bookmaker: string; odds: number; lastUpdate: Date }[]>();
+
+  for (const bm of bookmakers) {
+    const h2hMarket = bm.markets.find(m => m.key === 'h2h');
+    if (!h2hMarket) continue;
+
+    for (const outcome of h2hMarket.outcomes) {
+      const existing = outcomesByName.get(outcome.name) || [];
+      existing.push({
+        bookmaker: bm.bookmaker.title,
+        odds: outcome.price,
+        lastUpdate: h2hMarket.lastUpdate,
+      });
+      outcomesByName.set(outcome.name, existing);
+    }
+  }
+
+  const outcomeNames = Array.from(outcomesByName.keys());
+  const numOutcomes = outcomeNames.length;
+
+  // Validate market type
+  if (isTwoWay && numOutcomes !== 2) {
+    // 2-way sport but not exactly 2 outcomes - skip
+    return arbs;
+  }
+
+  if (!isTwoWay && numOutcomes === 2) {
+    // 3-way sport (soccer) but only 2 outcomes visible
+    // This is likely missing the Draw - NOT a valid arb opportunity
+    console.log(`[Detector] Skipping ${event.homeTeam} vs ${event.awayTeam} - soccer with only 2 outcomes (missing Draw)`);
+    return arbs;
+  }
+
+  // Find best odds for each outcome
+  const bestOddsByOutcome = new Map<string, { bookmaker: string; odds: number; lastUpdate: Date }>();
+  
+  for (const [name, odds] of outcomesByName) {
+    const best = odds.reduce((a, b) => a.odds > b.odds ? a : b);
+    bestOddsByOutcome.set(name, best);
+  }
+
+  // Calculate implied probability sum using ALL outcomes
+  let impliedSum = 0;
+  const bestOutcomes: { name: string; bookmaker: string; odds: number; lastUpdate: Date }[] = [];
+  
+  for (const [name, best] of bestOddsByOutcome) {
+    impliedSum += 1 / best.odds;
+    bestOutcomes.push({ name, ...best });
+  }
+
+  // Check for arbitrage
+  const profitPct = (1 - impliedSum) * 100;
+
+  // Only include if it's profitable OR within near-arb threshold
+  if (profitPct >= -nearArbThreshold) {
+    const type: OpportunityType = profitPct >= 0 ? 'arb' : 'near-arb';
+    
+    // For 2-way markets, create standard arb
+    if (numOutcomes === 2) {
+      arbs.push({
+        mode: 'book-vs-book',
+        type,
+        event: normalizedEvent,
+        marketType: 'h2h',
+        outcomes: numOutcomes,
+        outcome1: {
+          name: bestOutcomes[0].name,
+          bookmaker: bestOutcomes[0].bookmaker,
+          odds: bestOutcomes[0].odds,
+        },
+        outcome2: {
+          name: bestOutcomes[1].name,
+          bookmaker: bestOutcomes[1].bookmaker,
+          odds: bestOutcomes[1].odds,
+        },
+        impliedProbabilitySum: impliedSum,
+        profitPercentage: profitPct,
+        lastUpdated: new Date(Math.max(...bestOutcomes.map(o => o.lastUpdate.getTime()))),
+      });
+    }
+    // For 3-way markets, include all 3 outcomes
+    else if (numOutcomes === 3) {
+      arbs.push({
+        mode: 'book-vs-book',
+        type,
+        event: normalizedEvent,
+        marketType: 'h2h-3way',
+        outcomes: numOutcomes,
+        outcome1: {
+          name: bestOutcomes[0].name,
+          bookmaker: bestOutcomes[0].bookmaker,
+          odds: bestOutcomes[0].odds,
+        },
+        outcome2: {
+          name: bestOutcomes[1].name,
+          bookmaker: bestOutcomes[1].bookmaker,
+          odds: bestOutcomes[1].odds,
+        },
+        outcome3: {
+          name: bestOutcomes[2].name,
+          bookmaker: bestOutcomes[2].bookmaker,
+          odds: bestOutcomes[2].odds,
+        },
+        impliedProbabilitySum: impliedSum,
+        profitPercentage: profitPct,
+        lastUpdated: new Date(Math.max(...bestOutcomes.map(o => o.lastUpdate.getTime()))),
+      });
+    }
+  }
+
+  return arbs;
+}
+
+/**
+ * Finds value bets - when one bookmaker has significantly better odds
+ */
+function findValueBets(
+  event: SportEvent,
+  normalizedEvent: NormalizedEvent,
+  valueThreshold: number
+): ValueBet[] {
+  const valueBets: ValueBet[] = [];
+  const bookmakers = event.bookmakers;
+
+  if (bookmakers.length < 3) return valueBets; // Need enough for a meaningful average
+
+  // Collect all odds for each outcome
+  const oddsByOutcome = new Map<string, { bookmaker: string; odds: number }[]>();
+
+  for (const bm of bookmakers) {
+    const h2hMarket = bm.markets.find(m => m.key === 'h2h');
+    if (!h2hMarket) continue;
+
+    for (const outcome of h2hMarket.outcomes) {
+      const existing = oddsByOutcome.get(outcome.name) || [];
+      existing.push({ bookmaker: bm.bookmaker.title, odds: outcome.price });
+      oddsByOutcome.set(outcome.name, existing);
+    }
+  }
+
+  // Check each outcome for value
+  for (const [outcomeName, allOdds] of oddsByOutcome) {
+    if (allOdds.length < 3) continue;
+
+    // Calculate market average (excluding the best)
+    const sortedOdds = [...allOdds].sort((a, b) => b.odds - a.odds);
+    const best = sortedOdds[0];
+    const rest = sortedOdds.slice(1);
+    const average = rest.reduce((sum, o) => sum + o.odds, 0) / rest.length;
+
+    // Calculate value percentage
+    const valuePct = ((best.odds - average) / average) * 100;
+
+    if (valuePct >= valueThreshold) {
+      valueBets.push({
+        mode: 'value-bet',
+        type: 'value-bet',
+        event: normalizedEvent,
+        marketType: 'h2h',
+        outcome: {
+          name: outcomeName,
+          bookmaker: best.bookmaker,
+          odds: best.odds,
+        },
+        marketAverage: average,
+        valuePercentage: valuePct,
+        allOdds: sortedOdds,
+        lastUpdated: new Date(),
+      });
+    }
+  }
+
+  return valueBets;
+}
+
+/**
+ * Finds best odds for each outcome in an event
+ */
+function findBestOdds(
+  event: SportEvent,
+  normalizedEvent: NormalizedEvent
+): BestOdds | null {
+  if (event.bookmakers.length === 0) return null;
+
+  const oddsByOutcome = new Map<string, { bookmaker: string; odds: number }[]>();
+
+  for (const bm of event.bookmakers) {
+    const h2hMarket = bm.markets.find(m => m.key === 'h2h');
+    if (!h2hMarket) continue;
+
+    for (const outcome of h2hMarket.outcomes) {
+      const existing = oddsByOutcome.get(outcome.name) || [];
+      existing.push({ bookmaker: bm.bookmaker.title, odds: outcome.price });
+      oddsByOutcome.set(outcome.name, existing);
+    }
+  }
+
+  const outcomes = Array.from(oddsByOutcome.entries()).map(([name, allOdds]) => {
+    const sorted = [...allOdds].sort((a, b) => b.odds - a.odds);
+    const best = sorted[0];
+    const average = allOdds.reduce((sum, o) => sum + o.odds, 0) / allOdds.length;
+
+    return {
+      name,
+      bestOdds: best.odds,
+      bestBookmaker: best.bookmaker,
+      allOdds: sorted,
+      marketAverage: average,
+    };
+  });
+
+  return {
+    event: normalizedEvent,
+    outcomes,
+  };
+}
+
+/**
+ * Detects Book vs Betfair lay arbitrage opportunities
+ */
+export function detectBookVsBetfairArbs(
+  events: SportEvent[],
+  betfairOdds: Map<string, { layOdds: number; liquidity: number }>,
+  commission: number = 0.05
+): BookVsBetfairArb[] {
+  const arbs: BookVsBetfairArb[] = [];
+
+  for (const event of events) {
+    const normalizedEvent = normalizeEvent(event);
+    
+    for (const bm of event.bookmakers) {
+      const h2hMarket = bm.markets.find(m => m.key === 'h2h');
+      if (!h2hMarket) continue;
+
+      for (const outcome of h2hMarket.outcomes) {
+        const betfairKey = `${event.id}-${outcome.name}`;
+        const betfair = betfairOdds.get(betfairKey);
+        
+        if (!betfair) continue;
+
+        const backOdds = outcome.price;
+        const layOdds = betfair.layOdds;
+        
+        const effectiveLayReturn = (layOdds - 1) * (1 - commission);
+        const backReturn = backOdds - 1;
+        
+        if (backReturn > effectiveLayReturn) {
+          const profitPct = ((backReturn - effectiveLayReturn) / backOdds) * 100;
+          
+          arbs.push({
+            mode: 'book-vs-betfair',
+            type: 'arb',
+            event: normalizedEvent,
+            marketType: 'h2h',
+            backOutcome: {
+              name: outcome.name,
+              bookmaker: bm.bookmaker.title,
+              odds: backOdds,
+            },
+            layOutcome: {
+              name: outcome.name,
+              odds: layOdds,
+              availableLiquidity: betfair.liquidity,
+            },
+            profitPercentage: profitPct,
+            commission,
+            lastUpdated: h2hMarket.lastUpdate,
+          });
+        }
+      }
+    }
+  }
+
+  return arbs.sort((a, b) => b.profitPercentage - a.profitPercentage);
+}
