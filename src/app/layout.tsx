@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'edge-maxxer',
+  title: 'Edge Maxxer 💵',
   description: 'Arbitrage opportunity scanner',
 };
 

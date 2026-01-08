@@ -20,25 +20,39 @@ interface DetectionResult {
   stats: ScanStats;
 }
 
-// Sports that use 2-way markets (no draw)
-const TWO_WAY_SPORTS = [
-  'tennis',
-  'basketball',
-  'baseball',
-  'americanfootball',
-  'icehockey', // NHL has OT/shootout, effectively 2-way
-  'mma',
-  'boxing',
-  'cricket', // Most cricket markets are 2-way
-  'rugbyleague', // NRL usually 2-way
-  'aussierules', // AFL is 2-way
+// Sports that ALWAYS use 2-way markets (draw is never offered)
+// Note: Boxing and MMA CAN have draws, so they're NOT in this list
+const ALWAYS_TWO_WAY_SPORTS = [
+  'tennis',        // No draws in tennis
+  'basketball',    // No draws (OT until winner)
+  'baseball',      // No draws (extra innings)
+  'americanfootball', // No draws (OT rules)
+  'aussierules',   // AFL has no draws
+];
+
+// Sports that MIGHT be 2-way or 3-way depending on market
+// These sports CAN have draws but some bookmakers only offer 2-way
+const FLEXIBLE_SPORTS = [
+  'icehockey',     // Can be 2-way (with OT) or 3-way (regulation time)
+  'mma',           // Usually 2-way but draws are possible
+  'boxing',        // Usually 3-way (Win/Win/Draw) but some offer 2-way
+  'cricket',       // Depends on format
+  'rugbyleague',   // Can have draws
+  'rugbyunion',    // Can have draws
 ];
 
 /**
- * Determines if a sport uses 2-way markets (no draw possible)
+ * Determines if a sport MUST be 2-way (no draw ever possible)
  */
-function isTwoWaySport(sportKey: string): boolean {
-  return TWO_WAY_SPORTS.some(s => sportKey.toLowerCase().includes(s));
+function isAlwaysTwoWaySport(sportKey: string): boolean {
+  return ALWAYS_TWO_WAY_SPORTS.some(s => sportKey.toLowerCase().includes(s));
+}
+
+/**
+ * Determines if a sport can flexibly be 2-way or 3-way
+ */
+function isFlexibleSport(sportKey: string): boolean {
+  return FLEXIBLE_SPORTS.some(s => sportKey.toLowerCase().includes(s));
 }
 
 /**
@@ -68,10 +82,9 @@ export function detectAllOpportunities(
     }
 
     const normalizedEvent = normalizeEvent(event);
-    const isTwoWay = isTwoWaySport(event.sportKey);
 
-    // Find arbs and near-arbs (only for valid market types)
-    const eventArbs = findArbitrageInEvent(event, normalizedEvent, nearArbThreshold, isTwoWay);
+    // Find arbs and near-arbs
+    const eventArbs = findArbitrageInEvent(event, normalizedEvent, nearArbThreshold);
     arbs.push(...eventArbs);
 
     // Find value bets
@@ -117,13 +130,12 @@ export function detectBookVsBookArbs(
 
 /**
  * Finds arbitrage opportunities within a single event
- * Handles both 2-way (tennis, basketball) and 3-way (soccer) markets
+ * Handles both 2-way (tennis, basketball) and 3-way (soccer, boxing) markets
  */
 function findArbitrageInEvent(
   event: SportEvent,
   normalizedEvent: NormalizedEvent,
-  nearArbThreshold: number,
-  isTwoWay: boolean
+  nearArbThreshold: number
 ): BookVsBookArb[] {
   const arbs: BookVsBookArb[] = [];
   const bookmakers = event.bookmakers;
@@ -151,17 +163,37 @@ function findArbitrageInEvent(
   const outcomeNames = Array.from(outcomesByName.keys());
   const numOutcomes = outcomeNames.length;
 
-  // Validate market type
-  if (isTwoWay && numOutcomes !== 2) {
-    // 2-way sport but not exactly 2 outcomes - skip
-    return arbs;
-  }
+  // Determine sport type
+  const isAlwaysTwoWay = isAlwaysTwoWaySport(event.sportKey);
+  const isFlexible = isFlexibleSport(event.sportKey);
+  const isSoccer = event.sportKey.toLowerCase().includes('soccer');
 
-  if (!isTwoWay && numOutcomes === 2) {
-    // 3-way sport (soccer) but only 2 outcomes visible
-    // This is likely missing the Draw - NOT a valid arb opportunity
-    console.log(`[Detector] Skipping ${event.homeTeam} vs ${event.awayTeam} - soccer with only 2 outcomes (missing Draw)`);
-    return arbs;
+  // Validation based on sport type
+  if (isAlwaysTwoWay) {
+    // Sports like tennis, basketball MUST have exactly 2 outcomes
+    if (numOutcomes !== 2) {
+      return arbs;
+    }
+  } else if (isSoccer) {
+    // Soccer MUST have 3 outcomes (Home/Draw/Away)
+    if (numOutcomes !== 3) {
+      console.log(`[Detector] Skipping ${event.homeTeam} vs ${event.awayTeam} - soccer with ${numOutcomes} outcomes (needs 3)`);
+      return arbs;
+    }
+  } else if (isFlexible) {
+    // Boxing, MMA, etc - accept 2 OR 3 outcomes
+    if (numOutcomes < 2 || numOutcomes > 3) {
+      return arbs;
+    }
+    // Log when we find a 3-way boxing/mma event
+    if (numOutcomes === 3) {
+      console.log(`[Detector] Found 3-way market for ${event.sportKey}: ${event.homeTeam} vs ${event.awayTeam}`);
+    }
+  } else {
+    // Other sports - be flexible
+    if (numOutcomes < 2 || numOutcomes > 3) {
+      return arbs;
+    }
   }
 
   // Find best odds for each outcome
@@ -188,7 +220,7 @@ function findArbitrageInEvent(
   if (profitPct >= -nearArbThreshold) {
     const type: OpportunityType = profitPct >= 0 ? 'arb' : 'near-arb';
     
-    // For 2-way markets, create standard arb
+    // For 2-way markets
     if (numOutcomes === 2) {
       arbs.push({
         mode: 'book-vs-book',
@@ -211,7 +243,7 @@ function findArbitrageInEvent(
         lastUpdated: new Date(Math.max(...bestOutcomes.map(o => o.lastUpdate.getTime()))),
       });
     }
-    // For 3-way markets, include all 3 outcomes
+    // For 3-way markets (soccer, boxing with draw, etc.)
     else if (numOutcomes === 3) {
       arbs.push({
         mode: 'book-vs-book',

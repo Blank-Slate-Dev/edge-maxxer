@@ -24,7 +24,7 @@ export function Header({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <h1 className="text-lg font-medium tracking-tight">
-              edge-maxxer
+              Edge Maxxer
             </h1>
             {lastUpdated && (
               <span className="text-sm text-[#666]">
