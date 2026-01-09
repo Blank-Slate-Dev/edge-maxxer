@@ -1,437 +1,468 @@
 // src/components/StakeCalculatorModal.tsx
+
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
-import { X, Copy, Check, AlertTriangle, Edit2 } from 'lucide-react';
-import type { ArbOpportunity, BookVsBookArb, BookVsBetfairArb, BookVsBookStakes } from '@/lib/types';
-import type { PlacedBet } from '@/lib/bets';
-import { generateBetId } from '@/lib/bets';
+import { useState, useEffect, useCallback } from 'react';
+import { 
+  naturalizeStake, 
+  naturalizeArbStakes,
+  naturalize3WayArbStakes,
+  NaturalizedStake 
+} from '@/lib/stealth/stakeNaturalizer';
+import { 
+  getBookmakerProfile, 
+  getRiskColor 
+} from '@/lib/stealth/bookmakerProfiles';
+import { ArbOpportunity } from '@/lib/types';
+import { PlacedBet } from '@/lib/bets';
 
 interface StakeCalculatorModalProps {
   arb: ArbOpportunity | null;
   onClose: () => void;
-  onLogBet?: (bet: PlacedBet) => void;
+  onLogBet: (bet: PlacedBet) => void;
 }
 
-export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculatorModalProps) {
-  const [totalStake, setTotalStake] = useState(100);
-  const [copied, setCopied] = useState(false);
-  const [betLogged, setBetLogged] = useState(false);
+function RiskBadge({ bookmaker }: { bookmaker: string }) {
+  const profile = getBookmakerProfile(bookmaker);
   
-  // Editable odds state
-  const [odds1, setOdds1] = useState(0);
-  const [odds2, setOdds2] = useState(0);
-  const [odds3, setOdds3] = useState(0);
-  const [oddsChanged, setOddsChanged] = useState(false);
-
-  useEffect(() => {
-    if (arb) {
-      setBetLogged(false);
-      setOddsChanged(false);
-      if (arb.mode === 'book-vs-book') {
-        const a = arb as BookVsBookArb;
-        setOdds1(a.outcome1.odds);
-        setOdds2(a.outcome2.odds);
-        if (a.outcome3) {
-          setOdds3(a.outcome3.odds);
-        }
-      }
-    }
-  }, [arb]);
-
-  const isBookVsBook = arb?.mode === 'book-vs-book';
-  const isThreeWay = isBookVsBook && (arb as BookVsBookArb).outcomes === 3;
-
-  // Calculate with current (possibly edited) odds
-  const calc = useMemo(() => {
-    if (!arb || !isBookVsBook) return null;
-    
-    const w1 = 1 / odds1;
-    const w2 = 1 / odds2;
-    const w3 = isThreeWay ? 1 / odds3 : 0;
-    const totalWeight = w1 + w2 + w3;
-    
-    const stake1 = totalStake * (w1 / totalWeight);
-    const stake2 = totalStake * (w2 / totalWeight);
-    const stake3 = isThreeWay ? totalStake * (w3 / totalWeight) : 0;
-    
-    const returnOnOutcome1 = stake1 * odds1;
-    const returnOnOutcome2 = stake2 * odds2;
-    const returnOnOutcome3 = isThreeWay ? stake3 * odds3 : 0;
-    
-    const impliedSum = w1 + w2 + w3;
-    const guaranteedProfit = returnOnOutcome1 - totalStake;
-    const profitPercentage = (guaranteedProfit / totalStake) * 100;
-    
-    return {
-      stake1: Math.round(stake1 * 100) / 100,
-      stake2: Math.round(stake2 * 100) / 100,
-      stake3: isThreeWay ? Math.round(stake3 * 100) / 100 : undefined,
-      returnOnOutcome1: Math.round(returnOnOutcome1 * 100) / 100,
-      returnOnOutcome2: Math.round(returnOnOutcome2 * 100) / 100,
-      returnOnOutcome3: isThreeWay ? Math.round(returnOnOutcome3 * 100) / 100 : undefined,
-      impliedSum,
-      guaranteedProfit: Math.round(guaranteedProfit * 100) / 100,
-      profitPercentage: Math.round(profitPercentage * 100) / 100,
-      isProfitable: impliedSum < 1,
-    };
-  }, [arb, isBookVsBook, isThreeWay, odds1, odds2, odds3, totalStake]);
-
-  if (!arb || !isBookVsBook) return null;
-
-  const a = arb as BookVsBookArb;
-
-  const handleOddsChange = (outcome: 1 | 2 | 3, value: string) => {
-    const numValue = parseFloat(value) || 0;
-    setOddsChanged(true);
-    if (outcome === 1) setOdds1(numValue);
-    else if (outcome === 2) setOdds2(numValue);
-    else setOdds3(numValue);
-  };
-
-  const handleCopy = () => {
-    if (!calc) return;
-    
-    let text = `${a.event.homeTeam} vs ${a.event.awayTeam}
-${isThreeWay ? '(3-WAY MARKET - ALL 3 BETS REQUIRED)\n' : ''}${oddsChanged ? '⚠️ ODDS MANUALLY ADJUSTED\n' : ''}
-BET 1: $${calc.stake1.toFixed(2)} on ${a.outcome1.name} @ ${odds1.toFixed(2)} (${a.outcome1.bookmaker})
-→ Returns $${calc.returnOnOutcome1.toFixed(2)} if ${a.outcome1.name} wins
-
-BET 2: $${calc.stake2.toFixed(2)} on ${a.outcome2.name} @ ${odds2.toFixed(2)} (${a.outcome2.bookmaker})
-→ Returns $${calc.returnOnOutcome2.toFixed(2)} if ${a.outcome2.name} wins`;
-
-    if (isThreeWay && a.outcome3 && calc.stake3 && calc.returnOnOutcome3) {
-      text += `
-
-BET 3: $${calc.stake3.toFixed(2)} on ${a.outcome3.name} @ ${odds3.toFixed(2)} (${a.outcome3.bookmaker})
-→ Returns $${calc.returnOnOutcome3.toFixed(2)} if ${a.outcome3.name}`;
-    }
-
-    text += `
-
-Total Staked: $${totalStake.toFixed(2)}
-${calc.isProfitable ? 'Guaranteed Profit' : 'Expected Loss'}: $${calc.guaranteedProfit.toFixed(2)} (${calc.profitPercentage.toFixed(2)}% ROI)`;
-
-    navigator.clipboard.writeText(text);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleLogBet = () => {
-    if (!onLogBet || !calc) return;
-
-    const bet: PlacedBet = {
-      id: generateBetId(),
-      createdAt: new Date().toISOString(),
-      event: {
-        homeTeam: a.event.homeTeam,
-        awayTeam: a.event.awayTeam,
-        sportKey: a.event.sportKey,
-        commenceTime: a.event.commenceTime.toISOString(),
-      },
-      mode: 'book-vs-book',
-      expectedProfit: calc.guaranteedProfit,
-      status: 'pending',
-      bet1: {
-        bookmaker: a.outcome1.bookmaker,
-        outcome: a.outcome1.name,
-        odds: odds1, // Use edited odds
-        stake: calc.stake1,
-      },
-      bet2: {
-        bookmaker: a.outcome2.bookmaker,
-        outcome: a.outcome2.name,
-        odds: odds2, // Use edited odds
-        stake: calc.stake2,
-      },
-    };
-
-    if (isThreeWay && a.outcome3 && calc.stake3) {
-      bet.bet3 = {
-        bookmaker: a.outcome3.bookmaker,
-        outcome: a.outcome3.name,
-        odds: odds3, // Use edited odds
-        stake: calc.stake3,
-      };
-    }
-
-    onLogBet(bet);
-    setBetLogged(true);
-  };
-
+  if (!profile) {
+    return (
+      <span className="text-xs px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-300">
+        Unknown
+      </span>
+    );
+  }
+  
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-black/80 overflow-y-auto"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
+    <span 
+      className="text-xs px-1.5 py-0.5 rounded font-medium"
+      style={{ 
+        backgroundColor: getRiskColor(profile.riskLevel) + '30',
+        color: getRiskColor(profile.riskLevel)
       }}
+      title={`${profile.riskLevel} risk - ${profile.limitingSpeed} to limit`}
     >
-      <div className="min-h-full flex items-start justify-center p-4 py-8">
-        <div className="w-full max-w-xl bg-[#0a0a0a] border border-[#222] relative">
-          {/* Sticky Header */}
-          <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-[#222] bg-[#0a0a0a]">
-            <div>
-              <h2 className="font-medium">Stake Calculator</h2>
-              {isThreeWay && (
-                <span className="text-xs text-[#888]">3-Way Market (Soccer)</span>
-              )}
-            </div>
-            <button
-              onClick={onClose}
-              className="p-2 text-[#666] hover:text-white hover:bg-[#222] transition-colors"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
+      {profile.riskLevel.toUpperCase()}
+    </span>
+  );
+}
 
-          {/* Content */}
-          <div className="p-6 space-y-6">
-            {/* Warning for 3-way */}
-            {isThreeWay && (
-              <div className="flex items-start gap-3 p-4 bg-[#1a1a00] border border-[#333300]">
-                <AlertTriangle className="w-5 h-5 text-[#ffcc00] shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-medium text-[#ffcc00]">3-Way Market</div>
-                  <div className="text-sm text-[#999966]">
-                    You must place <strong>ALL 3 BETS</strong> to guarantee profit.
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Not profitable warning */}
-            {calc && !calc.isProfitable && (
-              <div className="flex items-start gap-3 p-4 bg-[#1a1616] border border-[#332222]">
-                <AlertTriangle className="w-5 h-5 text-[#aa6666] shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-medium text-[#aa6666]">Not Profitable</div>
-                  <div className="text-sm text-[#996666]">
-                    With current odds, this bet will result in a loss of ${Math.abs(calc.guaranteedProfit).toFixed(2)}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Odds changed notice */}
-            {oddsChanged && (
-              <div className="flex items-center gap-2 px-3 py-2 bg-[#111] border border-[#333] text-xs text-[#888]">
-                <Edit2 className="w-3 h-3" />
-                Odds manually adjusted from original values
-              </div>
-            )}
-
-            {/* Event Info */}
-            <div className="text-center pb-4 border-b border-[#222]">
-              <div className="font-medium text-lg">{a.event.homeTeam}</div>
-              <div className="text-[#666]">vs</div>
-              <div className="font-medium text-lg">{a.event.awayTeam}</div>
-              <div className="text-xs text-[#555] mt-2">{a.event.sportTitle}</div>
-            </div>
-
-            {/* Stake Input */}
-            <div>
-              <label className="block text-xs text-[#666] uppercase tracking-wide mb-2">
-                Total Stake
-              </label>
-              <div className="flex gap-2 flex-wrap">
-                <div className="relative flex-1 min-w-[120px]">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#666]">$</span>
-                  <input
-                    type="number"
-                    value={totalStake}
-                    onChange={e => setTotalStake(parseFloat(e.target.value) || 0)}
-                    className="w-full bg-[#111] border border-[#333] px-3 py-2 pl-7 font-mono focus:border-white focus:outline-none"
-                  />
-                </div>
-                {[50, 100, 250, 500].map(amount => (
-                  <button
-                    key={amount}
-                    onClick={() => setTotalStake(amount)}
-                    className={`px-3 py-2 text-sm border transition-colors ${
-                      totalStake === amount
-                        ? 'bg-white text-black border-white'
-                        : 'border-[#333] text-[#888] hover:border-[#555]'
-                    }`}
-                  >
-                    ${amount}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Bet Cards with Editable Odds */}
-            {calc && (
-              <div className="space-y-4">
-                <EditableBetCard 
-                  betNumber={1}
-                  outcome={a.outcome1.name}
-                  bookmaker={a.outcome1.bookmaker}
-                  originalOdds={a.outcome1.odds}
-                  currentOdds={odds1}
-                  onOddsChange={(value) => handleOddsChange(1, value)}
-                  stake={calc.stake1}
-                  returnAmount={calc.returnOnOutcome1}
-                />
-
-                <EditableBetCard 
-                  betNumber={2}
-                  outcome={a.outcome2.name}
-                  bookmaker={a.outcome2.bookmaker}
-                  originalOdds={a.outcome2.odds}
-                  currentOdds={odds2}
-                  onOddsChange={(value) => handleOddsChange(2, value)}
-                  stake={calc.stake2}
-                  returnAmount={calc.returnOnOutcome2}
-                />
-
-                {isThreeWay && a.outcome3 && calc.stake3 && calc.returnOnOutcome3 && (
-                  <EditableBetCard 
-                    betNumber={3}
-                    outcome={a.outcome3.name}
-                    bookmaker={a.outcome3.bookmaker}
-                    originalOdds={a.outcome3.odds}
-                    currentOdds={odds3}
-                    onOddsChange={(value) => handleOddsChange(3, value)}
-                    stake={calc.stake3}
-                    returnAmount={calc.returnOnOutcome3}
-                  />
-                )}
-
-                {/* Summary */}
-                <div className={`border p-4 ${calc.isProfitable ? 'bg-[#161616] border-[#333]' : 'bg-[#1a1616] border-[#332222]'}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[#888]">Total Staked ({isThreeWay ? '3' : '2'} bets)</span>
-                    <span className="font-mono">${totalStake.toFixed(2)}</span>
-                  </div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[#888]">Return (any outcome)</span>
-                    <span className="font-mono">${calc.returnOnOutcome1.toFixed(2)}</span>
-                  </div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[#888]">Implied Probability</span>
-                    <span className={`font-mono ${calc.isProfitable ? 'text-[#66aa66]' : 'text-[#aa6666]'}`}>
-                      {(calc.impliedSum * 100).toFixed(2)}%
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between pt-2 border-t border-[#333]">
-                    <span className="font-medium text-lg">
-                      {calc.isProfitable ? 'Guaranteed Profit' : 'Expected Loss'}
-                    </span>
-                    <div className="text-right">
-                      <span className={`font-mono font-medium text-lg ${calc.isProfitable ? 'text-[#66aa66]' : 'text-[#aa6666]'}`}>
-                        {calc.guaranteedProfit >= 0 ? '+' : ''}${calc.guaranteedProfit.toFixed(2)}
-                      </span>
-                      <span className="ml-2 text-sm text-[#888]">({calc.profitPercentage.toFixed(2)}%)</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Actions */}
-            <div className="flex gap-3">
-              <button
-                onClick={handleCopy}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-[#333] text-[#888] hover:bg-[#111] transition-colors"
-              >
-                {copied ? (
-                  <>
-                    <Check className="w-4 h-4" />
-                    Copied
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4" />
-                    Copy
-                  </>
-                )}
-              </button>
-              {onLogBet && (
-                <button
-                  onClick={handleLogBet}
-                  disabled={betLogged}
-                  className={`flex-1 px-4 py-2.5 font-medium transition-colors ${
-                    betLogged
-                      ? 'bg-[#222] text-[#666] cursor-not-allowed'
-                      : 'bg-white text-black hover:bg-[#eee]'
-                  }`}
-                >
-                  {betLogged ? 'Bet Logged' : 'Log Bet'}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
+function StakeDisplay({ 
+  original, 
+  naturalized, 
+  stealthMode,
+  bookmaker 
+}: { 
+  original: number; 
+  naturalized: NaturalizedStake | null;
+  stealthMode: boolean;
+  bookmaker: string;
+}) {
+  const displayStake = stealthMode && naturalized ? naturalized.naturalized : original;
+  const hasChange = naturalized && Math.abs(naturalized.difference) > 0.01;
+  
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <span className="text-xl font-bold text-white">
+          ${displayStake.toFixed(2)}
+        </span>
+        <RiskBadge bookmaker={bookmaker} />
       </div>
+      
+      {stealthMode && hasChange && naturalized && (
+        <div className="text-xs text-zinc-400">
+          <span className="line-through">${original.toFixed(2)}</span>
+          <span className="mx-1">→</span>
+          <span className={naturalized.difference > 0 ? 'text-yellow-400' : 'text-green-400'}>
+            {naturalized.difference > 0 ? '+' : ''}{naturalized.differencePercent.toFixed(1)}%
+          </span>
+        </div>
+      )}
+      
+      {stealthMode && naturalized?.warning && (
+        <div className="text-xs text-yellow-400">
+          ⚠️ {naturalized.warning}
+        </div>
+      )}
     </div>
   );
 }
 
-function EditableBetCard({
-  betNumber,
-  outcome,
-  bookmaker,
-  originalOdds,
-  currentOdds,
-  onOddsChange,
-  stake,
-  returnAmount
-}: {
-  betNumber: number;
-  outcome: string;
-  bookmaker: string;
-  originalOdds: number;
-  currentOdds: number;
-  onOddsChange: (value: string) => void;
-  stake: number;
-  returnAmount: number;
-}) {
-  const [isEditing, setIsEditing] = useState(false);
-  const hasChanged = currentOdds !== originalOdds;
+// Helper to get outcomes array from the arb
+function getOutcomesFromArb(arb: ArbOpportunity): { name: string; bookmaker: string; odds: number }[] {
+  if (arb.mode === 'book-vs-book') {
+    const outcomes = [arb.outcome1, arb.outcome2];
+    if (arb.outcome3) {
+      outcomes.push(arb.outcome3);
+    }
+    return outcomes;
+  } else {
+    // book-vs-betfair
+    return [
+      arb.backOutcome,
+      { name: arb.layOutcome.name, bookmaker: 'Betfair', odds: arb.layOutcome.odds }
+    ];
+  }
+}
+
+export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculatorModalProps) {
+  const [totalStake, setTotalStake] = useState<string>('100');
+  const [stealthMode, setStealthMode] = useState<boolean>(true);
+  const [calculatedStakes, setCalculatedStakes] = useState<number[]>([]);
+  const [naturalizedStakes, setNaturalizedStakes] = useState<NaturalizedStake[]>([]);
+  const [profitImpact, setProfitImpact] = useState<string>('');
+
+  const calculateStakes = useCallback(() => {
+    if (!arb) return;
+    
+    const stake = parseFloat(totalStake) || 0;
+    if (stake <= 0) {
+      setCalculatedStakes([]);
+      setNaturalizedStakes([]);
+      return;
+    }
+
+    const outcomes = getOutcomesFromArb(arb);
+    
+    // Calculate optimal stakes for guaranteed profit
+    const totalImplied = outcomes.reduce((sum, o) => sum + (1 / o.odds), 0);
+    
+    const stakes = outcomes.map((outcome) => {
+      const impliedProb = 1 / outcome.odds;
+      const optimalStake = (stake * impliedProb) / totalImplied;
+      return optimalStake;
+    });
+    
+    setCalculatedStakes(stakes);
+    
+    // Calculate naturalized stakes
+    if (stealthMode && outcomes.length === 2) {
+      const result = naturalizeArbStakes(
+        stakes[0],
+        stakes[1],
+        outcomes[0].bookmaker,
+        outcomes[1].bookmaker,
+        stake
+      );
+      setNaturalizedStakes([result.stake1, result.stake2]);
+      setProfitImpact(result.profitImpact);
+    } else if (stealthMode && outcomes.length === 3) {
+      const result = naturalize3WayArbStakes(
+        stakes[0],
+        stakes[1],
+        stakes[2],
+        outcomes[0].bookmaker,
+        outcomes[1].bookmaker,
+        outcomes[2].bookmaker,
+        stake
+      );
+      setNaturalizedStakes([result.stake1, result.stake2, result.stake3]);
+      setProfitImpact(result.profitImpact);
+    } else {
+      setNaturalizedStakes([]);
+      setProfitImpact('');
+    }
+  }, [arb, totalStake, stealthMode]);
+
+  useEffect(() => {
+    calculateStakes();
+  }, [calculateStakes]);
+
+  // Don't render if no arb selected
+  if (!arb) return null;
+
+  const outcomes = getOutcomesFromArb(arb);
+  const totalStakeNum = parseFloat(totalStake) || 0;
+  
+  // Calculate returns and profit
+  const getReturn = (index: number) => {
+    const stake = stealthMode && naturalizedStakes[index] 
+      ? naturalizedStakes[index].naturalized 
+      : calculatedStakes[index] || 0;
+    return stake * outcomes[index].odds;
+  };
+  
+  const getTotalStaked = () => {
+    if (stealthMode && naturalizedStakes.length > 0) {
+      return naturalizedStakes.reduce((sum, n) => sum + n.naturalized, 0);
+    }
+    return calculatedStakes.reduce((sum, s) => sum + s, 0);
+  };
+  
+  const getProfit = (index: number) => {
+    return getReturn(index) - getTotalStaked();
+  };
+
+  const minProfit = outcomes.reduce((min, _, i) => {
+    const profit = getProfit(i);
+    return profit < min ? profit : min;
+  }, Infinity);
+
+  const profitPercent = totalStakeNum > 0 ? (minProfit / getTotalStaked()) * 100 : 0;
+
+  // Get event display name
+  const eventName = `${arb.event.homeTeam} vs ${arb.event.awayTeam}`;
+
+  const handleLogBet = () => {
+    const bet: PlacedBet = {
+      id: `bet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: new Date().toISOString(),
+      event: {
+        homeTeam: arb.event.homeTeam,
+        awayTeam: arb.event.awayTeam,
+        sportKey: arb.event.sportKey,
+        commenceTime: arb.event.commenceTime.toISOString(),
+      },
+      mode: arb.mode,
+      expectedProfit: minProfit,
+      status: 'pending',
+    };
+
+    // Add stakes based on mode
+    if (arb.mode === 'book-vs-book') {
+      bet.bet1 = {
+        bookmaker: outcomes[0].bookmaker,
+        outcome: outcomes[0].name,
+        odds: outcomes[0].odds,
+        stake: stealthMode && naturalizedStakes[0] 
+          ? naturalizedStakes[0].naturalized 
+          : calculatedStakes[0] || 0,
+      };
+      bet.bet2 = {
+        bookmaker: outcomes[1].bookmaker,
+        outcome: outcomes[1].name,
+        odds: outcomes[1].odds,
+        stake: stealthMode && naturalizedStakes[1] 
+          ? naturalizedStakes[1].naturalized 
+          : calculatedStakes[1] || 0,
+      };
+      // 3-way market
+      if (outcomes[2]) {
+        bet.bet3 = {
+          bookmaker: outcomes[2].bookmaker,
+          outcome: outcomes[2].name,
+          odds: outcomes[2].odds,
+          stake: stealthMode && naturalizedStakes[2] 
+            ? naturalizedStakes[2].naturalized 
+            : calculatedStakes[2] || 0,
+        };
+      }
+    } else {
+      // book-vs-betfair
+      bet.backBet = {
+        bookmaker: outcomes[0].bookmaker,
+        outcome: outcomes[0].name,
+        odds: outcomes[0].odds,
+        stake: stealthMode && naturalizedStakes[0] 
+          ? naturalizedStakes[0].naturalized 
+          : calculatedStakes[0] || 0,
+      };
+      bet.layBet = {
+        odds: outcomes[1].odds,
+        stake: stealthMode && naturalizedStakes[1] 
+          ? naturalizedStakes[1].naturalized 
+          : calculatedStakes[1] || 0,
+        liability: 0,
+      };
+    }
+    
+    onLogBet(bet);
+    onClose();
+  };
 
   return (
-    <div className={`border p-4 ${hasChanged ? 'bg-[#111a11] border-[#224422]' : 'bg-[#111] border-[#222]'}`}>
-      <div className="flex items-center justify-between mb-2">
-        <span className="text-xs text-[#666] uppercase tracking-wide">Bet {betNumber}</span>
-        <span className="text-xs text-[#555]">{bookmaker}</span>
-      </div>
-      <div className="flex items-center justify-between mb-3">
-        <span className="text-[#888]">{outcome}</span>
-        <div className="flex items-center gap-2">
-          {isEditing ? (
-            <input
-              type="number"
-              step="0.01"
-              value={currentOdds}
-              onChange={e => onOddsChange(e.target.value)}
-              onBlur={() => setIsEditing(false)}
-              onKeyDown={e => e.key === 'Enter' && setIsEditing(false)}
-              autoFocus
-              className="w-20 bg-[#0a0a0a] border border-white px-2 py-1 font-mono text-right focus:outline-none"
-            />
-          ) : (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        onClick={onClose}
+      />
+      
+      {/* Modal */}
+      <div className="relative bg-zinc-900 rounded-xl border border-zinc-700 w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
+        {/* Header */}
+        <div className="sticky top-0 bg-zinc-900 border-b border-zinc-700 px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-white">Stake Calculator</h2>
+            <p className="text-sm text-zinc-400">{eventName}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+          >
+            <svg className="w-5 h-5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="p-6 space-y-6">
+          {/* Stealth Mode Toggle */}
+          <div className="flex items-center justify-between p-4 bg-zinc-800 rounded-lg border border-zinc-700">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-white font-medium">🥷 Stealth Mode</span>
+                <span className={`text-xs px-2 py-0.5 rounded ${stealthMode ? 'bg-green-500/20 text-green-400' : 'bg-zinc-600 text-zinc-400'}`}>
+                  {stealthMode ? 'ON' : 'OFF'}
+                </span>
+              </div>
+              <p className="text-sm text-zinc-400 mt-1">
+                Rounds stakes to look natural and avoid detection
+              </p>
+            </div>
             <button
-              onClick={() => setIsEditing(true)}
-              className="flex items-center gap-1 font-mono text-white hover:text-[#888] transition-colors"
+              onClick={() => setStealthMode(!stealthMode)}
+              className={`relative w-12 h-6 rounded-full transition-colors ${
+                stealthMode ? 'bg-green-500' : 'bg-zinc-600'
+              }`}
             >
-              @ {currentOdds.toFixed(2)}
-              <Edit2 className="w-3 h-3 text-[#666]" />
+              <span 
+                className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
+                  stealthMode ? 'left-7' : 'left-1'
+                }`}
+              />
             </button>
+          </div>
+
+          {/* Total Stake Input */}
+          <div>
+            <label className="block text-sm text-zinc-400 mb-2">Total Stake</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400">$</span>
+              <input
+                type="number"
+                value={totalStake}
+                onChange={(e) => setTotalStake(e.target.value)}
+                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-8 pr-4 py-3 text-white text-lg font-medium focus:outline-none focus:border-blue-500"
+                placeholder="100"
+                min="0"
+                step="10"
+              />
+            </div>
+            <div className="flex gap-2 mt-2">
+              {[50, 100, 250, 500, 1000].map((amount) => (
+                <button
+                  key={amount}
+                  onClick={() => setTotalStake(amount.toString())}
+                  className="px-3 py-1 text-sm bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700 text-zinc-300 transition-colors"
+                >
+                  ${amount}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Stakes Breakdown */}
+          <div className="space-y-3">
+            <h3 className="text-sm text-zinc-400">Individual Stakes</h3>
+            
+            {outcomes.map((outcome, index) => (
+              <div 
+                key={index}
+                className="p-4 bg-zinc-800 rounded-lg border border-zinc-700"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div>
+                    <div className="text-white font-medium">{outcome.name}</div>
+                    <div className="text-sm text-zinc-400">{outcome.bookmaker}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-lg font-bold text-blue-400">{outcome.odds.toFixed(2)}</div>
+                    <div className="text-xs text-zinc-500">
+                      {((1 / outcome.odds) * 100).toFixed(1)}% implied
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-end justify-between">
+                  <StakeDisplay
+                    original={calculatedStakes[index] || 0}
+                    naturalized={naturalizedStakes[index] || null}
+                    stealthMode={stealthMode}
+                    bookmaker={outcome.bookmaker}
+                  />
+                  
+                  <div className="text-right">
+                    <div className="text-xs text-zinc-500">Returns</div>
+                    <div className="text-white font-medium">
+                      ${getReturn(index).toFixed(2)}
+                    </div>
+                    <div className={`text-sm ${getProfit(index) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {getProfit(index) >= 0 ? '+' : ''}{getProfit(index).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Summary */}
+          <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div>
+                <div className="text-xs text-zinc-500 uppercase mb-1">Total Staked</div>
+                <div className="text-lg font-bold text-white">
+                  ${getTotalStaked().toFixed(2)}
+                </div>
+                {stealthMode && profitImpact && (
+                  <div className="text-xs text-zinc-400">{profitImpact}</div>
+                )}
+              </div>
+              <div>
+                <div className="text-xs text-zinc-500 uppercase mb-1">Guaranteed Profit</div>
+                <div className={`text-lg font-bold ${minProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  ${minProfit.toFixed(2)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-zinc-500 uppercase mb-1">ROI</div>
+                <div className={`text-lg font-bold ${profitPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                  {profitPercent.toFixed(2)}%
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Stealth Tips */}
+          {stealthMode && (
+            <div className="p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
+              <h4 className="text-yellow-400 font-medium mb-2">🥷 Stealth Tips</h4>
+              <ul className="text-sm text-yellow-300/80 space-y-1">
+                {outcomes.map((outcome, i) => {
+                  const profile = getBookmakerProfile(outcome.bookmaker);
+                  if (profile?.riskLevel === 'extreme' || profile?.riskLevel === 'high') {
+                    return (
+                      <li key={i}>
+                        • <strong>{outcome.bookmaker}</strong>: {profile.recommendations[0]}
+                      </li>
+                    );
+                  }
+                  return null;
+                }).filter(Boolean)}
+                <li>• Place bets 1-2 hours before event starts</li>
+                <li>• Consider a mug bet after this arb</li>
+              </ul>
+            </div>
           )}
         </div>
-      </div>
-      {hasChanged && (
-        <div className="text-xs text-[#666] mb-2">
-          Original: {originalOdds.toFixed(2)} → Now: {currentOdds.toFixed(2)}
+
+        {/* Footer */}
+        <div className="sticky bottom-0 bg-zinc-900 border-t border-zinc-700 px-6 py-4 flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-lg transition-colors border border-zinc-700"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleLogBet}
+            className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+          >
+            Log Bet
+          </button>
         </div>
-      )}
-      <div className="flex items-center justify-between text-lg">
-        <span className="font-medium">Stake</span>
-        <span className="font-mono font-medium">${stake.toFixed(2)}</span>
-      </div>
-      <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#222]">
-        <span className="text-sm text-[#666]">If {outcome} wins →</span>
-        <span className="font-mono text-sm text-[#888]">Returns ${returnAmount.toFixed(2)}</span>
       </div>
     </div>
   );

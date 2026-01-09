@@ -6,3 +6,4 @@ export { StakeCalculatorModal } from './StakeCalculatorModal';
 export { ValueBetCalculatorModal } from './ValueBetCalculatorModal';
 export { BetTracker } from './BetTracker';
 export { AccountsManager } from './AccountsManager';
+export { StealthGuide } from './StealthGuide';
