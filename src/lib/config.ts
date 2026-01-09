@@ -11,31 +11,25 @@ export const config = {
     },
   },
 
-  // Regions to fetch odds from (more regions = more bookmakers = more arb chances)
-  regions: ['au', 'uk', 'eu'] as const,
+  // Regions to fetch odds from - AU only since we can only bet with AU bookmakers
+  regions: ['au'] as const,
 
-  // Australian bookmakers we can actually bet with
+  // Australian bookmakers we can actually bet with (exact API keys)
   aussieBookmakers: [
+    'betfair_ex_au',
+    'betr_au',
+    'betright',
+    'bet365_au',
+    'boombet',
+    'dabble_au',
+    'ladbrokes_au',
+    'neds',
+    'playup',
+    'pointsbetau',
     'sportsbet',
     'tab',
-    'pointsbet_au',
-    'pointsbet',
+    'tabtouch',
     'unibet',
-    'unibet_au',
-    'neds',
-    'ladbrokes',
-    'ladbrokes_au',
-    'betfair_ex_au',
-    'betfair',
-    'bet365',
-    'bet365_au',
-    'bluebet',
-    'topsport',
-    'betr_au',
-    'playup',
-    'betright',
-    'palmerbet',
-    'boombet',
   ],
 
   // Default filter settings
@@ -99,3 +93,4 @@ export const config = {
 } as const;
 
 export type Region = typeof config.regions[number];
+export type AUBookmaker = typeof config.aussieBookmakers[number];

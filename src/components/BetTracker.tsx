@@ -158,6 +158,123 @@ function StatCard({
   );
 }
 
+// Get all possible outcomes for a bet
+function getBetOutcomes(bet: PlacedBet): { id: string; label: string; profit: number }[] {
+  const outcomes: { id: string; label: string; profit: number }[] = [];
+  
+  if (bet.mode === 'value-bet' && bet.bet1) {
+    const totalStake = bet.bet1.stake;
+    const winReturn = bet.bet1.stake * bet.bet1.odds;
+    outcomes.push({ 
+      id: 'won', 
+      label: `${bet.bet1.outcome} won`, 
+      profit: winReturn - totalStake 
+    });
+    outcomes.push({ 
+      id: 'lost', 
+      label: `${bet.bet1.outcome} lost`, 
+      profit: -totalStake 
+    });
+  } else if (bet.mode === 'book-vs-book' && bet.bet1 && bet.bet2) {
+    const bets = [bet.bet1, bet.bet2];
+    if (bet.bet3) bets.push(bet.bet3);
+    
+    const totalStake = bets.reduce((sum, b) => sum + b.stake, 0);
+    
+    bets.forEach((b, index) => {
+      const returnAmount = b.stake * b.odds;
+      outcomes.push({
+        id: `outcome_${index}`,
+        label: b.outcome,
+        profit: returnAmount - totalStake,
+      });
+    });
+  } else if (bet.mode === 'book-vs-betfair' && bet.backBet && bet.layBet) {
+    const totalStake = bet.backBet.stake + bet.layBet.liability;
+    const backReturn = bet.backBet.stake * bet.backBet.odds;
+    
+    outcomes.push({
+      id: 'back_won',
+      label: `${bet.backBet.outcome} won`,
+      profit: backReturn - totalStake,
+    });
+    outcomes.push({
+      id: 'lay_won',
+      label: `${bet.backBet.outcome} lost`,
+      profit: bet.layBet.stake - bet.layBet.liability,
+    });
+  }
+  
+  return outcomes;
+}
+
+// Helper to calculate profits for each outcome
+function calculateBetProfits(bet: PlacedBet): { 
+  totalStake: number; 
+  returns: number[]; 
+  profits: number[];
+  minProfit: number;
+  maxProfit: number;
+  isValueBet: boolean;
+} {
+  // Value bet - only one outcome bet
+  if (bet.mode === 'value-bet' && bet.bet1) {
+    const totalStake = bet.bet1.stake;
+    const potentialReturn = bet.bet1.stake * bet.bet1.odds;
+    const winProfit = potentialReturn - totalStake;
+    const loseProfit = -totalStake;
+    
+    return {
+      totalStake,
+      returns: [potentialReturn],
+      profits: [winProfit, loseProfit],
+      minProfit: loseProfit,
+      maxProfit: winProfit,
+      isValueBet: true,
+    };
+  }
+  
+  // Book vs Book arb (2-way or 3-way)
+  if (bet.mode === 'book-vs-book' && bet.bet1 && bet.bet2) {
+    const bets = [bet.bet1, bet.bet2];
+    if (bet.bet3) bets.push(bet.bet3);
+    
+    const totalStake = bets.reduce((sum, b) => sum + b.stake, 0);
+    const returns = bets.map(b => b.stake * b.odds);
+    const profits = returns.map(r => r - totalStake);
+    
+    return {
+      totalStake,
+      returns,
+      profits,
+      minProfit: Math.min(...profits),
+      maxProfit: Math.max(...profits),
+      isValueBet: false,
+    };
+  }
+  
+  // Book vs Betfair
+  if (bet.backBet && bet.layBet) {
+    const totalStake = bet.backBet.stake + bet.layBet.liability;
+    const backReturn = bet.backBet.stake * bet.backBet.odds;
+    const layReturn = bet.layBet.stake + bet.layBet.liability;
+    
+    const backProfit = backReturn - totalStake;
+    const layProfit = bet.layBet.stake - bet.layBet.liability;
+    
+    return {
+      totalStake,
+      returns: [backReturn, layReturn],
+      profits: [backProfit, layProfit],
+      minProfit: Math.min(backProfit, layProfit),
+      maxProfit: Math.max(backProfit, layProfit),
+      isValueBet: false,
+    };
+  }
+  
+  return { totalStake: 0, returns: [], profits: [], minProfit: 0, maxProfit: 0, isValueBet: false };
+}
+
 function BetRow({
   bet,
   onUpdate,
@@ -167,97 +284,202 @@ function BetRow({
   onUpdate: (updates: Partial<PlacedBet>) => void;
   onDelete: () => void;
 }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [actualProfit, setActualProfit] = useState(bet.actualProfit?.toString() || '');
+  const [isEditingProfit, setIsEditingProfit] = useState(false);
+  const [manualProfit, setManualProfit] = useState(bet.actualProfit?.toString() || '');
 
-  const handleStatusChange = (status: PlacedBet['status']) => {
-    onUpdate({ status });
-    if (status === 'pending') {
-      onUpdate({ actualProfit: undefined });
+  const outcomes = getBetOutcomes(bet);
+  const { totalStake, minProfit, maxProfit, isValueBet } = calculateBetProfits(bet);
+  const is3Way = bet.mode === 'book-vs-book' && bet.bet3;
+
+  const handleOutcomeSelect = (outcomeId: string) => {
+    if (outcomeId === 'pending') {
+      onUpdate({ status: 'pending', actualProfit: undefined });
+    } else {
+      const selectedOutcome = outcomes.find(o => o.id === outcomeId);
+      if (selectedOutcome) {
+        onUpdate({ 
+          status: 'won', // Mark as resolved
+          actualProfit: selectedOutcome.profit 
+        });
+      }
     }
   };
 
-  const handleProfitSave = () => {
-    const profit = parseFloat(actualProfit);
+  const handleManualProfitSave = () => {
+    const profit = parseFloat(manualProfit);
     if (!isNaN(profit)) {
-      onUpdate({ actualProfit: profit });
+      onUpdate({ status: 'partial', actualProfit: profit });
     }
-    setIsEditing(false);
+    setIsEditingProfit(false);
   };
 
-  const totalStake = bet.mode === 'book-vs-book' && bet.bet1 && bet.bet2
-    ? bet.bet1.stake + bet.bet2.stake
-    : bet.backBet && bet.layBet
-    ? bet.backBet.stake + bet.layBet.liability
-    : 0;
+  // Determine current selection
+  const getCurrentOutcomeId = (): string => {
+    if (bet.status === 'pending') return 'pending';
+    if (bet.status === 'partial') return 'manual';
+    
+    // Find matching outcome by profit
+    if (bet.actualProfit !== undefined) {
+      const matching = outcomes.find(o => Math.abs(o.profit - bet.actualProfit!) < 0.01);
+      if (matching) return matching.id;
+    }
+    
+    return 'pending';
+  };
 
   return (
     <div className="px-6 py-4 hover:bg-[#111] transition-colors">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-2">
             <span className="font-medium truncate">
               {bet.event.homeTeam} vs {bet.event.awayTeam}
             </span>
             <span className="text-xs text-[#666]">
               {format(new Date(bet.createdAt), 'MMM d')}
             </span>
+            {is3Way && (
+              <span className="text-xs px-1.5 py-0.5 bg-[#222] text-[#888]">
+                3-way
+              </span>
+            )}
+            {isValueBet && (
+              <span className="text-xs px-1.5 py-0.5 bg-blue-900/50 text-blue-400">
+                Value
+              </span>
+            )}
           </div>
-          <div className="text-xs text-[#666] space-y-0.5">
-            {bet.mode === 'book-vs-book' && bet.bet1 && bet.bet2 ? (
+          
+          {/* Individual Bets with Returns */}
+          <div className="text-xs space-y-1 mb-2">
+            {/* Value Bet */}
+            {bet.mode === 'value-bet' && bet.bet1 && (
+              <BetLine 
+                stake={bet.bet1.stake} 
+                outcome={bet.bet1.outcome} 
+                odds={bet.bet1.odds} 
+                bookmaker={bet.bet1.bookmaker} 
+              />
+            )}
+            
+            {/* Book vs Book */}
+            {bet.mode === 'book-vs-book' && bet.bet1 && bet.bet2 && (
               <>
-                <div>${bet.bet1.stake.toFixed(2)} on {bet.bet1.outcome} @ {bet.bet1.odds} ({bet.bet1.bookmaker})</div>
-                <div>${bet.bet2.stake.toFixed(2)} on {bet.bet2.outcome} @ {bet.bet2.odds} ({bet.bet2.bookmaker})</div>
+                <BetLine 
+                  stake={bet.bet1.stake} 
+                  outcome={bet.bet1.outcome} 
+                  odds={bet.bet1.odds} 
+                  bookmaker={bet.bet1.bookmaker} 
+                />
+                <BetLine 
+                  stake={bet.bet2.stake} 
+                  outcome={bet.bet2.outcome} 
+                  odds={bet.bet2.odds} 
+                  bookmaker={bet.bet2.bookmaker} 
+                />
+                {bet.bet3 && (
+                  <BetLine 
+                    stake={bet.bet3.stake} 
+                    outcome={bet.bet3.outcome} 
+                    odds={bet.bet3.odds} 
+                    bookmaker={bet.bet3.bookmaker} 
+                  />
+                )}
               </>
-            ) : bet.backBet && bet.layBet ? (
+            )}
+            
+            {/* Book vs Betfair */}
+            {bet.mode === 'book-vs-betfair' && bet.backBet && bet.layBet && (
               <>
-                <div>Back ${bet.backBet.stake.toFixed(2)} on {bet.backBet.outcome} @ {bet.backBet.odds}</div>
-                <div>Lay ${bet.layBet.stake.toFixed(2)} @ {bet.layBet.odds} (liability: ${bet.layBet.liability.toFixed(2)})</div>
+                <BetLine 
+                  stake={bet.backBet.stake} 
+                  outcome={bet.backBet.outcome} 
+                  odds={bet.backBet.odds} 
+                  bookmaker={bet.backBet.bookmaker}
+                  prefix="Back"
+                />
+                <div className="flex justify-between text-[#666]">
+                  <span>
+                    Lay ${bet.layBet.stake.toFixed(2)} @ {bet.layBet.odds} (liability: ${bet.layBet.liability.toFixed(2)})
+                  </span>
+                  <span className="text-[#888]">
+                    Return: ${(bet.layBet.stake + bet.layBet.liability).toFixed(2)}
+                  </span>
+                </div>
               </>
-            ) : null}
+            )}
+          </div>
+
+          {/* Summary Line */}
+          <div className="flex items-center gap-4 text-xs pt-1 border-t border-[#1a1a1a]">
+            <span className="text-[#555]">
+              Total: ${totalStake.toFixed(2)}
+            </span>
+            {isValueBet ? (
+              <span className="text-blue-400">
+                EV: +${bet.expectedProfit.toFixed(2)} · If win: +${maxProfit.toFixed(2)}
+              </span>
+            ) : (
+              <span className={`font-medium ${minProfit >= 0 ? 'text-green-500' : 'text-red-400'}`}>
+                {Math.abs(maxProfit - minProfit) > 0.01 ? (
+                  <>Profit: ${minProfit.toFixed(2)} – ${maxProfit.toFixed(2)}</>
+                ) : (
+                  <>Guaranteed: {minProfit >= 0 ? '+' : ''}${minProfit.toFixed(2)}</>
+                )}
+              </span>
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Status */}
+          {/* Outcome Selector */}
           <select
-            value={bet.status}
-            onChange={e => handleStatusChange(e.target.value as PlacedBet['status'])}
-            className="bg-[#111] border border-[#333] text-xs px-2 py-1 focus:outline-none focus:border-white"
+            value={getCurrentOutcomeId()}
+            onChange={e => handleOutcomeSelect(e.target.value)}
+            className="bg-[#111] border border-[#333] text-xs px-2 py-1 focus:outline-none focus:border-white max-w-[140px]"
           >
             <option value="pending">Pending</option>
-            <option value="won">Won</option>
-            <option value="lost">Lost</option>
-            <option value="partial">Partial</option>
+            <optgroup label="Select Winner">
+              {outcomes.map(outcome => (
+                <option key={outcome.id} value={outcome.id}>
+                  {outcome.label} ({outcome.profit >= 0 ? '+' : ''}${outcome.profit.toFixed(2)})
+                </option>
+              ))}
+            </optgroup>
+            <option value="manual">Manual entry...</option>
           </select>
 
-          {/* Profit */}
+          {/* Actual Profit Display / Edit */}
           <div className="w-24 text-right">
             {bet.status === 'pending' ? (
               <div className="text-xs text-[#666]">
-                Expected: ${bet.expectedProfit.toFixed(2)}
+                Exp: ${bet.expectedProfit.toFixed(2)}
               </div>
-            ) : isEditing ? (
+            ) : isEditingProfit || getCurrentOutcomeId() === 'manual' ? (
               <div className="flex gap-1">
                 <input
                   type="number"
-                  value={actualProfit}
-                  onChange={e => setActualProfit(e.target.value)}
+                  value={manualProfit}
+                  onChange={e => setManualProfit(e.target.value)}
                   className="w-16 bg-[#111] border border-[#333] text-xs px-2 py-1 font-mono focus:outline-none focus:border-white"
                   placeholder="0.00"
                   autoFocus
-                  onBlur={handleProfitSave}
-                  onKeyDown={e => e.key === 'Enter' && handleProfitSave()}
+                  onBlur={handleManualProfitSave}
+                  onKeyDown={e => e.key === 'Enter' && handleManualProfitSave()}
                 />
               </div>
             ) : (
               <button
-                onClick={() => setIsEditing(true)}
+                onClick={() => {
+                  setManualProfit(bet.actualProfit?.toString() || '');
+                  setIsEditingProfit(true);
+                }}
                 className="text-xs font-mono hover:text-white transition-colors"
+                title="Click to edit manually"
               >
                 {bet.actualProfit !== undefined ? (
-                  <span className={bet.actualProfit >= 0 ? 'text-white' : 'text-[#888]'}>
-                    ${bet.actualProfit.toFixed(2)}
+                  <span className={bet.actualProfit >= 0 ? 'text-green-400' : 'text-red-400'}>
+                    {bet.actualProfit >= 0 ? '+' : ''}${bet.actualProfit.toFixed(2)}
                   </span>
                 ) : (
                   <span className="text-[#666]">Set profit</span>
@@ -275,6 +497,35 @@ function BetRow({
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+// Individual bet line with return calculation
+function BetLine({ 
+  stake, 
+  outcome, 
+  odds, 
+  bookmaker,
+  prefix,
+}: { 
+  stake: number; 
+  outcome: string; 
+  odds: number; 
+  bookmaker: string;
+  prefix?: string;
+}) {
+  const returnAmount = stake * odds;
+  
+  return (
+    <div className="flex justify-between text-[#666]">
+      <span>
+        {prefix && <span className="text-[#888]">{prefix} </span>}
+        ${stake.toFixed(2)} on {outcome} @ {odds.toFixed(2)} ({bookmaker})
+      </span>
+      <span className="text-[#888] ml-4 whitespace-nowrap">
+        Return: ${returnAmount.toFixed(2)}
+      </span>
     </div>
   );
 }
