@@ -49,31 +49,49 @@ export function ArbFilters({
     (filters.sports.length > 0 ? 1 : 0) +
     (filters.bookmakers.length > 0 ? 1 : 0) +
     (filters.mode !== 'all' ? 1 : 0) +
-    (!filters.showNearArbs ? 1 : 0);
+    (!filters.showNearArbs ? 1 : 0) +
+    (filters.profitableOnly ? 1 : 0);
 
   return (
     <div className="border border-[#222] bg-[#0a0a0a]">
-      <button
-        onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-4 py-3 flex items-center justify-between text-left hover:bg-[#111] transition-colors"
-      >
-        <div className="flex items-center gap-3">
-          <span className="text-sm font-medium">Filters</span>
-          {activeFilterCount > 0 && (
-            <span className="text-xs px-2 py-0.5 bg-white text-black font-medium">
-              {activeFilterCount}
-            </span>
+      {/* Header row with toggle and expand */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#222]">
+        {/* Profitable Only Toggle - Always visible */}
+        <button
+          onClick={() => updateFilter('profitableOnly', !filters.profitableOnly)}
+          className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium border transition-colors ${
+            filters.profitableOnly
+              ? 'bg-green-600 text-white border-green-600'
+              : 'border-[#333] text-[#888] hover:border-[#555]'
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full ${filters.profitableOnly ? 'bg-white' : 'bg-[#555]'}`} />
+          Profitable Only
+        </button>
+
+        {/* Expand Filters Button */}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex items-center gap-3 text-left hover:bg-[#111] px-3 py-1.5 transition-colors"
+        >
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-[#888]">More Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="text-xs px-2 py-0.5 bg-white text-black font-medium">
+                {activeFilterCount}
+              </span>
+            )}
+          </div>
+          {isExpanded ? (
+            <ChevronUp className="w-4 h-4 text-[#666]" />
+          ) : (
+            <ChevronDown className="w-4 h-4 text-[#666]" />
           )}
-        </div>
-        {isExpanded ? (
-          <ChevronUp className="w-4 h-4 text-[#666]" />
-        ) : (
-          <ChevronDown className="w-4 h-4 text-[#666]" />
-        )}
-      </button>
+        </button>
+      </div>
 
       {isExpanded && (
-        <div className="px-4 pb-4 space-y-6 border-t border-[#222]">
+        <div className="px-4 pb-4 space-y-6">
           {/* Quick Toggles */}
           <div className="flex flex-wrap gap-4 pt-4">
             <label className="flex items-center gap-2 cursor-pointer">

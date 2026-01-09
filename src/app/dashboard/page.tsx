@@ -41,6 +41,7 @@ const DEFAULT_FILTERS: FilterType = {
   mode: 'all',
   showNearArbs: true,
   showValueBets: true,
+  profitableOnly: false,
 };
 
 type Tab = 'opportunities' | 'value-bets' | 'history' | 'accounts';
@@ -157,6 +158,10 @@ export default function DashboardPage() {
   }, [filters, sports.length, fetchSports]);
 
   const filteredOpportunities = opportunities.filter(opp => {
+    // Profitable only filter - must be positive profit percentage
+    if (filters.profitableOnly && opp.profitPercentage < 0) {
+      return false;
+    }
     if (filters.mode !== 'all' && opp.mode !== filters.mode) {
       return false;
     }
@@ -183,6 +188,7 @@ export default function DashboardPage() {
 
   const arbCount = filteredOpportunities.filter(o => o.type === 'arb').length;
   const nearArbCount = filteredOpportunities.filter(o => o.type === 'near-arb').length;
+  const profitableCount = filteredOpportunities.filter(o => o.profitPercentage >= 0).length;
   const activeAccountsCount = accounts.filter(a => a.isActive).length;
 
   return (
@@ -231,14 +237,15 @@ export default function DashboardPage() {
             <StatBox label="Sports" value={stats.sportsScanned} />
             <StatBox label="Bookmakers" value={stats.totalBookmakers} />
             <StatBox 
-              label="Arbs" 
-              value={arbCount} 
-              highlight={arbCount > 0}
+              label="Profitable" 
+              value={profitableCount} 
+              highlight={profitableCount > 0}
+              subtitle="> 0%"
             />
             <StatBox 
               label="Near-Arbs" 
               value={nearArbCount}
-              subtitle="< 2% loss"
+              subtitle="< 0% loss"
             />
             <StatBox 
               label="Value Bets" 

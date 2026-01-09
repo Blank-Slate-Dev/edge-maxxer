@@ -169,6 +169,7 @@ export interface ArbFilters {
   mode: ArbMode | 'all';
   showNearArbs: boolean;
   showValueBets: boolean;
+  profitableOnly: boolean;
 }
 
 // API response types
