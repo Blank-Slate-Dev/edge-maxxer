@@ -1,12 +1,50 @@
 // src/components/ArbTable.tsx
 'use client';
 
-import { format } from 'date-fns';
 import type { ArbOpportunity, BookVsBookArb } from '@/lib/types';
 
 interface ArbTableProps {
   opportunities: ArbOpportunity[];
   onSelectArb: (arb: ArbOpportunity) => void;
+}
+
+// Format date in AEST
+function formatEventTime(date: Date): string {
+  return date.toLocaleString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+// Check if event is starting soon (within 2 hours)
+function isEventSoon(date: Date): boolean {
+  const now = new Date();
+  const twoHours = 2 * 60 * 60 * 1000;
+  return date > now && date.getTime() - now.getTime() < twoHours;
+}
+
+// Get time until event
+function getTimeUntil(date: Date): string {
+  const now = new Date();
+  const diff = date.getTime() - now.getTime();
+  
+  if (diff < 0) return 'Started';
+  
+  const hours = Math.floor(diff / (1000 * 60 * 60));
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+  
+  if (hours > 24) {
+    const days = Math.floor(hours / 24);
+    return `${days}d ${hours % 24}h`;
+  }
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+  return `${minutes}m`;
 }
 
 export function ArbTable({ opportunities, onSelectArb }: ArbTableProps) {
@@ -33,7 +71,7 @@ export function ArbTable({ opportunities, onSelectArb }: ArbTableProps) {
               Event
             </th>
             <th className="text-left px-4 py-3 text-xs text-[#666] uppercase tracking-wide font-medium">
-              Time
+              Time (AEST)
             </th>
             <th className="text-left px-4 py-3 text-xs text-[#666] uppercase tracking-wide font-medium">
               Bets Required
@@ -58,6 +96,9 @@ export function ArbTable({ opportunities, onSelectArb }: ArbTableProps) {
 
 function ArbRow({ opp, onSelect }: { opp: ArbOpportunity; onSelect: (arb: ArbOpportunity) => void }) {
   const isThreeWay = opp.mode === 'book-vs-book' && (opp as BookVsBookArb).outcomes === 3;
+  const eventDate = new Date(opp.event.commenceTime);
+  const soon = isEventSoon(eventDate);
+  const timeUntil = getTimeUntil(eventDate);
   
   return (
     <tr className="border-b border-[#222] hover:bg-[#111] transition-colors">
@@ -74,8 +115,19 @@ function ArbRow({ opp, onSelect }: { opp: ArbOpportunity; onSelect: (arb: ArbOpp
         <div className="text-[#666]">vs {opp.event.awayTeam}</div>
         <div className="text-xs text-[#555] mt-1">{opp.event.sportTitle}</div>
       </td>
-      <td className="px-4 py-3 text-[#888]">
-        {format(new Date(opp.event.commenceTime), 'MMM d, HH:mm')}
+      <td className="px-4 py-3">
+        <div className={`${soon ? 'text-yellow-500' : 'text-[#888]'}`}>
+          {formatEventTime(eventDate)}
+        </div>
+        <div className={`text-xs mt-0.5 ${
+          soon 
+            ? 'text-yellow-500 font-medium' 
+            : timeUntil === 'Started' 
+              ? 'text-[#555]' 
+              : 'text-[#555]'
+        }`}>
+          {timeUntil === 'Started' ? 'In progress' : `Starts in ${timeUntil}`}
+        </div>
       </td>
       <td className="px-4 py-3">
         {opp.mode === 'book-vs-book' ? (

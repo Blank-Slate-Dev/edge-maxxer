@@ -3,7 +3,7 @@
 
 import { useState } from 'react';
 import { format } from 'date-fns';
-import { Trash2, ChevronDown, ChevronUp, TrendingUp, DollarSign, Target, Percent } from 'lucide-react';
+import { Trash2, ChevronDown, ChevronUp, TrendingUp, DollarSign, Target, Percent, Calendar, Clock } from 'lucide-react';
 import type { PlacedBet } from '@/lib/bets';
 import { calculateBetStats } from '@/lib/bets';
 
@@ -12,6 +12,32 @@ interface BetTrackerProps {
   onUpdateBet: (id: string, updates: Partial<PlacedBet>) => void;
   onDeleteBet: (id: string) => void;
   onClearAll: () => void;
+}
+
+// Format date in AEST
+function formatEventTime(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+// Check if event is in the past
+function isEventPast(dateString: string): boolean {
+  return new Date(dateString) < new Date();
+}
+
+// Check if event is starting soon (within 2 hours)
+function isEventSoon(dateString: string): boolean {
+  const eventTime = new Date(dateString);
+  const now = new Date();
+  const twoHours = 2 * 60 * 60 * 1000;
+  return eventTime > now && eventTime.getTime() - now.getTime() < twoHours;
 }
 
 export function BetTracker({ bets, onUpdateBet, onDeleteBet, onClearAll }: BetTrackerProps) {
@@ -290,15 +316,20 @@ function BetRow({
   const outcomes = getBetOutcomes(bet);
   const { totalStake, minProfit, maxProfit, isValueBet } = calculateBetProfits(bet);
   const is3Way = bet.mode === 'book-vs-book' && bet.bet3;
+  
+  const eventPast = isEventPast(bet.event.commenceTime);
+  const eventSoon = isEventSoon(bet.event.commenceTime);
 
   const handleOutcomeSelect = (outcomeId: string) => {
     if (outcomeId === 'pending') {
       onUpdate({ status: 'pending', actualProfit: undefined });
+    } else if (outcomeId === 'manual') {
+      setIsEditingProfit(true);
     } else {
       const selectedOutcome = outcomes.find(o => o.id === outcomeId);
       if (selectedOutcome) {
         onUpdate({ 
-          status: 'won', // Mark as resolved
+          status: 'won',
           actualProfit: selectedOutcome.profit 
         });
       }
@@ -331,12 +362,10 @@ function BetRow({
     <div className="px-6 py-4 hover:bg-[#111] transition-colors">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-2">
+          {/* Event Title */}
+          <div className="flex items-center gap-2 mb-1">
             <span className="font-medium truncate">
               {bet.event.homeTeam} vs {bet.event.awayTeam}
-            </span>
-            <span className="text-xs text-[#666]">
-              {format(new Date(bet.createdAt), 'MMM d')}
             </span>
             {is3Way && (
               <span className="text-xs px-1.5 py-0.5 bg-[#222] text-[#888]">
@@ -348,6 +377,26 @@ function BetRow({
                 Value
               </span>
             )}
+          </div>
+          
+          {/* Event Time */}
+          <div className="flex items-center gap-3 mb-2 text-xs">
+            <div className={`flex items-center gap-1 ${
+              eventPast 
+                ? 'text-[#666]' 
+                : eventSoon 
+                  ? 'text-yellow-500' 
+                  : 'text-[#888]'
+            }`}>
+              <Clock className="w-3 h-3" />
+              <span>{formatEventTime(bet.event.commenceTime)}</span>
+              {eventPast && <span className="text-[#555]">(finished)</span>}
+              {eventSoon && <span className="text-yellow-500">(soon!)</span>}
+            </div>
+            <div className="flex items-center gap-1 text-[#555]">
+              <Calendar className="w-3 h-3" />
+              <span>Placed {format(new Date(bet.createdAt), 'MMM d, h:mm a')}</span>
+            </div>
           </div>
           
           {/* Individual Bets with Returns */}
