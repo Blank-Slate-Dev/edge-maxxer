@@ -10,6 +10,7 @@ export interface Bookmaker {
 export interface Outcome {
   name: string;
   price: number; // Decimal odds
+  point?: number; // For spreads/totals
 }
 
 export interface Market {
@@ -45,8 +46,9 @@ export interface NormalizedEvent {
 }
 
 // Opportunity types
-export type OpportunityType = 'arb' | 'near-arb' | 'value-bet';
+export type OpportunityType = 'arb' | 'near-arb' | 'value-bet' | 'middle';
 export type ArbMode = 'book-vs-book' | 'book-vs-betfair';
+export type MarketType = 'h2h' | 'spreads' | 'totals';
 
 export interface BookVsBookArb {
   mode: 'book-vs-book';
@@ -94,6 +96,82 @@ export interface BookVsBetfairArb {
   lastUpdated: Date;
 }
 
+// Spread/Line Arb - when same line across different bookies creates arb
+export interface SpreadArb {
+  mode: 'spread';
+  type: OpportunityType;
+  event: NormalizedEvent;
+  marketType: 'spreads';
+  line: number; // The spread line (e.g., -6.5)
+  favorite: {
+    name: string;
+    bookmaker: string;
+    odds: number;
+    point: number; // e.g., -6.5
+  };
+  underdog: {
+    name: string;
+    bookmaker: string;
+    odds: number;
+    point: number; // e.g., +6.5
+  };
+  impliedProbabilitySum: number;
+  profitPercentage: number;
+  lastUpdated: Date;
+}
+
+// Middle opportunity - when different lines create win-win zone
+export interface MiddleOpportunity {
+  mode: 'middle';
+  type: 'middle';
+  event: NormalizedEvent;
+  marketType: 'spreads' | 'totals';
+  side1: {
+    name: string;
+    bookmaker: string;
+    odds: number;
+    point: number;
+  };
+  side2: {
+    name: string;
+    bookmaker: string;
+    odds: number;
+    point: number;
+  };
+  middleRange: {
+    low: number;
+    high: number;
+    description: string; // e.g., "Team A wins by 4, 5, or 6"
+  };
+  guaranteedLoss: number; // Max loss if middle doesn't hit
+  potentialProfit: number; // Profit if middle hits
+  middleProbability: number; // Estimated % chance of hitting middle
+  expectedValue: number; // EV of the play
+  lastUpdated: Date;
+}
+
+// Totals Arb - same as spread but for over/under
+export interface TotalsArb {
+  mode: 'totals';
+  type: OpportunityType;
+  event: NormalizedEvent;
+  marketType: 'totals';
+  line: number; // The total line (e.g., 42.5)
+  over: {
+    bookmaker: string;
+    odds: number;
+    point: number;
+  };
+  under: {
+    bookmaker: string;
+    odds: number;
+    point: number;
+  };
+  impliedProbabilitySum: number;
+  profitPercentage: number;
+  lastUpdated: Date;
+}
+
 // Value bet - when one bookmaker has significantly better odds
 export interface ValueBet {
   mode: 'value-bet';
@@ -124,7 +202,8 @@ export interface BestOdds {
 }
 
 export type ArbOpportunity = BookVsBookArb | BookVsBetfairArb;
-export type Opportunity = ArbOpportunity | ValueBet;
+export type LineOpportunity = SpreadArb | TotalsArb | MiddleOpportunity;
+export type Opportunity = ArbOpportunity | ValueBet | LineOpportunity;
 
 // Stake calculation types
 export interface BookVsBookStakes {
@@ -160,6 +239,16 @@ export interface BookVsBetfairStakes {
   profitPercentage: number;
 }
 
+export interface LineStakes {
+  totalStake: number;
+  stake1: number;
+  stake2: number;
+  guaranteedProfit: number;
+  profitPercentage: number;
+  returnOnSide1: number;
+  returnOnSide2: number;
+}
+
 // Filter types
 export interface ArbFilters {
   minProfit: number;
@@ -169,6 +258,16 @@ export interface ArbFilters {
   mode: ArbMode | 'all';
   showNearArbs: boolean;
   showValueBets: boolean;
+  profitableOnly: boolean;
+}
+
+export interface LineFilters {
+  minProfit: number;
+  sports: string[];
+  bookmakers: string[];
+  maxHoursUntilStart: number;
+  showNearArbs: boolean;
+  showMiddles: boolean;
   profitableOnly: boolean;
 }
 
@@ -196,4 +295,12 @@ export interface ScanStats {
   nearArbsFound: number;
   valueBetsFound: number;
   sportsScanned: number;
+}
+
+export interface LineStats {
+  totalEvents: number;
+  spreadArbsFound: number;
+  totalsArbsFound: number;
+  middlesFound: number;
+  nearArbsFound: number;
 }

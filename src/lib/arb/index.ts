@@ -13,3 +13,4 @@ export {
   formatBookVsBookAsCopyText,
   formatBookVsBetfairAsCopyText,
 } from './calculator';
+export { detectLineOpportunities } from './lineDetector';

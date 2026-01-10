@@ -5,7 +5,7 @@ import type { SportEvent, NormalizedEvent } from '../types';
 // Provider interface - all odds providers must implement this
 export interface OddsProvider {
   name: string;
-  fetchOdds(sports: string[]): Promise<ProviderResult>;
+  fetchOdds(sports: string[], markets?: string[]): Promise<ProviderResult>;
   getSupportedSports(): Promise<Sport[]>;
 }
 
@@ -58,6 +58,7 @@ export interface BetfairProvider {
 export const theOddsApiOutcomeSchema = z.object({
   name: z.string(),
   price: z.number(),
+  point: z.number().optional(), // For spreads/totals
 });
 
 export const theOddsApiMarketSchema = z.object({

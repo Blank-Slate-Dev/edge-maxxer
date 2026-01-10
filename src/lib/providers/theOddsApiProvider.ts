@@ -36,7 +36,6 @@ export class TheOddsApiProvider implements OddsProvider {
       const data = await response.json();
       const parsed = theOddsApiSportsResponseSchema.parse(data);
       
-      // Return ALL active sports (not just h2h)
       return parsed
         .filter(s => s.active)
         .map(s => ({
@@ -56,7 +55,7 @@ export class TheOddsApiProvider implements OddsProvider {
     return this.getSupportedSports();
   }
 
-  async fetchOdds(sports: string[]): Promise<ProviderResult> {
+  async fetchOdds(sports: string[], markets: string[] = ['h2h']): Promise<ProviderResult> {
     if (!this.apiKey) {
       console.log('[TheOddsApiProvider] No API key configured');
       return {
@@ -70,29 +69,26 @@ export class TheOddsApiProvider implements OddsProvider {
     let usedRequests: number | undefined;
     const errors: string[] = [];
 
-    // Use multiple regions for more bookmaker coverage
     const regions = config.regions.join(',');
+    const marketsStr = markets.join(',');
 
-    console.log(`[TheOddsApiProvider] Fetching ${sports.length} sports with regions: ${regions}`);
+    console.log(`[TheOddsApiProvider] Fetching ${sports.length} sports with regions: ${regions}, markets: ${marketsStr}`);
 
     for (const sport of sports) {
       try {
-        // Check if we're running low on API calls
         if (remainingRequests !== undefined && remainingRequests < 10) {
           console.log(`[TheOddsApiProvider] Low on API calls (${remainingRequests} left), stopping`);
           break;
         }
 
-        const result = await this.fetchSportOdds(sport, regions);
+        const result = await this.fetchSportOdds(sport, regions, marketsStr);
         allEvents.push(...result.events);
         remainingRequests = result.remainingRequests;
         usedRequests = result.usedRequests;
 
-        // Small delay to avoid rate limiting
         await new Promise(resolve => setTimeout(resolve, 100));
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
-        // Don't log 404s - just means no events for that sport
         if (!msg.includes('404')) {
           console.error(`[TheOddsApiProvider] Error fetching ${sport}:`, msg);
           errors.push(`${sport}: ${msg}`);
@@ -113,7 +109,7 @@ export class TheOddsApiProvider implements OddsProvider {
     };
   }
 
-  private async fetchSportOdds(sport: string, regions: string): Promise<{
+  private async fetchSportOdds(sport: string, regions: string, markets: string): Promise<{
     events: SportEvent[];
     remainingRequests?: number;
     usedRequests?: number;
@@ -121,7 +117,7 @@ export class TheOddsApiProvider implements OddsProvider {
     const params = new URLSearchParams({
       apiKey: this.apiKey,
       regions: regions,
-      markets: 'h2h',
+      markets: markets,
       oddsFormat: 'decimal',
       dateFormat: 'iso',
     });
@@ -172,6 +168,7 @@ export class TheOddsApiProvider implements OddsProvider {
         outcomes: m.outcomes.map(o => ({
           name: o.name,
           price: o.price,
+          point: o.point, // Include point for spreads/totals
         })),
       })),
     }));
@@ -188,7 +185,6 @@ export class TheOddsApiProvider implements OddsProvider {
   }
 }
 
-// Singleton instance
 let providerInstance: TheOddsApiProvider | null = null;
 
 export function getTheOddsApiProvider(): TheOddsApiProvider {

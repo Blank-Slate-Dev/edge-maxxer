@@ -7,3 +7,6 @@ export { ValueBetCalculatorModal } from './ValueBetCalculatorModal';
 export { BetTracker } from './BetTracker';
 export { AccountsManager } from './AccountsManager';
 export { StealthGuide } from './StealthGuide';
+export { SpreadsTable } from './SpreadsTable';
+export { TotalsTable } from './TotalsTable';
+export { LineCalculatorModal } from './LineCalculatorModal';

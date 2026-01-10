@@ -2,10 +2,10 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager } from '@/components';
+import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal } from '@/components';
 import { useBets } from '@/hooks/useBets';
 import { useAccounts } from '@/hooks/useAccounts';
-import type { ArbOpportunity, ValueBet, ArbFilters as FilterType, ScanStats } from '@/lib/types';
+import type { ArbOpportunity, ValueBet, ArbFilters as FilterType, ScanStats, SpreadArb, TotalsArb, MiddleOpportunity, LineStats } from '@/lib/types';
 import type { PlacedBet } from '@/lib/bets';
 import { config } from '@/lib/config';
 import { format } from 'date-fns';
@@ -28,6 +28,17 @@ interface ArbsResponse {
   details?: string;
 }
 
+interface LinesResponse {
+  spreadArbs: SpreadArb[];
+  totalsArbs: TotalsArb[];
+  middles: MiddleOpportunity[];
+  stats: LineStats;
+  lastUpdated: string;
+  isUsingMockData: boolean;
+  remainingApiRequests?: number;
+  error?: string;
+}
+
 interface SportsResponse {
   sports: Sport[];
   isUsingMockData: boolean;
@@ -44,12 +55,16 @@ const DEFAULT_FILTERS: FilterType = {
   profitableOnly: false,
 };
 
-type Tab = 'opportunities' | 'value-bets' | 'history' | 'accounts';
+type Tab = 'opportunities' | 'spreads' | 'totals' | 'value-bets' | 'history' | 'accounts';
 
 export default function DashboardPage() {
   const [opportunities, setOpportunities] = useState<ArbOpportunity[]>([]);
   const [valueBets, setValueBets] = useState<ValueBet[]>([]);
+  const [spreadArbs, setSpreadArbs] = useState<SpreadArb[]>([]);
+  const [totalsArbs, setTotalsArbs] = useState<TotalsArb[]>([]);
+  const [middles, setMiddles] = useState<MiddleOpportunity[]>([]);
   const [stats, setStats] = useState<ScanStats | null>(null);
+  const [lineStats, setLineStats] = useState<LineStats | null>(null);
   const [filters, setFilters] = useState<FilterType>(DEFAULT_FILTERS);
   const [sports, setSports] = useState<Sport[]>([]);
   const [bookmakers, setBookmakers] = useState<string[]>([]);
@@ -59,9 +74,11 @@ export default function DashboardPage() {
   const [remainingRequests, setRemainingRequests] = useState<number | undefined>();
   const [selectedArb, setSelectedArb] = useState<ArbOpportunity | null>(null);
   const [selectedValueBet, setSelectedValueBet] = useState<ValueBet | null>(null);
+  const [selectedLineOpp, setSelectedLineOpp] = useState<SpreadArb | TotalsArb | MiddleOpportunity | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hasFetched, setHasFetched] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('opportunities');
+  const [showMiddles, setShowMiddles] = useState(true);
 
   const { bets, isLoaded: betsLoaded, addBet, updateBet, deleteBet, clearAllBets } = useBets();
   const { 
@@ -94,6 +111,7 @@ export default function DashboardPage() {
         await fetchSports();
       }
 
+      // Fetch H2H arbs
       const params = new URLSearchParams({
         minProfit: filters.minProfit.toString(),
         maxHours: filters.maxHoursUntilStart.toString(),
@@ -106,14 +124,20 @@ export default function DashboardPage() {
         params.set('sports', filters.sports.join(','));
       }
 
-      const res = await fetch(`/api/arbs?${params}`);
-      const data: ArbsResponse = await res.json();
+      const [arbsRes, linesRes] = await Promise.all([
+        fetch(`/api/arbs?${params}`),
+        fetch(`/api/lines?${params}&middles=${showMiddles}`),
+      ]);
 
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to fetch arbs');
+      const arbsData: ArbsResponse = await arbsRes.json();
+      const linesData: LinesResponse = await linesRes.json();
+
+      if (!arbsRes.ok) {
+        throw new Error(arbsData.error || 'Failed to fetch arbs');
       }
 
-      const parsed = data.opportunities.map(opp => ({
+      // Parse H2H opportunities
+      const parsed = arbsData.opportunities.map(opp => ({
         ...opp,
         event: {
           ...opp.event,
@@ -122,7 +146,7 @@ export default function DashboardPage() {
         lastUpdated: new Date(opp.lastUpdated),
       }));
 
-      const parsedValueBets = data.valueBets.map(vb => ({
+      const parsedValueBets = arbsData.valueBets.map(vb => ({
         ...vb,
         event: {
           ...vb.event,
@@ -131,12 +155,44 @@ export default function DashboardPage() {
         lastUpdated: new Date(vb.lastUpdated),
       }));
 
+      // Parse line opportunities
+      const parsedSpreads = (linesData.spreadArbs || []).map(s => ({
+        ...s,
+        event: {
+          ...s.event,
+          commenceTime: new Date(s.event.commenceTime),
+        },
+        lastUpdated: new Date(s.lastUpdated),
+      }));
+
+      const parsedTotals = (linesData.totalsArbs || []).map(t => ({
+        ...t,
+        event: {
+          ...t.event,
+          commenceTime: new Date(t.event.commenceTime),
+        },
+        lastUpdated: new Date(t.lastUpdated),
+      }));
+
+      const parsedMiddles = (linesData.middles || []).map(m => ({
+        ...m,
+        event: {
+          ...m.event,
+          commenceTime: new Date(m.event.commenceTime),
+        },
+        lastUpdated: new Date(m.lastUpdated),
+      }));
+
       setOpportunities(parsed);
       setValueBets(parsedValueBets);
-      setStats(data.stats);
-      setLastUpdated(data.lastUpdated ? new Date(data.lastUpdated) : new Date());
-      setIsUsingMockData(data.isUsingMockData);
-      setRemainingRequests(data.remainingApiRequests);
+      setSpreadArbs(parsedSpreads);
+      setTotalsArbs(parsedTotals);
+      setMiddles(parsedMiddles);
+      setStats(arbsData.stats);
+      setLineStats(linesData.stats);
+      setLastUpdated(arbsData.lastUpdated ? new Date(arbsData.lastUpdated) : new Date());
+      setIsUsingMockData(arbsData.isUsingMockData);
+      setRemainingRequests(arbsData.remainingApiRequests);
       setHasFetched(true);
 
       const uniqueBookmakers = new Set<string>();
@@ -155,10 +211,9 @@ export default function DashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [filters, sports.length, fetchSports]);
+  }, [filters, sports.length, fetchSports, showMiddles]);
 
   const filteredOpportunities = opportunities.filter(opp => {
-    // Profitable only filter - must be positive profit percentage
     if (filters.profitableOnly && opp.profitPercentage < 0) {
       return false;
     }
@@ -182,6 +237,18 @@ export default function DashboardPage() {
     return true;
   });
 
+  const filteredSpreads = spreadArbs.filter(s => {
+    if (filters.profitableOnly && s.profitPercentage < 0) return false;
+    if (!filters.showNearArbs && s.type === 'near-arb') return false;
+    return true;
+  });
+
+  const filteredTotals = totalsArbs.filter(t => {
+    if (filters.profitableOnly && t.profitPercentage < 0) return false;
+    if (!filters.showNearArbs && t.type === 'near-arb') return false;
+    return true;
+  });
+
   const handleLogBet = (bet: PlacedBet) => {
     addBet(bet);
   };
@@ -190,6 +257,8 @@ export default function DashboardPage() {
   const nearArbCount = filteredOpportunities.filter(o => o.type === 'near-arb').length;
   const profitableCount = filteredOpportunities.filter(o => o.profitPercentage >= 0).length;
   const activeAccountsCount = accounts.filter(a => a.isActive).length;
+  const spreadMiddles = middles.filter(m => m.marketType === 'spreads');
+  const totalsMiddles = middles.filter(m => m.marketType === 'totals');
 
   return (
     <div className="min-h-screen bg-black">
@@ -208,10 +277,10 @@ export default function DashboardPage() {
             <div className="text-4xl mb-4">📡</div>
             <h2 className="text-xl font-medium mb-2">Ready to scan</h2>
             <p className="text-[#666] text-sm mb-4">
-              Click <span className="text-white font-medium">Scan</span> to search ALL sports for opportunities
+              Click <span className="text-white font-medium">Scan</span> to search ALL markets for opportunities
             </p>
             <p className="text-xs text-[#444]">
-              Fetches odds from {config.regions.join(', ').toUpperCase()} regions across all available sports
+              Fetches H2H, Spreads, and Totals from {config.regions.join(', ').toUpperCase()} regions
             </p>
           </div>
         )}
@@ -232,20 +301,29 @@ export default function DashboardPage() {
 
         {/* Stats Grid */}
         {hasFetched && stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-px bg-[#222]">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-px bg-[#222]">
             <StatBox label="Events" value={stats.totalEvents} />
             <StatBox label="Sports" value={stats.sportsScanned} />
             <StatBox label="Bookmakers" value={stats.totalBookmakers} />
             <StatBox 
-              label="Profitable" 
+              label="H2H Arbs" 
               value={profitableCount} 
               highlight={profitableCount > 0}
-              subtitle="> 0%"
             />
             <StatBox 
-              label="Near-Arbs" 
-              value={nearArbCount}
-              subtitle="< 0% loss"
+              label="Spread Arbs" 
+              value={filteredSpreads.filter(s => s.type === 'arb').length}
+              highlight={filteredSpreads.filter(s => s.type === 'arb').length > 0}
+            />
+            <StatBox 
+              label="Totals Arbs" 
+              value={filteredTotals.filter(t => t.type === 'arb').length}
+              highlight={filteredTotals.filter(t => t.type === 'arb').length > 0}
+            />
+            <StatBox 
+              label="Middles" 
+              value={middles.length}
+              subtitle="EV plays"
             />
             <StatBox 
               label="Value Bets" 
@@ -262,7 +340,21 @@ export default function DashboardPage() {
             onClick={() => setActiveTab('opportunities')}
             count={filteredOpportunities.length}
           >
-            Opportunities
+            H2H
+          </TabButton>
+          <TabButton 
+            active={activeTab === 'spreads'} 
+            onClick={() => setActiveTab('spreads')}
+            count={filteredSpreads.length + spreadMiddles.length}
+          >
+            Spreads
+          </TabButton>
+          <TabButton 
+            active={activeTab === 'totals'} 
+            onClick={() => setActiveTab('totals')}
+            count={filteredTotals.length + totalsMiddles.length}
+          >
+            Totals
           </TabButton>
           <TabButton 
             active={activeTab === 'value-bets'} 
@@ -276,7 +368,7 @@ export default function DashboardPage() {
             onClick={() => setActiveTab('history')}
             count={bets.length}
           >
-            Bet History
+            History
           </TabButton>
           <TabButton 
             active={activeTab === 'accounts'} 
@@ -288,13 +380,27 @@ export default function DashboardPage() {
         </div>
 
         {/* Filters */}
-        {hasFetched && activeTab === 'opportunities' && (
-          <ArbFilters
-            filters={filters}
-            onFiltersChange={setFilters}
-            availableSports={sports}
-            availableBookmakers={bookmakers}
-          />
+        {hasFetched && (activeTab === 'opportunities' || activeTab === 'spreads' || activeTab === 'totals') && (
+          <div className="flex items-center gap-4">
+            <ArbFilters
+              filters={filters}
+              onFiltersChange={setFilters}
+              availableSports={sports}
+              availableBookmakers={bookmakers}
+            />
+            {(activeTab === 'spreads' || activeTab === 'totals') && (
+              <button
+                onClick={() => setShowMiddles(!showMiddles)}
+                className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium border transition-colors ${
+                  showMiddles
+                    ? 'bg-yellow-600 text-black border-yellow-600'
+                    : 'border-[#333] text-[#888] hover:border-[#555]'
+                }`}
+              >
+                🎯 Show Middles
+              </button>
+            )}
+          </div>
         )}
 
         {/* Tab Content */}
@@ -302,6 +408,26 @@ export default function DashboardPage() {
           <ArbTable
             opportunities={filteredOpportunities}
             onSelectArb={setSelectedArb}
+          />
+        )}
+
+        {hasFetched && activeTab === 'spreads' && (
+          <SpreadsTable
+            spreads={filteredSpreads}
+            middles={spreadMiddles}
+            onSelectSpread={(s) => setSelectedLineOpp(s)}
+            onSelectMiddle={(m) => setSelectedLineOpp(m)}
+            showMiddles={showMiddles}
+          />
+        )}
+
+        {hasFetched && activeTab === 'totals' && (
+          <TotalsTable
+            totals={filteredTotals}
+            middles={totalsMiddles}
+            onSelectTotals={(t) => setSelectedLineOpp(t)}
+            onSelectMiddle={(m) => setSelectedLineOpp(m)}
+            showMiddles={showMiddles}
           />
         )}
 
@@ -329,17 +455,22 @@ export default function DashboardPage() {
         )}
       </main>
 
-      {/* Calculator Modal */}
+      {/* Calculator Modals */}
       <StakeCalculatorModal
         arb={selectedArb}
         onClose={() => setSelectedArb(null)}
         onLogBet={handleLogBet}
       />
 
-      {/* Value Bet Calculator Modal */}
       <ValueBetCalculatorModal
         valueBet={selectedValueBet}
         onClose={() => setSelectedValueBet(null)}
+        onLogBet={handleLogBet}
+      />
+
+      <LineCalculatorModal
+        opportunity={selectedLineOpp}
+        onClose={() => setSelectedLineOpp(null)}
         onLogBet={handleLogBet}
       />
     </div>
