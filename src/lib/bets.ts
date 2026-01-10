@@ -9,19 +9,21 @@ export interface PlacedBet {
     sportKey: string;
     commenceTime: string;
   };
-  mode: 'book-vs-book' | 'book-vs-betfair' | 'value-bet';
+  mode: 'book-vs-book' | 'book-vs-betfair' | 'value-bet' | 'spread' | 'totals' | 'middle';
   // Book vs Book (2-way or 3-way)
   bet1?: {
     bookmaker: string;
     outcome: string;
     odds: number;
     stake: number;
+    point?: number; // For spreads/totals
   };
   bet2?: {
     bookmaker: string;
     outcome: string;
     odds: number;
     stake: number;
+    point?: number; // For spreads/totals
   };
   bet3?: { // For 3-way markets
     bookmaker: string;
@@ -41,8 +43,15 @@ export interface PlacedBet {
     stake: number;
     liability: number;
   };
+  // For middles
+  middleRange?: {
+    low: number;
+    high: number;
+    description: string;
+  };
   expectedProfit: number;
-  status: 'pending' | 'won' | 'lost' | 'partial';
+  potentialProfit?: number; // For middles - if middle hits
+  status: 'pending' | 'won' | 'lost' | 'partial' | 'middle-hit' | 'middle-miss';
   actualProfit?: number;
   notes?: string;
 }
@@ -62,21 +71,23 @@ export interface BetStats {
 export function calculateBetStats(bets: PlacedBet[]): BetStats {
   const completedBets = bets.filter(b => b.status !== 'pending');
   const pendingBets = bets.filter(b => b.status === 'pending');
-  const wonBets = bets.filter(b => b.status === 'won');
+  const wonBets = bets.filter(b => b.status === 'won' || b.status === 'middle-hit');
   
   let totalStaked = 0;
   let totalExpectedProfit = 0;
   let totalActualProfit = 0;
 
   bets.forEach(bet => {
-    if (bet.mode === 'book-vs-book' && bet.bet1 && bet.bet2) {
-      totalStaked += bet.bet1.stake + bet.bet2.stake;
-      if (bet.bet3) {
-        totalStaked += bet.bet3.stake;
-      }
-    } else if (bet.mode === 'value-bet' && bet.bet1) {
+    if (bet.bet1) {
       totalStaked += bet.bet1.stake;
-    } else if (bet.backBet && bet.layBet) {
+    }
+    if (bet.bet2) {
+      totalStaked += bet.bet2.stake;
+    }
+    if (bet.bet3) {
+      totalStaked += bet.bet3.stake;
+    }
+    if (bet.backBet && bet.layBet) {
       totalStaked += bet.backBet.stake + bet.layBet.liability;
     }
     totalExpectedProfit += bet.expectedProfit;

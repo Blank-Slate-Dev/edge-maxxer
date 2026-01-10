@@ -40,6 +40,25 @@ function isEventSoon(dateString: string): boolean {
   return eventTime > now && eventTime.getTime() - now.getTime() < twoHours;
 }
 
+// Get mode badge
+function ModeBadge({ mode }: { mode: PlacedBet['mode'] }) {
+  const styles: Record<string, { bg: string; text: string; label: string }> = {
+    'book-vs-book': { bg: 'bg-[#222]', text: 'text-[#888]', label: 'H2H' },
+    'book-vs-betfair': { bg: 'bg-purple-900/50', text: 'text-purple-400', label: 'Betfair' },
+    'value-bet': { bg: 'bg-blue-900/50', text: 'text-blue-400', label: 'Value' },
+    'spread': { bg: 'bg-orange-900/50', text: 'text-orange-400', label: 'Spread' },
+    'totals': { bg: 'bg-cyan-900/50', text: 'text-cyan-400', label: 'Totals' },
+    'middle': { bg: 'bg-yellow-900/50', text: 'text-yellow-400', label: 'Middle' },
+  };
+  const style = styles[mode] || styles['book-vs-book'];
+  
+  return (
+    <span className={`text-xs px-1.5 py-0.5 ${style.bg} ${style.text}`}>
+      {style.label}
+    </span>
+  );
+}
+
 export function BetTracker({ bets, onUpdateBet, onDeleteBet, onClearAll }: BetTrackerProps) {
   const [isExpanded, setIsExpanded] = useState(true);
   const [showConfirmClear, setShowConfirmClear] = useState(false);
@@ -188,6 +207,7 @@ function StatCard({
 function getBetOutcomes(bet: PlacedBet): { id: string; label: string; profit: number }[] {
   const outcomes: { id: string; label: string; profit: number }[] = [];
   
+  // Value bet
   if (bet.mode === 'value-bet' && bet.bet1) {
     const totalStake = bet.bet1.stake;
     const winReturn = bet.bet1.stake * bet.bet1.odds;
@@ -201,7 +221,32 @@ function getBetOutcomes(bet: PlacedBet): { id: string; label: string; profit: nu
       label: `${bet.bet1.outcome} lost`, 
       profit: -totalStake 
     });
-  } else if (bet.mode === 'book-vs-book' && bet.bet1 && bet.bet2) {
+  }
+  // Middle bet
+  else if (bet.mode === 'middle' && bet.bet1 && bet.bet2) {
+    const totalStake = bet.bet1.stake + bet.bet2.stake;
+    const bothWinReturn = (bet.bet1.stake * bet.bet1.odds) + (bet.bet2.stake * bet.bet2.odds);
+    const side1WinReturn = bet.bet1.stake * bet.bet1.odds;
+    const side2WinReturn = bet.bet2.stake * bet.bet2.odds;
+    
+    outcomes.push({
+      id: 'middle_hit',
+      label: `Middle hit! Both won`,
+      profit: bothWinReturn - totalStake,
+    });
+    outcomes.push({
+      id: 'side1_won',
+      label: `${bet.bet1.outcome} won`,
+      profit: side1WinReturn - totalStake,
+    });
+    outcomes.push({
+      id: 'side2_won',
+      label: `${bet.bet2.outcome} won`,
+      profit: side2WinReturn - totalStake,
+    });
+  }
+  // Spread/Totals/Book-vs-Book (2-way)
+  else if ((bet.mode === 'book-vs-book' || bet.mode === 'spread' || bet.mode === 'totals') && bet.bet1 && bet.bet2) {
     const bets = [bet.bet1, bet.bet2];
     if (bet.bet3) bets.push(bet.bet3);
     
@@ -215,7 +260,9 @@ function getBetOutcomes(bet: PlacedBet): { id: string; label: string; profit: nu
         profit: returnAmount - totalStake,
       });
     });
-  } else if (bet.mode === 'book-vs-betfair' && bet.backBet && bet.layBet) {
+  }
+  // Book vs Betfair
+  else if (bet.mode === 'book-vs-betfair' && bet.backBet && bet.layBet) {
     const totalStake = bet.backBet.stake + bet.layBet.liability;
     const backReturn = bet.backBet.stake * bet.backBet.odds;
     
@@ -234,16 +281,16 @@ function getBetOutcomes(bet: PlacedBet): { id: string; label: string; profit: nu
   return outcomes;
 }
 
-// Helper to calculate profits for each outcome
+// Calculate profits for display
 function calculateBetProfits(bet: PlacedBet): { 
   totalStake: number; 
-  returns: number[]; 
-  profits: number[];
   minProfit: number;
   maxProfit: number;
+  isMiddle: boolean;
   isValueBet: boolean;
+  middleProfit?: number;
 } {
-  // Value bet - only one outcome bet
+  // Value bet
   if (bet.mode === 'value-bet' && bet.bet1) {
     const totalStake = bet.bet1.stake;
     const potentialReturn = bet.bet1.stake * bet.bet1.odds;
@@ -252,16 +299,35 @@ function calculateBetProfits(bet: PlacedBet): {
     
     return {
       totalStake,
-      returns: [potentialReturn],
-      profits: [winProfit, loseProfit],
       minProfit: loseProfit,
       maxProfit: winProfit,
+      isMiddle: false,
       isValueBet: true,
     };
   }
   
-  // Book vs Book arb (2-way or 3-way)
-  if (bet.mode === 'book-vs-book' && bet.bet1 && bet.bet2) {
+  // Middle bet
+  if (bet.mode === 'middle' && bet.bet1 && bet.bet2) {
+    const totalStake = bet.bet1.stake + bet.bet2.stake;
+    const bothWinReturn = (bet.bet1.stake * bet.bet1.odds) + (bet.bet2.stake * bet.bet2.odds);
+    const side1WinReturn = bet.bet1.stake * bet.bet1.odds;
+    const side2WinReturn = bet.bet2.stake * bet.bet2.odds;
+    
+    const middleProfit = bothWinReturn - totalStake;
+    const missProfit = Math.max(side1WinReturn, side2WinReturn) - totalStake;
+    
+    return {
+      totalStake,
+      minProfit: missProfit,
+      maxProfit: middleProfit,
+      isMiddle: true,
+      isValueBet: false,
+      middleProfit,
+    };
+  }
+  
+  // Spread/Totals/Book-vs-Book
+  if ((bet.mode === 'book-vs-book' || bet.mode === 'spread' || bet.mode === 'totals') && bet.bet1 && bet.bet2) {
     const bets = [bet.bet1, bet.bet2];
     if (bet.bet3) bets.push(bet.bet3);
     
@@ -271,10 +337,9 @@ function calculateBetProfits(bet: PlacedBet): {
     
     return {
       totalStake,
-      returns,
-      profits,
       minProfit: Math.min(...profits),
       maxProfit: Math.max(...profits),
+      isMiddle: false,
       isValueBet: false,
     };
   }
@@ -283,22 +348,20 @@ function calculateBetProfits(bet: PlacedBet): {
   if (bet.backBet && bet.layBet) {
     const totalStake = bet.backBet.stake + bet.layBet.liability;
     const backReturn = bet.backBet.stake * bet.backBet.odds;
-    const layReturn = bet.layBet.stake + bet.layBet.liability;
     
     const backProfit = backReturn - totalStake;
     const layProfit = bet.layBet.stake - bet.layBet.liability;
     
     return {
       totalStake,
-      returns: [backReturn, layReturn],
-      profits: [backProfit, layProfit],
       minProfit: Math.min(backProfit, layProfit),
       maxProfit: Math.max(backProfit, layProfit),
+      isMiddle: false,
       isValueBet: false,
     };
   }
   
-  return { totalStake: 0, returns: [], profits: [], minProfit: 0, maxProfit: 0, isValueBet: false };
+  return { totalStake: 0, minProfit: 0, maxProfit: 0, isMiddle: false, isValueBet: false };
 }
 
 function BetRow({
@@ -314,7 +377,7 @@ function BetRow({
   const [manualProfit, setManualProfit] = useState(bet.actualProfit?.toString() || '');
 
   const outcomes = getBetOutcomes(bet);
-  const { totalStake, minProfit, maxProfit, isValueBet } = calculateBetProfits(bet);
+  const { totalStake, minProfit, maxProfit, isMiddle, isValueBet, middleProfit } = calculateBetProfits(bet);
   const is3Way = bet.mode === 'book-vs-book' && bet.bet3;
   
   const eventPast = isEventPast(bet.event.commenceTime);
@@ -328,8 +391,16 @@ function BetRow({
     } else {
       const selectedOutcome = outcomes.find(o => o.id === outcomeId);
       if (selectedOutcome) {
+        let status: PlacedBet['status'] = 'won';
+        if (outcomeId === 'middle_hit') {
+          status = 'middle-hit';
+        } else if (isMiddle && outcomeId !== 'middle_hit') {
+          status = 'middle-miss';
+        } else if (selectedOutcome.profit < 0) {
+          status = 'lost';
+        }
         onUpdate({ 
-          status: 'won',
+          status,
           actualProfit: selectedOutcome.profit 
         });
       }
@@ -349,7 +420,6 @@ function BetRow({
     if (bet.status === 'pending') return 'pending';
     if (bet.status === 'partial') return 'manual';
     
-    // Find matching outcome by profit
     if (bet.actualProfit !== undefined) {
       const matching = outcomes.find(o => Math.abs(o.profit - bet.actualProfit!) < 0.01);
       if (matching) return matching.id;
@@ -363,24 +433,20 @@ function BetRow({
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           {/* Event Title */}
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
             <span className="font-medium truncate">
               {bet.event.homeTeam} vs {bet.event.awayTeam}
             </span>
+            <ModeBadge mode={bet.mode} />
             {is3Way && (
               <span className="text-xs px-1.5 py-0.5 bg-[#222] text-[#888]">
                 3-way
               </span>
             )}
-            {isValueBet && (
-              <span className="text-xs px-1.5 py-0.5 bg-blue-900/50 text-blue-400">
-                Value
-              </span>
-            )}
           </div>
           
           {/* Event Time */}
-          <div className="flex items-center gap-3 mb-2 text-xs">
+          <div className="flex items-center gap-3 mb-2 text-xs flex-wrap">
             <div className={`flex items-center gap-1 ${
               eventPast 
                 ? 'text-[#666]' 
@@ -399,7 +465,7 @@ function BetRow({
             </div>
           </div>
           
-          {/* Individual Bets with Returns */}
+          {/* Individual Bets */}
           <div className="text-xs space-y-1 mb-2">
             {/* Value Bet */}
             {bet.mode === 'value-bet' && bet.bet1 && (
@@ -411,20 +477,22 @@ function BetRow({
               />
             )}
             
-            {/* Book vs Book */}
-            {bet.mode === 'book-vs-book' && bet.bet1 && bet.bet2 && (
+            {/* Spread/Totals/Middle/Book-vs-Book */}
+            {(bet.mode === 'book-vs-book' || bet.mode === 'spread' || bet.mode === 'totals' || bet.mode === 'middle') && bet.bet1 && bet.bet2 && (
               <>
                 <BetLine 
                   stake={bet.bet1.stake} 
                   outcome={bet.bet1.outcome} 
                   odds={bet.bet1.odds} 
-                  bookmaker={bet.bet1.bookmaker} 
+                  bookmaker={bet.bet1.bookmaker}
+                  point={bet.bet1.point}
                 />
                 <BetLine 
                   stake={bet.bet2.stake} 
                   outcome={bet.bet2.outcome} 
                   odds={bet.bet2.odds} 
-                  bookmaker={bet.bet2.bookmaker} 
+                  bookmaker={bet.bet2.bookmaker}
+                  point={bet.bet2.point}
                 />
                 {bet.bet3 && (
                   <BetLine 
@@ -457,16 +525,27 @@ function BetRow({
                 </div>
               </>
             )}
+
+            {/* Middle Range */}
+            {bet.mode === 'middle' && bet.middleRange && (
+              <div className="text-yellow-400 mt-1">
+                🎯 {bet.middleRange.description}
+              </div>
+            )}
           </div>
 
           {/* Summary Line */}
-          <div className="flex items-center gap-4 text-xs pt-1 border-t border-[#1a1a1a]">
+          <div className="flex items-center gap-4 text-xs pt-1 border-t border-[#1a1a1a] flex-wrap">
             <span className="text-[#555]">
               Total: ${totalStake.toFixed(2)}
             </span>
             {isValueBet ? (
               <span className="text-blue-400">
                 EV: +${bet.expectedProfit.toFixed(2)} · If win: +${maxProfit.toFixed(2)}
+              </span>
+            ) : isMiddle ? (
+              <span className="text-yellow-400">
+                If middle: +${middleProfit?.toFixed(2)} · If miss: ${minProfit.toFixed(2)}
               </span>
             ) : (
               <span className={`font-medium ${minProfit >= 0 ? 'text-green-500' : 'text-red-400'}`}>
@@ -485,10 +564,10 @@ function BetRow({
           <select
             value={getCurrentOutcomeId()}
             onChange={e => handleOutcomeSelect(e.target.value)}
-            className="bg-[#111] border border-[#333] text-xs px-2 py-1 focus:outline-none focus:border-white max-w-[140px]"
+            className="bg-[#111] border border-[#333] text-xs px-2 py-1 focus:outline-none focus:border-white max-w-[160px]"
           >
             <option value="pending">Pending</option>
-            <optgroup label="Select Winner">
+            <optgroup label="Select Outcome">
               {outcomes.map(outcome => (
                 <option key={outcome.id} value={outcome.id}>
                   {outcome.label} ({outcome.profit >= 0 ? '+' : ''}${outcome.profit.toFixed(2)})
@@ -557,12 +636,14 @@ function BetLine({
   odds, 
   bookmaker,
   prefix,
+  point,
 }: { 
   stake: number; 
   outcome: string; 
   odds: number; 
   bookmaker: string;
   prefix?: string;
+  point?: number;
 }) {
   const returnAmount = stake * odds;
   
@@ -570,7 +651,9 @@ function BetLine({
     <div className="flex justify-between text-[#666]">
       <span>
         {prefix && <span className="text-[#888]">{prefix} </span>}
-        ${stake.toFixed(2)} on {outcome} @ {odds.toFixed(2)} ({bookmaker})
+        ${stake.toFixed(2)} on {outcome}
+        {point !== undefined && <span className="text-[#888]"> ({point > 0 ? '+' : ''}{point})</span>}
+        {' '}@ {odds.toFixed(2)} ({bookmaker})
       </span>
       <span className="text-[#888] ml-4 whitespace-nowrap">
         Return: ${returnAmount.toFixed(2)}

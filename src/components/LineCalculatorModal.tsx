@@ -1,11 +1,12 @@
 // src/components/LineCalculatorModal.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { X, Copy, Check } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { X, Copy, Check, AlertTriangle } from 'lucide-react';
 import type { SpreadArb, TotalsArb, MiddleOpportunity } from '@/lib/types';
 import type { PlacedBet } from '@/lib/bets';
 import { generateBetId } from '@/lib/bets';
+import { getBookmakerProfile, getRiskColor } from '@/lib/stealth/bookmakerProfiles';
 
 interface LineCalculatorModalProps {
   opportunity: SpreadArb | TotalsArb | MiddleOpportunity | null;
@@ -13,15 +14,95 @@ interface LineCalculatorModalProps {
   onLogBet?: (bet: PlacedBet) => void;
 }
 
-export function LineCalculatorModal({ opportunity, onClose, onLogBet }: LineCalculatorModalProps) {
-  const [totalStake, setTotalStake] = useState(100);
-  const [copied, setCopied] = useState(false);
+function RiskBadge({ bookmaker }: { bookmaker: string }) {
+  const profile = getBookmakerProfile(bookmaker);
+  
+  if (!profile) {
+    return (
+      <span className="text-xs px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-300">
+        Unknown
+      </span>
+    );
+  }
+  
+  return (
+    <span 
+      className="text-xs px-1.5 py-0.5 rounded font-medium"
+      style={{ 
+        backgroundColor: getRiskColor(profile.riskLevel) + '30',
+        color: getRiskColor(profile.riskLevel)
+      }}
+      title={`${profile.riskLevel} risk - ${profile.limitingSpeed} to limit`}
+    >
+      {profile.riskLevel.toUpperCase()}
+    </span>
+  );
+}
 
+export function LineCalculatorModal({ opportunity, onClose, onLogBet }: LineCalculatorModalProps) {
+  const [totalStake, setTotalStake] = useState<string>('100');
+  const [copied, setCopied] = useState(false);
+  const [betLogged, setBetLogged] = useState(false);
+  
+  // Editable odds
+  const [odds1String, setOdds1String] = useState<string>('');
+  const [odds2String, setOdds2String] = useState<string>('');
+  
+  // Editable stakes (for manual override)
+  const [stake1String, setStake1String] = useState<string>('');
+  const [stake2String, setStake2String] = useState<string>('');
+  const [stakesModified, setStakesModified] = useState(false);
+  const [oddsModified, setOddsModified] = useState(false);
+
+  // Initialize when opportunity changes
   useEffect(() => {
     if (opportunity) {
-      setTotalStake(100);
+      setBetLogged(false);
+      setStakesModified(false);
+      setOddsModified(false);
+      
+      if (opportunity.mode === 'middle') {
+        setOdds1String(opportunity.side1.odds.toFixed(2));
+        setOdds2String(opportunity.side2.odds.toFixed(2));
+      } else if (opportunity.mode === 'spread') {
+        setOdds1String(opportunity.favorite.odds.toFixed(2));
+        setOdds2String(opportunity.underdog.odds.toFixed(2));
+      } else if (opportunity.mode === 'totals') {
+        setOdds1String(opportunity.over.odds.toFixed(2));
+        setOdds2String(opportunity.under.odds.toFixed(2));
+      }
     }
   }, [opportunity]);
+
+  // Calculate optimal stakes
+  const calculateOptimalStakes = useCallback((o1: number, o2: number, total: number) => {
+    if (total <= 0 || o1 <= 1 || o2 <= 1) {
+      return { stake1: 0, stake2: 0 };
+    }
+    const impliedSum = (1 / o1) + (1 / o2);
+    const stake1 = total * (1 / o1) / impliedSum;
+    const stake2 = total * (1 / o2) / impliedSum;
+    return { stake1, stake2 };
+  }, []);
+
+  // Recalculate stakes when inputs change
+  useEffect(() => {
+    if (!opportunity || stakesModified) return;
+    
+    const total = parseFloat(totalStake) || 0;
+    const o1 = parseFloat(odds1String) || 0;
+    const o2 = parseFloat(odds2String) || 0;
+    
+    if (opportunity.mode === 'middle') {
+      // For middles, equal stakes
+      setStake1String((total / 2).toFixed(2));
+      setStake2String((total / 2).toFixed(2));
+    } else {
+      const { stake1, stake2 } = calculateOptimalStakes(o1, o2, total);
+      setStake1String(stake1.toFixed(2));
+      setStake2String(stake2.toFixed(2));
+    }
+  }, [opportunity, totalStake, odds1String, odds2String, stakesModified, calculateOptimalStakes]);
 
   if (!opportunity) return null;
 
@@ -29,51 +110,112 @@ export function LineCalculatorModal({ opportunity, onClose, onLogBet }: LineCalc
   const isSpread = opportunity.mode === 'spread';
   const isTotals = opportunity.mode === 'totals';
 
-  // Calculate stakes
-  let stake1 = 0;
-  let stake2 = 0;
-  let return1 = 0;
-  let return2 = 0;
-  let profit1 = 0;
-  let profit2 = 0;
-  let odds1 = 0;
-  let odds2 = 0;
+  // Parse current values
+  const odds1 = parseFloat(odds1String) || 0;
+  const odds2 = parseFloat(odds2String) || 0;
+  const stake1 = parseFloat(stake1String) || 0;
+  const stake2 = parseFloat(stake2String) || 0;
+  const total = stake1 + stake2;
 
-  if (isMiddle) {
-    // For middles, equal stakes on both sides
-    stake1 = totalStake / 2;
-    stake2 = totalStake / 2;
-    odds1 = opportunity.side1.odds;
-    odds2 = opportunity.side2.odds;
-    return1 = stake1 * odds1;
-    return2 = stake2 * odds2;
-    // If middle misses, one wins
-    profit1 = return1 - totalStake;
-    profit2 = return2 - totalStake;
-  } else if (isSpread) {
-    odds1 = opportunity.favorite.odds;
-    odds2 = opportunity.underdog.odds;
-    const impliedSum = (1 / odds1) + (1 / odds2);
-    stake1 = totalStake * (1 / odds1) / impliedSum;
-    stake2 = totalStake * (1 / odds2) / impliedSum;
-    return1 = stake1 * odds1;
-    return2 = stake2 * odds2;
-    profit1 = return1 - totalStake;
-    profit2 = return2 - totalStake;
-  } else if (isTotals) {
-    odds1 = opportunity.over.odds;
-    odds2 = opportunity.under.odds;
-    const impliedSum = (1 / odds1) + (1 / odds2);
-    stake1 = totalStake * (1 / odds1) / impliedSum;
-    stake2 = totalStake * (1 / odds2) / impliedSum;
-    return1 = stake1 * odds1;
-    return2 = stake2 * odds2;
-    profit1 = return1 - totalStake;
-    profit2 = return2 - totalStake;
-  }
+  // Get original odds for comparison
+  const originalOdds1 = isMiddle 
+    ? opportunity.side1.odds 
+    : isSpread 
+      ? opportunity.favorite.odds 
+      : opportunity.over.odds;
+  const originalOdds2 = isMiddle 
+    ? opportunity.side2.odds 
+    : isSpread 
+      ? opportunity.underdog.odds 
+      : opportunity.under.odds;
 
+  // Calculate returns and profits
+  const return1 = stake1 * odds1;
+  const return2 = stake2 * odds2;
+  const profit1 = return1 - total;
+  const profit2 = return2 - total;
+  
+  // For non-middles: guaranteed profit
   const guaranteedProfit = Math.min(profit1, profit2);
-  const profitPercent = (guaranteedProfit / totalStake) * 100;
+  const profitPercent = total > 0 ? (guaranteedProfit / total) * 100 : 0;
+  
+  // For middles: potential profit if middle hits
+  const middleProfit = return1 + return2 - total;
+  const middleLoss = Math.min(profit1, profit2); // One side wins
+  
+  // Calculate implied probability
+  const impliedSum = odds1 > 1 && odds2 > 1 ? (1 / odds1) + (1 / odds2) : 2;
+  const isArb = impliedSum < 1;
+
+  // Check if odds have been modified
+  const oddsChanged = Math.abs(odds1 - originalOdds1) > 0.001 || Math.abs(odds2 - originalOdds2) > 0.001;
+
+  // Get optimal stakes for comparison
+  const optimalStakes = calculateOptimalStakes(odds1, odds2, total);
+  const stakesDeviation = Math.abs(stake1 - optimalStakes.stake1) > 0.5 || Math.abs(stake2 - optimalStakes.stake2) > 0.5;
+
+  // Get bookmaker names
+  const bookmaker1 = isMiddle 
+    ? opportunity.side1.bookmaker 
+    : isSpread 
+      ? opportunity.favorite.bookmaker 
+      : opportunity.over.bookmaker;
+  const bookmaker2 = isMiddle 
+    ? opportunity.side2.bookmaker 
+    : isSpread 
+      ? opportunity.underdog.bookmaker 
+      : opportunity.under.bookmaker;
+
+  // Get bet labels
+  const label1 = isMiddle 
+    ? opportunity.side1.name 
+    : isSpread 
+      ? `${opportunity.favorite.name} ${opportunity.favorite.point}` 
+      : `Over ${opportunity.line}`;
+  const label2 = isMiddle 
+    ? opportunity.side2.name 
+    : isSpread 
+      ? `${opportunity.underdog.name} +${Math.abs(opportunity.underdog.point)}` 
+      : `Under ${opportunity.line}`;
+
+  const handleOdds1Change = (value: string) => {
+    setOdds1String(value);
+    const parsed = parseFloat(value);
+    if (!isNaN(parsed) && Math.abs(parsed - originalOdds1) > 0.001) {
+      setOddsModified(true);
+    }
+    setStakesModified(false); // Recalculate stakes
+  };
+
+  const handleOdds2Change = (value: string) => {
+    setOdds2String(value);
+    const parsed = parseFloat(value);
+    if (!isNaN(parsed) && Math.abs(parsed - originalOdds2) > 0.001) {
+      setOddsModified(true);
+    }
+    setStakesModified(false); // Recalculate stakes
+  };
+
+  const handleStake1Change = (value: string) => {
+    setStake1String(value);
+    setStakesModified(true);
+  };
+
+  const handleStake2Change = (value: string) => {
+    setStake2String(value);
+    setStakesModified(true);
+  };
+
+  const handleRecalculateOptimal = () => {
+    setStakesModified(false);
+  };
+
+  const resetAll = () => {
+    setOdds1String(originalOdds1.toFixed(2));
+    setOdds2String(originalOdds2.toFixed(2));
+    setOddsModified(false);
+    setStakesModified(false);
+  };
 
   const handleCopy = () => {
     let text = '';
@@ -81,37 +223,81 @@ export function LineCalculatorModal({ opportunity, onClose, onLogBet }: LineCalc
     if (isMiddle) {
       text = `MIDDLE OPPORTUNITY
 ${opportunity.event.homeTeam} vs ${opportunity.event.awayTeam}
+${opportunity.event.sportTitle}
 
-${opportunity.side1.name}: $${stake1.toFixed(2)} @ ${odds1.toFixed(2)} (${opportunity.side1.bookmaker})
-${opportunity.side2.name}: $${stake2.toFixed(2)} @ ${odds2.toFixed(2)} (${opportunity.side2.bookmaker})
+${label1}: $${stake1.toFixed(2)} @ ${odds1.toFixed(2)} (${bookmaker1})
+${label2}: $${stake2.toFixed(2)} @ ${odds2.toFixed(2)} (${bookmaker2})
 
 Middle Zone: ${opportunity.middleRange.description}
-If middle hits: +$${opportunity.potentialProfit.toFixed(2)}
-If middle misses: -$${Math.abs(guaranteedProfit).toFixed(2)}
+~${opportunity.middleProbability.toFixed(0)}% chance
+
+If middle hits: +$${middleProfit.toFixed(2)}
+If middle misses: $${middleLoss.toFixed(2)}
 Expected Value: ${opportunity.expectedValue >= 0 ? '+' : ''}$${opportunity.expectedValue.toFixed(2)}`;
     } else if (isSpread) {
-      text = `SPREAD ARB
+      text = `SPREAD ARBITRAGE
 ${opportunity.event.homeTeam} vs ${opportunity.event.awayTeam}
+${opportunity.event.sportTitle}
 Line: ${opportunity.line}
 
-${opportunity.favorite.name} ${opportunity.favorite.point}: $${stake1.toFixed(2)} @ ${odds1.toFixed(2)} (${opportunity.favorite.bookmaker})
-${opportunity.underdog.name} ${opportunity.underdog.point}: $${stake2.toFixed(2)} @ ${odds2.toFixed(2)} (${opportunity.underdog.bookmaker})
+${label1}: $${stake1.toFixed(2)} @ ${odds1.toFixed(2)} (${bookmaker1})
+${label2}: $${stake2.toFixed(2)} @ ${odds2.toFixed(2)} (${bookmaker2})
 
+Total Staked: $${total.toFixed(2)}
 Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%)`;
     } else {
-      text = `TOTALS ARB
+      text = `TOTALS ARBITRAGE
 ${opportunity.event.homeTeam} vs ${opportunity.event.awayTeam}
+${opportunity.event.sportTitle}
 Line: ${opportunity.line}
 
-Over ${opportunity.line}: $${stake1.toFixed(2)} @ ${odds1.toFixed(2)} (${opportunity.over.bookmaker})
-Under ${opportunity.line}: $${stake2.toFixed(2)} @ ${odds2.toFixed(2)} (${opportunity.under.bookmaker})
+${label1}: $${stake1.toFixed(2)} @ ${odds1.toFixed(2)} (${bookmaker1})
+${label2}: $${stake2.toFixed(2)} @ ${odds2.toFixed(2)} (${bookmaker2})
 
+Total Staked: $${total.toFixed(2)}
 Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%)`;
     }
 
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleLogBet = () => {
+    if (!onLogBet) return;
+
+    const bet: PlacedBet = {
+      id: generateBetId(),
+      createdAt: new Date().toISOString(),
+      event: {
+        homeTeam: opportunity.event.homeTeam,
+        awayTeam: opportunity.event.awayTeam,
+        sportKey: opportunity.event.sportKey,
+        commenceTime: opportunity.event.commenceTime.toISOString(),
+      },
+      mode: opportunity.mode,
+      expectedProfit: isMiddle ? opportunity.expectedValue : guaranteedProfit,
+      potentialProfit: isMiddle ? middleProfit : undefined,
+      status: 'pending',
+      bet1: {
+        bookmaker: bookmaker1,
+        outcome: label1,
+        odds: odds1,
+        stake: stake1,
+        point: isSpread ? opportunity.favorite.point : isTotals ? opportunity.line : isMiddle ? opportunity.side1.point : undefined,
+      },
+      bet2: {
+        bookmaker: bookmaker2,
+        outcome: label2,
+        odds: odds2,
+        stake: stake2,
+        point: isSpread ? opportunity.underdog.point : isTotals ? opportunity.line : isMiddle ? opportunity.side2.point : undefined,
+      },
+      middleRange: isMiddle ? opportunity.middleRange : undefined,
+    };
+    
+    onLogBet(bet);
+    setBetLogged(true);
   };
 
   return (
@@ -143,15 +329,34 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
 
           {/* Content */}
           <div className="p-6 space-y-6">
+            {/* Arb Status */}
+            {!isMiddle && (
+              <div className={`p-3 rounded-lg border ${isArb ? 'bg-green-900/20 border-green-700/50' : 'bg-red-900/20 border-red-700/50'}`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className={`text-lg ${isArb ? 'text-green-400' : 'text-red-400'}`}>
+                      {isArb ? '✓' : '✗'}
+                    </span>
+                    <span className={`font-medium ${isArb ? 'text-green-400' : 'text-red-400'}`}>
+                      {isArb ? 'Guaranteed Profit' : 'No Arbitrage'}
+                    </span>
+                  </div>
+                  <div className="text-sm text-zinc-400">
+                    Combined implied: {(impliedSum * 100).toFixed(2)}%
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Middle Warning */}
             {isMiddle && (
-              <div className="flex items-start gap-3 p-4 bg-yellow-900/20 border border-yellow-700/50">
-                <span className="text-yellow-400">⚠️</span>
+              <div className="flex items-start gap-3 p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
+                <AlertTriangle className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
                 <div>
                   <div className="font-medium text-yellow-400">Middle Opportunity</div>
                   <div className="text-sm text-[#888]">
-                    This is NOT a guaranteed arb. You win big if the middle hits, but lose if it doesn&apos;t.
-                    EV: {opportunity.expectedValue >= 0 ? '+' : ''}${opportunity.expectedValue.toFixed(2)}
+                    NOT guaranteed. Win big if middle hits (~{opportunity.middleProbability.toFixed(0)}% chance), 
+                    lose if it doesn&apos;t. EV: {opportunity.expectedValue >= 0 ? '+' : ''}${opportunity.expectedValue.toFixed(2)}
                   </div>
                 </div>
               </div>
@@ -160,7 +365,7 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
             {/* Total Stake */}
             <div>
               <label className="block text-xs text-[#666] uppercase tracking-wide mb-2">
-                Total Stake
+                Total Stake (for optimal calculation)
               </label>
               <div className="flex gap-2 flex-wrap">
                 <div className="relative flex-1 min-w-[120px]">
@@ -168,16 +373,22 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
                   <input
                     type="number"
                     value={totalStake}
-                    onChange={e => setTotalStake(parseFloat(e.target.value) || 0)}
+                    onChange={e => {
+                      setTotalStake(e.target.value);
+                      setStakesModified(false);
+                    }}
                     className="w-full bg-[#111] border border-[#333] px-3 py-2 pl-7 font-mono focus:border-white focus:outline-none"
                   />
                 </div>
                 {[50, 100, 250, 500].map(amount => (
                   <button
                     key={amount}
-                    onClick={() => setTotalStake(amount)}
+                    onClick={() => {
+                      setTotalStake(amount.toString());
+                      setStakesModified(false);
+                    }}
                     className={`px-3 py-2 text-sm border transition-colors ${
-                      totalStake === amount
+                      parseFloat(totalStake) === amount
                         ? 'bg-white text-black border-white'
                         : 'border-[#333] text-[#888] hover:border-[#555]'
                     }`}
@@ -188,35 +399,86 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
               </div>
             </div>
 
+            {/* Modified Warning */}
+            {(oddsModified || stakesModified) && (
+              <div className="flex items-center justify-between p-3 bg-blue-900/20 border border-blue-700/50 rounded-lg">
+                <div className="flex items-center gap-2 text-sm text-blue-300">
+                  <span>✏️</span>
+                  <span>
+                    {oddsModified && stakesModified 
+                      ? 'Odds and stakes modified' 
+                      : oddsModified 
+                        ? 'Odds modified from original' 
+                        : 'Stakes manually adjusted'}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  {stakesModified && (
+                    <button
+                      onClick={handleRecalculateOptimal}
+                      className="text-xs px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+                    >
+                      Recalculate Optimal
+                    </button>
+                  )}
+                  <button
+                    onClick={resetAll}
+                    className="text-xs px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-white rounded transition-colors"
+                  >
+                    Reset All
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Stakes Breakdown */}
             <div className="space-y-4">
               {/* Bet 1 */}
-              <div className="bg-[#111] border border-[#222] p-4">
-                <div className="flex items-center justify-between mb-2">
+              <div className="bg-[#111] border border-[#222] p-4 rounded-lg">
+                <div className="flex items-center justify-between mb-3">
                   <div>
-                    {isMiddle && <span className="text-sm text-[#888]">{opportunity.side1.name}</span>}
-                    {isSpread && (
-                      <span className="text-sm">
-                        <span className="text-[#888]">{opportunity.favorite.name}</span>
-                        <span className="font-mono text-white ml-2">{opportunity.favorite.point}</span>
-                      </span>
-                    )}
-                    {isTotals && (
-                      <span className="text-sm">
-                        <span className="text-green-400">Over</span>
-                        <span className="font-mono text-white ml-2">{opportunity.line}</span>
-                      </span>
+                    <div className="font-medium text-white">{label1}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-sm text-[#666]">{bookmaker1}</span>
+                      <RiskBadge bookmaker={bookmaker1} />
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-500">Odds:</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={odds1String}
+                        onChange={(e) => handleOdds1Change(e.target.value)}
+                        className={`w-20 text-right text-lg font-bold bg-zinc-700 border rounded px-2 py-1 focus:outline-none focus:border-blue-500 ${
+                          Math.abs(odds1 - originalOdds1) > 0.001
+                            ? 'border-blue-500 text-blue-400' 
+                            : 'border-zinc-600 text-blue-400'
+                        }`}
+                      />
+                    </div>
+                    {Math.abs(odds1 - originalOdds1) > 0.001 && (
+                      <div className="text-xs text-zinc-500 mt-1">
+                        Was {originalOdds1.toFixed(2)}
+                      </div>
                     )}
                   </div>
-                  <span className="text-xs text-[#555]">
-                    {isMiddle ? opportunity.side1.bookmaker : isSpread ? opportunity.favorite.bookmaker : opportunity.over.bookmaker}
-                  </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <div className="text-lg font-mono">
-                    <span className="text-[#666]">$</span>
-                    <span className="text-white">{stake1.toFixed(2)}</span>
-                    <span className="text-[#666] text-sm ml-2">@ {odds1.toFixed(2)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-400">$</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={stake1String}
+                      onChange={(e) => handleStake1Change(e.target.value)}
+                      className={`w-28 text-xl font-bold bg-zinc-700 border rounded px-2 py-1 focus:outline-none focus:border-green-500 ${
+                        stakesModified
+                          ? 'border-green-500 text-white' 
+                          : 'border-zinc-600 text-white'
+                      }`}
+                    />
                   </div>
                   <div className="text-right">
                     <div className="text-xs text-[#666]">Returns</div>
@@ -226,32 +488,51 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
               </div>
 
               {/* Bet 2 */}
-              <div className="bg-[#111] border border-[#222] p-4">
-                <div className="flex items-center justify-between mb-2">
+              <div className="bg-[#111] border border-[#222] p-4 rounded-lg">
+                <div className="flex items-center justify-between mb-3">
                   <div>
-                    {isMiddle && <span className="text-sm text-[#888]">{opportunity.side2.name}</span>}
-                    {isSpread && (
-                      <span className="text-sm">
-                        <span className="text-[#888]">{opportunity.underdog.name}</span>
-                        <span className="font-mono text-white ml-2">+{opportunity.underdog.point}</span>
-                      </span>
-                    )}
-                    {isTotals && (
-                      <span className="text-sm">
-                        <span className="text-red-400">Under</span>
-                        <span className="font-mono text-white ml-2">{opportunity.line}</span>
-                      </span>
+                    <div className="font-medium text-white">{label2}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className="text-sm text-[#666]">{bookmaker2}</span>
+                      <RiskBadge bookmaker={bookmaker2} />
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-zinc-500">Odds:</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={odds2String}
+                        onChange={(e) => handleOdds2Change(e.target.value)}
+                        className={`w-20 text-right text-lg font-bold bg-zinc-700 border rounded px-2 py-1 focus:outline-none focus:border-blue-500 ${
+                          Math.abs(odds2 - originalOdds2) > 0.001
+                            ? 'border-blue-500 text-blue-400' 
+                            : 'border-zinc-600 text-blue-400'
+                        }`}
+                      />
+                    </div>
+                    {Math.abs(odds2 - originalOdds2) > 0.001 && (
+                      <div className="text-xs text-zinc-500 mt-1">
+                        Was {originalOdds2.toFixed(2)}
+                      </div>
                     )}
                   </div>
-                  <span className="text-xs text-[#555]">
-                    {isMiddle ? opportunity.side2.bookmaker : isSpread ? opportunity.underdog.bookmaker : opportunity.under.bookmaker}
-                  </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <div className="text-lg font-mono">
-                    <span className="text-[#666]">$</span>
-                    <span className="text-white">{stake2.toFixed(2)}</span>
-                    <span className="text-[#666] text-sm ml-2">@ {odds2.toFixed(2)}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-zinc-400">$</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={stake2String}
+                      onChange={(e) => handleStake2Change(e.target.value)}
+                      className={`w-28 text-xl font-bold bg-zinc-700 border rounded px-2 py-1 focus:outline-none focus:border-green-500 ${
+                        stakesModified
+                          ? 'border-green-500 text-white' 
+                          : 'border-zinc-600 text-white'
+                      }`}
+                    />
                   </div>
                   <div className="text-right">
                     <div className="text-xs text-[#666]">Returns</div>
@@ -261,30 +542,92 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
               </div>
             </div>
 
+            {/* Profit Variance Warning */}
+            {!isMiddle && stakesDeviation && stakesModified && (
+              <div className="p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
+                <h4 className="text-yellow-400 font-medium mb-2">⚠️ Unbalanced Stakes</h4>
+                <p className="text-sm text-yellow-300/80 mb-2">
+                  Your stakes create different profits depending on outcome:
+                </p>
+                <div className="space-y-1 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-zinc-400">If {label1} wins:</span>
+                    <span className={profit1 >= 0 ? 'text-green-400' : 'text-red-400'}>
+                      {profit1 >= 0 ? '+' : ''}${profit1.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-zinc-400">If {label2} wins:</span>
+                    <span className={profit2 >= 0 ? 'text-green-400' : 'text-red-400'}>
+                      {profit2 >= 0 ? '+' : ''}${profit2.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={handleRecalculateOptimal}
+                  className="mt-3 w-full py-2 bg-yellow-600 hover:bg-yellow-700 text-black text-sm font-medium rounded transition-colors"
+                >
+                  Recalculate Optimal Stakes
+                </button>
+              </div>
+            )}
+
             {/* Results */}
             {isMiddle ? (
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-[#0a1a0a] border border-[#1a3a1a] p-4 text-center">
+                <div className="bg-[#0a1a0a] border border-[#1a3a1a] p-4 text-center rounded-lg">
                   <div className="text-xs text-[#4a8a4a] uppercase tracking-wide mb-1">If Middle Hits</div>
                   <div className="font-mono text-2xl text-green-400">
-                    +${((stake1 * odds1) + (stake2 * odds2) - totalStake).toFixed(2)}
+                    +${middleProfit.toFixed(2)}
+                  </div>
+                  <div className="text-xs text-[#4a8a4a] mt-1">
+                    ~{opportunity.middleProbability.toFixed(0)}% chance
                   </div>
                 </div>
-                <div className="bg-[#1a0a0a] border border-[#3a1a1a] p-4 text-center">
+                <div className="bg-[#1a0a0a] border border-[#3a1a1a] p-4 text-center rounded-lg">
                   <div className="text-xs text-[#8a4a4a] uppercase tracking-wide mb-1">If Middle Misses</div>
                   <div className="font-mono text-2xl text-red-400">
-                    ${guaranteedProfit.toFixed(2)}
+                    ${middleLoss.toFixed(2)}
+                  </div>
+                  <div className="text-xs text-[#8a4a4a] mt-1">
+                    ~{(100 - opportunity.middleProbability).toFixed(0)}% chance
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="bg-[#0a1a0a] border border-[#1a3a1a] p-4 text-center">
-                <div className="text-xs text-[#4a8a4a] uppercase tracking-wide mb-1">Guaranteed Profit</div>
-                <div className="font-mono text-2xl text-green-400">
-                  +${guaranteedProfit.toFixed(2)}
+              <div className="bg-zinc-800/50 border border-zinc-700 p-4 rounded-lg">
+                <div className="grid grid-cols-3 gap-4 text-center">
+                  <div>
+                    <div className="text-xs text-zinc-500 uppercase mb-1">Total Staked</div>
+                    <div className="text-lg font-bold text-white">
+                      ${total.toFixed(2)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-zinc-500 uppercase mb-1">Guaranteed Profit</div>
+                    <div className={`text-lg font-bold ${guaranteedProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {guaranteedProfit >= 0 ? '+' : ''}${guaranteedProfit.toFixed(2)}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-zinc-500 uppercase mb-1">ROI</div>
+                    <div className={`text-lg font-bold ${profitPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      {profitPercent >= 0 ? '+' : ''}{profitPercent.toFixed(2)}%
+                    </div>
+                  </div>
                 </div>
-                <div className="text-sm text-[#4a8a4a] mt-1">
-                  {profitPercent.toFixed(2)}% return
+              </div>
+            )}
+
+            {/* Middle Zone Info */}
+            {isMiddle && (
+              <div className="bg-[#111] border border-[#333] p-4 rounded-lg">
+                <div className="text-xs text-[#666] uppercase tracking-wide mb-2">Middle Zone</div>
+                <div className="text-yellow-400 font-medium">
+                  {opportunity.middleRange.description}
+                </div>
+                <div className="text-sm text-[#888] mt-2">
+                  If the final margin lands in this range, both bets win!
                 </div>
               </div>
             )}
@@ -307,12 +650,19 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
                   </>
                 )}
               </button>
-              <button
-                onClick={onClose}
-                className="flex-1 px-4 py-2.5 bg-white text-black font-medium hover:bg-[#eee] transition-colors"
-              >
-                Done
-              </button>
+              {onLogBet && (
+                <button
+                  onClick={handleLogBet}
+                  disabled={betLogged}
+                  className={`flex-1 px-4 py-2.5 font-medium transition-colors ${
+                    betLogged
+                      ? 'bg-[#222] text-[#666] cursor-not-allowed'
+                      : 'bg-white text-black hover:bg-[#eee]'
+                  }`}
+                >
+                  {betLogged ? 'Bet Logged ✓' : 'Log Bet'}
+                </button>
+              )}
             </div>
           </div>
         </div>
