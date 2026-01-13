@@ -1,14 +1,32 @@
 // src/components/ArbTable.tsx
 'use client';
 
-import type { ArbOpportunity, BookVsBookArb } from '@/lib/types';
+import type { ArbOpportunity } from '@/lib/types';
+import { getBookmakerName, getBookmakerRegion } from '@/lib/config';
 
 interface ArbTableProps {
   opportunities: ArbOpportunity[];
   onSelectArb: (arb: ArbOpportunity) => void;
+  globalMode?: boolean;
 }
 
-// Format date in AEST
+function RegionBadge({ bookmaker }: { bookmaker: string }) {
+  const region = getBookmakerRegion(bookmaker);
+  const colors: Record<string, string> = {
+    AU: 'bg-green-900/50 text-green-400',
+    UK: 'bg-blue-900/50 text-blue-400',
+    US: 'bg-red-900/50 text-red-400',
+    EU: 'bg-purple-900/50 text-purple-400',
+    INT: 'bg-zinc-700 text-zinc-300',
+  };
+  
+  return (
+    <span className={`text-xs px-1 py-0.5 rounded ${colors[region] || colors.INT}`}>
+      {region}
+    </span>
+  );
+}
+
 function formatEventTime(date: Date): string {
   return date.toLocaleString('en-AU', {
     timeZone: 'Australia/Sydney',
@@ -20,14 +38,12 @@ function formatEventTime(date: Date): string {
   });
 }
 
-// Check if event is starting soon (within 2 hours)
 function isEventSoon(date: Date): boolean {
   const now = new Date();
   const twoHours = 2 * 60 * 60 * 1000;
   return date > now && date.getTime() - now.getTime() < twoHours;
 }
 
-// Get time until event
 function getTimeUntil(date: Date): string {
   const now = new Date();
   const diff = date.getTime() - now.getTime();
@@ -47,13 +63,13 @@ function getTimeUntil(date: Date): string {
   return `${minutes}m`;
 }
 
-export function ArbTable({ opportunities, onSelectArb }: ArbTableProps) {
+export function ArbTable({ opportunities, onSelectArb, globalMode = false }: ArbTableProps) {
   if (opportunities.length === 0) {
     return (
       <div className="border border-[#222] bg-[#0a0a0a] p-12 text-center">
-        <p className="text-[#888] mb-2">No opportunities found</p>
+        <p className="text-[#888] mb-2">No arbitrage opportunities found</p>
         <p className="text-xs text-[#555]">
-          Try adjusting filters or scan again later. True arbs are rare and close quickly.
+          Click Scan to search for opportunities, or adjust filters
         </p>
       </div>
     );
@@ -86,7 +102,7 @@ export function ArbTable({ opportunities, onSelectArb }: ArbTableProps) {
         </thead>
         <tbody>
           {opportunities.map((opp, idx) => (
-            <ArbRow key={`${opp.event.id}-${idx}`} opp={opp} onSelect={onSelectArb} />
+            <ArbRow key={`${opp.event.id}-${idx}`} opp={opp} onSelect={onSelectArb} globalMode={globalMode} />
           ))}
         </tbody>
       </table>
@@ -94,21 +110,20 @@ export function ArbTable({ opportunities, onSelectArb }: ArbTableProps) {
   );
 }
 
-function ArbRow({ opp, onSelect }: { opp: ArbOpportunity; onSelect: (arb: ArbOpportunity) => void }) {
-  const isThreeWay = opp.mode === 'book-vs-book' && (opp as BookVsBookArb).outcomes === 3;
+function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: (arb: ArbOpportunity) => void; globalMode: boolean }) {
   const eventDate = new Date(opp.event.commenceTime);
   const soon = isEventSoon(eventDate);
   const timeUntil = getTimeUntil(eventDate);
-  
+
   return (
     <tr className="border-b border-[#222] hover:bg-[#111] transition-colors">
       <td className="px-4 py-3">
-        <div className="flex flex-col gap-1">
-          <TypeBadge type={opp.type} />
-          {isThreeWay && (
-            <span className="text-xs text-[#555]">3-way</span>
-          )}
-        </div>
+        <TypeBadge type={opp.type} />
+        {opp.mode === 'book-vs-betfair' && (
+          <span className="ml-1 text-xs px-1.5 py-0.5 bg-purple-900/50 text-purple-400">
+            BF
+          </span>
+        )}
       </td>
       <td className="px-4 py-3">
         <div className="font-medium">{opp.event.homeTeam}</div>
@@ -119,30 +134,55 @@ function ArbRow({ opp, onSelect }: { opp: ArbOpportunity; onSelect: (arb: ArbOpp
         <div className={`${soon ? 'text-yellow-500' : 'text-[#888]'}`}>
           {formatEventTime(eventDate)}
         </div>
-        <div className={`text-xs mt-0.5 ${
-          soon 
-            ? 'text-yellow-500 font-medium' 
-            : timeUntil === 'Started' 
-              ? 'text-[#555]' 
-              : 'text-[#555]'
-        }`}>
+        <div className={`text-xs mt-0.5 ${soon ? 'text-yellow-500' : 'text-[#555]'}`}>
           {timeUntil === 'Started' ? 'In progress' : `Starts in ${timeUntil}`}
         </div>
       </td>
       <td className="px-4 py-3">
         {opp.mode === 'book-vs-book' ? (
-          <BookVsBookBets arb={opp as BookVsBookArb} />
+          <div className="space-y-2">
+            <BetLine 
+              name={opp.outcome1.name} 
+              odds={opp.outcome1.odds} 
+              bookmaker={opp.outcome1.bookmaker}
+              showRegion={globalMode}
+            />
+            <BetLine 
+              name={opp.outcome2.name} 
+              odds={opp.outcome2.odds} 
+              bookmaker={opp.outcome2.bookmaker}
+              showRegion={globalMode}
+            />
+            {opp.outcome3 && (
+              <BetLine 
+                name={opp.outcome3.name} 
+                odds={opp.outcome3.odds} 
+                bookmaker={opp.outcome3.bookmaker}
+                showRegion={globalMode}
+              />
+            )}
+          </div>
         ) : (
-          <BetfairBets arb={opp} />
+          <div className="space-y-2">
+            <BetLine 
+              name={`Back ${opp.backOutcome.name}`} 
+              odds={opp.backOutcome.odds} 
+              bookmaker={opp.backOutcome.bookmaker}
+              showRegion={globalMode}
+            />
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="text-purple-400">Lay</span>
+                <span className="font-mono text-white">{opp.layOutcome.odds.toFixed(2)}</span>
+              </div>
+              <div className="text-xs text-[#555]">Betfair Exchange</div>
+            </div>
+          </div>
         )}
       </td>
       <td className="px-4 py-3 text-right">
         <span className={`font-mono font-medium ${
-          opp.profitPercentage >= 0 
-            ? 'text-white' 
-            : opp.profitPercentage >= -1 
-              ? 'text-[#888]' 
-              : 'text-[#666]'
+          opp.profitPercentage >= 0 ? 'text-white' : 'text-[#666]'
         }`}>
           {opp.profitPercentage >= 0 ? '+' : ''}{opp.profitPercentage.toFixed(2)}%
         </span>
@@ -159,47 +199,17 @@ function ArbRow({ opp, onSelect }: { opp: ArbOpportunity; onSelect: (arb: ArbOpp
   );
 }
 
-function BookVsBookBets({ arb }: { arb: BookVsBookArb }) {
-  const isThreeWay = arb.outcomes === 3;
-  
-  return (
-    <div className="space-y-2">
-      <BetLine name={arb.outcome1.name} odds={arb.outcome1.odds} bookmaker={arb.outcome1.bookmaker} />
-      <BetLine name={arb.outcome2.name} odds={arb.outcome2.odds} bookmaker={arb.outcome2.bookmaker} />
-      {isThreeWay && arb.outcome3 && (
-        <BetLine name={arb.outcome3.name} odds={arb.outcome3.odds} bookmaker={arb.outcome3.bookmaker} />
-      )}
-    </div>
-  );
-}
-
-function BetfairBets({ arb }: { arb: ArbOpportunity }) {
-  if (arb.mode !== 'book-vs-betfair') return null;
-  
-  return (
-    <div className="space-y-2">
-      <div>
-        <div className="font-mono">{arb.backOutcome.odds.toFixed(2)}</div>
-        <div className="text-xs text-[#666]">Back {arb.backOutcome.name}</div>
-        <div className="text-xs text-[#555]">@ {arb.backOutcome.bookmaker}</div>
-      </div>
-      <div>
-        <div className="font-mono">{arb.layOutcome.odds.toFixed(2)}</div>
-        <div className="text-xs text-[#666]">Lay {arb.layOutcome.name}</div>
-        <div className="text-xs text-[#555]">@ Betfair</div>
-      </div>
-    </div>
-  );
-}
-
-function BetLine({ name, odds, bookmaker }: { name: string; odds: number; bookmaker: string }) {
+function BetLine({ name, odds, bookmaker, showRegion }: { name: string; odds: number; bookmaker: string; showRegion?: boolean }) {
   return (
     <div>
       <div className="flex items-center gap-2">
+        <span className="text-white font-medium">{name}</span>
         <span className="font-mono text-white">{odds.toFixed(2)}</span>
-        <span className="text-[#666]">{name}</span>
       </div>
-      <div className="text-xs text-[#555]">@ {bookmaker}</div>
+      <div className="flex items-center gap-1 text-xs text-[#555]">
+        <span>{getBookmakerName(bookmaker)}</span>
+        {showRegion && <RegionBadge bookmaker={bookmaker} />}
+      </div>
     </div>
   );
 }

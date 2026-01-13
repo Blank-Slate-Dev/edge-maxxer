@@ -5,7 +5,6 @@ import { getTheOddsApiProvider, getMockOddsProvider } from '@/lib/providers';
 import { detectAllOpportunities } from '@/lib/arb/detector';
 import { getCache } from '@/lib/cache';
 import { config } from '@/lib/config';
-import type { ArbOpportunity, ValueBet, ScanStats } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -18,16 +17,18 @@ export async function GET(request: Request) {
     const forceRefresh = searchParams.get('refresh') === 'true';
     const showNearArbs = searchParams.get('nearArbs') !== 'false';
     const showValueBets = searchParams.get('valueBets') !== 'false';
+    const globalMode = searchParams.get('global') === 'true';
 
     const cache = getCache();
 
-    // Check cache first
-    if (!forceRefresh) {
+    // Check cache first (skip cache in global mode)
+    if (!forceRefresh && !globalMode) {
       const cached = cache.getArbs();
       if (cached) {
         return NextResponse.json({
           ...cached,
           cached: true,
+          globalMode: false,
         });
       }
     }
@@ -38,7 +39,7 @@ export async function GET(request: Request) {
       ? getTheOddsApiProvider()
       : getMockOddsProvider();
 
-    console.log(`[API /arbs] Using provider: ${provider.name}`);
+    console.log(`[API /arbs] Using provider: ${provider.name}, globalMode: ${globalMode}`);
 
     // Fetch ALL available sports
     let sportsToFetch: string[] = [];
@@ -46,19 +47,17 @@ export async function GET(request: Request) {
     if (useRealApi) {
       console.log('[API /arbs] Fetching available sports list...');
       const allSports = await provider.getSupportedSports();
-      // Filter to sports with head-to-head markets (not outrights)
       sportsToFetch = allSports
         .filter(s => !s.hasOutrights)
         .map(s => s.key);
       console.log(`[API /arbs] Found ${sportsToFetch.length} sports with h2h markets`);
     } else {
-      // Mock provider - use default sports
       sportsToFetch = [...config.sportCategories.popular];
     }
 
-    // Fetch odds for all sports
+    // Fetch odds - pass globalMode
     console.log(`[API /arbs] Fetching odds for ${sportsToFetch.length} sports...`);
-    const oddsResult = await provider.fetchOdds(sportsToFetch);
+    const oddsResult = await provider.fetchOdds(sportsToFetch, ['h2h'], globalMode);
 
     console.log(`[API /arbs] Total events fetched: ${oddsResult.events.length}`);
 
@@ -71,12 +70,14 @@ export async function GET(request: Request) {
     });
     console.log(`[API /arbs] Bookmakers found:`, Object.fromEntries(bookmakerCount));
 
-    // Update odds cache
-    cache.setOdds({
-      events: oddsResult.events,
-      source: oddsResult.meta.source,
-      remainingRequests: oddsResult.meta.remainingRequests,
-    });
+    // Update odds cache (only in AU mode)
+    if (!globalMode) {
+      cache.setOdds({
+        events: oddsResult.events,
+        source: oddsResult.meta.source,
+        remainingRequests: oddsResult.meta.remainingRequests,
+      });
+    }
 
     // Detect all opportunities
     const { arbs, valueBets, bestOdds, stats } = detectAllOpportunities(
@@ -114,15 +115,18 @@ export async function GET(request: Request) {
       lastUpdated: new Date().toISOString(),
       isUsingMockData: !useRealApi,
       cached: false,
+      globalMode,
       remainingApiRequests: oddsResult.meta.remainingRequests,
     };
 
-    // Cache the response
-    cache.setArbs({
-      opportunities: arbs,
-      valueBets,
-      isUsingMockData: !useRealApi,
-    });
+    // Cache the response (only in AU mode)
+    if (!globalMode) {
+      cache.setArbs({
+        opportunities: arbs,
+        valueBets,
+        isUsingMockData: !useRealApi,
+      });
+    }
 
     return NextResponse.json(response);
   } catch (error) {

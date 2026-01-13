@@ -2,6 +2,7 @@
 'use client';
 
 import type { SpreadArb, MiddleOpportunity } from '@/lib/types';
+import { getBookmakerName, getBookmakerRegion } from '@/lib/config';
 
 interface SpreadsTableProps {
   spreads: SpreadArb[];
@@ -9,6 +10,24 @@ interface SpreadsTableProps {
   onSelectSpread: (spread: SpreadArb) => void;
   onSelectMiddle: (middle: MiddleOpportunity) => void;
   showMiddles: boolean;
+  globalMode?: boolean;
+}
+
+function RegionBadge({ bookmaker }: { bookmaker: string }) {
+  const region = getBookmakerRegion(bookmaker);
+  const colors: Record<string, string> = {
+    AU: 'bg-green-900/50 text-green-400',
+    UK: 'bg-blue-900/50 text-blue-400',
+    US: 'bg-red-900/50 text-red-400',
+    EU: 'bg-purple-900/50 text-purple-400',
+    INT: 'bg-zinc-700 text-zinc-300',
+  };
+  
+  return (
+    <span className={`text-xs px-1 py-0.5 rounded ${colors[region] || colors.INT}`}>
+      {region}
+    </span>
+  );
 }
 
 function formatEventTime(date: Date): string {
@@ -47,7 +66,7 @@ function getTimeUntil(date: Date): string {
   return `${minutes}m`;
 }
 
-export function SpreadsTable({ spreads, middles, onSelectSpread, onSelectMiddle, showMiddles }: SpreadsTableProps) {
+export function SpreadsTable({ spreads, middles, onSelectSpread, onSelectMiddle, showMiddles, globalMode = false }: SpreadsTableProps) {
   const hasContent = spreads.length > 0 || (showMiddles && middles.length > 0);
 
   if (!hasContent) {
@@ -85,7 +104,7 @@ export function SpreadsTable({ spreads, middles, onSelectSpread, onSelectMiddle,
             </thead>
             <tbody>
               {spreads.map((spread, idx) => (
-                <SpreadRow key={`${spread.event.id}-${idx}`} spread={spread} onSelect={onSelectSpread} />
+                <SpreadRow key={`${spread.event.id}-${idx}`} spread={spread} onSelect={onSelectSpread} globalMode={globalMode} />
               ))}
             </tbody>
           </table>
@@ -113,7 +132,7 @@ export function SpreadsTable({ spreads, middles, onSelectSpread, onSelectMiddle,
             </thead>
             <tbody>
               {middles.filter(m => m.marketType === 'spreads').map((middle, idx) => (
-                <MiddleRow key={`${middle.event.id}-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} />
+                <MiddleRow key={`${middle.event.id}-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} globalMode={globalMode} />
               ))}
             </tbody>
           </table>
@@ -123,7 +142,7 @@ export function SpreadsTable({ spreads, middles, onSelectSpread, onSelectMiddle,
   );
 }
 
-function SpreadRow({ spread, onSelect }: { spread: SpreadArb; onSelect: (s: SpreadArb) => void }) {
+function SpreadRow({ spread, onSelect, globalMode }: { spread: SpreadArb; onSelect: (s: SpreadArb) => void; globalMode: boolean }) {
   const eventDate = new Date(spread.event.commenceTime);
   const soon = isEventSoon(eventDate);
   const timeUntil = getTimeUntil(eventDate);
@@ -156,12 +175,14 @@ function SpreadRow({ spread, onSelect }: { spread: SpreadArb; onSelect: (s: Spre
             odds={spread.favorite.odds} 
             bookmaker={spread.favorite.bookmaker}
             point={spread.favorite.point}
+            showRegion={globalMode}
           />
           <BetLine 
             name={spread.underdog.name} 
             odds={spread.underdog.odds} 
             bookmaker={spread.underdog.bookmaker}
             point={spread.underdog.point}
+            showRegion={globalMode}
           />
         </div>
       </td>
@@ -184,7 +205,7 @@ function SpreadRow({ spread, onSelect }: { spread: SpreadArb; onSelect: (s: Spre
   );
 }
 
-function MiddleRow({ middle, onSelect }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void }) {
+function MiddleRow({ middle, onSelect, globalMode }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void; globalMode: boolean }) {
   const eventDate = new Date(middle.event.commenceTime);
   const soon = isEventSoon(eventDate);
 
@@ -210,15 +231,17 @@ function MiddleRow({ middle, onSelect }: { middle: MiddleOpportunity; onSelect: 
       </td>
       <td className="px-4 py-3">
         <div className="space-y-1 text-xs">
-          <div>
+          <div className="flex items-center gap-1 flex-wrap">
             <span className="font-mono text-white">{middle.side1.point > 0 ? '+' : ''}{middle.side1.point}</span>
-            <span className="text-[#666]"> @ {middle.side1.odds.toFixed(2)}</span>
-            <span className="text-[#555]"> ({middle.side1.bookmaker})</span>
+            <span className="text-[#666]">@ {middle.side1.odds.toFixed(2)}</span>
+            <span className="text-[#555]">({getBookmakerName(middle.side1.bookmaker)})</span>
+            {globalMode && <RegionBadge bookmaker={middle.side1.bookmaker} />}
           </div>
-          <div>
+          <div className="flex items-center gap-1 flex-wrap">
             <span className="font-mono text-white">{middle.side2.point > 0 ? '+' : ''}{middle.side2.point}</span>
-            <span className="text-[#666]"> @ {middle.side2.odds.toFixed(2)}</span>
-            <span className="text-[#555]"> ({middle.side2.bookmaker})</span>
+            <span className="text-[#666]">@ {middle.side2.odds.toFixed(2)}</span>
+            <span className="text-[#555]">({getBookmakerName(middle.side2.bookmaker)})</span>
+            {globalMode && <RegionBadge bookmaker={middle.side2.bookmaker} />}
           </div>
         </div>
       </td>
@@ -247,14 +270,17 @@ function MiddleRow({ middle, onSelect }: { middle: MiddleOpportunity; onSelect: 
   );
 }
 
-function BetLine({ name, odds, bookmaker, point }: { name: string; odds: number; bookmaker: string; point: number }) {
+function BetLine({ name, odds, bookmaker, point, showRegion }: { name: string; odds: number; bookmaker: string; point: number; showRegion?: boolean }) {
   return (
     <div>
       <div className="flex items-center gap-2">
         <span className="font-mono text-white">{point > 0 ? '+' : ''}{point}</span>
         <span className="text-[#888]">@ {odds.toFixed(2)}</span>
       </div>
-      <div className="text-xs text-[#555]">{name} ({bookmaker})</div>
+      <div className="flex items-center gap-1 text-xs text-[#555]">
+        <span>{name} ({getBookmakerName(bookmaker)})</span>
+        {showRegion && <RegionBadge bookmaker={bookmaker} />}
+      </div>
     </div>
   );
 }

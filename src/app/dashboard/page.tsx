@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { Globe, MapPin } from 'lucide-react';
 import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal } from '@/components';
 import { useBets } from '@/hooks/useBets';
 import { useAccounts } from '@/hooks/useAccounts';
@@ -23,6 +24,7 @@ interface ArbsResponse {
   lastUpdated: string;
   isUsingMockData: boolean;
   cached: boolean;
+  globalMode?: boolean;
   remainingApiRequests?: number;
   error?: string;
   details?: string;
@@ -35,6 +37,7 @@ interface LinesResponse {
   stats: LineStats;
   lastUpdated: string;
   isUsingMockData: boolean;
+  globalMode?: boolean;
   remainingApiRequests?: number;
   error?: string;
 }
@@ -79,6 +82,7 @@ export default function DashboardPage() {
   const [hasFetched, setHasFetched] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('opportunities');
   const [showMiddles, setShowMiddles] = useState(true);
+  const [globalMode, setGlobalMode] = useState(false);
 
   const { bets, isLoaded: betsLoaded, addBet, updateBet, deleteBet, clearAllBets } = useBets();
   const { 
@@ -118,6 +122,7 @@ export default function DashboardPage() {
         refresh: 'true',
         nearArbs: filters.showNearArbs ? 'true' : 'false',
         valueBets: filters.showValueBets ? 'true' : 'false',
+        global: globalMode ? 'true' : 'false',
       });
       
       if (filters.sports.length > 0) {
@@ -211,7 +216,7 @@ export default function DashboardPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [filters, sports.length, fetchSports, showMiddles]);
+  }, [filters, sports.length, fetchSports, showMiddles, globalMode]);
 
   const filteredOpportunities = opportunities.filter(opp => {
     if (filters.profitableOnly && opp.profitPercentage < 0) {
@@ -271,6 +276,52 @@ export default function DashboardPage() {
       />
 
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+        {/* Global Mode Toggle */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={() => setGlobalMode(!globalMode)}
+            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border transition-colors ${
+              globalMode
+                ? 'bg-blue-600 border-blue-600 text-white'
+                : 'border-[#333] text-[#888] hover:border-[#555]'
+            }`}
+          >
+            {globalMode ? (
+              <>
+                <Globe className="w-4 h-4" />
+                Global Mode
+              </>
+            ) : (
+              <>
+                <MapPin className="w-4 h-4" />
+                AU Only
+              </>
+            )}
+          </button>
+          {globalMode && (
+            <div className="text-xs text-blue-400">
+              ⚠️ Most global bookmakers require local residency
+            </div>
+          )}
+        </div>
+
+        {/* Global Mode Banner */}
+        {globalMode && (
+          <div className="border border-blue-700/50 bg-blue-900/20 px-4 py-3 text-sm">
+            <div className="flex items-start gap-3">
+              <Globe className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-medium text-blue-400">Global Scan Active</div>
+                <div className="text-blue-300/80 text-xs mt-1">
+                  Scanning {config.allBookmakers.length} bookmakers across AU, UK, US, EU. 
+                  Most non-AU bookmakers require local ID/address to register. 
+                  Use this to see what&apos;s available globally.
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Initial State */}
         {!hasFetched && !isLoading && activeTab === 'opportunities' && (
           <div className="border border-[#222] bg-[#0a0a0a] p-12 text-center">
@@ -280,7 +331,10 @@ export default function DashboardPage() {
               Click <span className="text-white font-medium">Scan</span> to search ALL markets for opportunities
             </p>
             <p className="text-xs text-[#444]">
-              Fetches H2H, Spreads, and Totals from {config.regions.join(', ').toUpperCase()} regions
+              {globalMode 
+                ? `Scanning ${config.allRegions.join(', ').toUpperCase()} regions (${config.allBookmakers.length} bookmakers)`
+                : `Scanning ${config.regions.join(', ').toUpperCase()} regions (AU bookmakers only)`
+              }
             </p>
           </div>
         )}
@@ -408,6 +462,7 @@ export default function DashboardPage() {
           <ArbTable
             opportunities={filteredOpportunities}
             onSelectArb={setSelectedArb}
+            globalMode={globalMode}
           />
         )}
 
@@ -418,6 +473,7 @@ export default function DashboardPage() {
             onSelectSpread={(s) => setSelectedLineOpp(s)}
             onSelectMiddle={(m) => setSelectedLineOpp(m)}
             showMiddles={showMiddles}
+            globalMode={globalMode}
           />
         )}
 
@@ -428,11 +484,12 @@ export default function DashboardPage() {
             onSelectTotals={(t) => setSelectedLineOpp(t)}
             onSelectMiddle={(m) => setSelectedLineOpp(m)}
             showMiddles={showMiddles}
+            globalMode={globalMode}
           />
         )}
 
         {hasFetched && activeTab === 'value-bets' && (
-          <ValueBetsTable valueBets={valueBets} onSelectValueBet={setSelectedValueBet} />
+          <ValueBetsTable valueBets={valueBets} onSelectValueBet={setSelectedValueBet} globalMode={globalMode} />
         )}
 
         {activeTab === 'history' && betsLoaded && (
@@ -533,7 +590,7 @@ function TabButton({
   );
 }
 
-function ValueBetsTable({ valueBets, onSelectValueBet }: { valueBets: ValueBet[]; onSelectValueBet: (vb: ValueBet) => void }) {
+function ValueBetsTable({ valueBets, onSelectValueBet, globalMode }: { valueBets: ValueBet[]; onSelectValueBet: (vb: ValueBet) => void; globalMode?: boolean }) {
   if (valueBets.length === 0) {
     return (
       <div className="border border-[#222] bg-[#0a0a0a] p-12 text-center">

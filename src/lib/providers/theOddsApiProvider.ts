@@ -55,7 +55,11 @@ export class TheOddsApiProvider implements OddsProvider {
     return this.getSupportedSports();
   }
 
-  async fetchOdds(sports: string[], markets: string[] = ['h2h']): Promise<ProviderResult> {
+  async fetchOdds(
+    sports: string[], 
+    markets: string[] = ['h2h'],
+    globalMode: boolean = false
+  ): Promise<ProviderResult> {
     if (!this.apiKey) {
       console.log('[TheOddsApiProvider] No API key configured');
       return {
@@ -69,10 +73,13 @@ export class TheOddsApiProvider implements OddsProvider {
     let usedRequests: number | undefined;
     const errors: string[] = [];
 
-    const regions = config.regions.join(',');
+    // Use different regions based on mode
+    const regions = globalMode 
+      ? config.allRegions.join(',')
+      : config.regions.join(',');
     const marketsStr = markets.join(',');
 
-    console.log(`[TheOddsApiProvider] Fetching ${sports.length} sports with regions: ${regions}, markets: ${marketsStr}`);
+    console.log(`[TheOddsApiProvider] Fetching ${sports.length} sports with regions: ${regions}, markets: ${marketsStr}, globalMode: ${globalMode}`);
 
     for (const sport of sports) {
       try {
@@ -168,7 +175,7 @@ export class TheOddsApiProvider implements OddsProvider {
         outcomes: m.outcomes.map(o => ({
           name: o.name,
           price: o.price,
-          point: o.point, // Include point for spreads/totals
+          point: o.point,
         })),
       })),
     }));

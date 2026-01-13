@@ -2,6 +2,7 @@
 'use client';
 
 import type { TotalsArb, MiddleOpportunity } from '@/lib/types';
+import { getBookmakerName, getBookmakerRegion } from '@/lib/config';
 
 interface TotalsTableProps {
   totals: TotalsArb[];
@@ -9,6 +10,24 @@ interface TotalsTableProps {
   onSelectTotals: (totals: TotalsArb) => void;
   onSelectMiddle: (middle: MiddleOpportunity) => void;
   showMiddles: boolean;
+  globalMode?: boolean;
+}
+
+function RegionBadge({ bookmaker }: { bookmaker: string }) {
+  const region = getBookmakerRegion(bookmaker);
+  const colors: Record<string, string> = {
+    AU: 'bg-green-900/50 text-green-400',
+    UK: 'bg-blue-900/50 text-blue-400',
+    US: 'bg-red-900/50 text-red-400',
+    EU: 'bg-purple-900/50 text-purple-400',
+    INT: 'bg-zinc-700 text-zinc-300',
+  };
+  
+  return (
+    <span className={`text-xs px-1 py-0.5 rounded ${colors[region] || colors.INT}`}>
+      {region}
+    </span>
+  );
 }
 
 function formatEventTime(date: Date): string {
@@ -47,7 +66,7 @@ function getTimeUntil(date: Date): string {
   return `${minutes}m`;
 }
 
-export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, showMiddles }: TotalsTableProps) {
+export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, showMiddles, globalMode = false }: TotalsTableProps) {
   const hasContent = totals.length > 0 || (showMiddles && middles.length > 0);
 
   if (!hasContent) {
@@ -85,7 +104,7 @@ export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, s
             </thead>
             <tbody>
               {totals.map((total, idx) => (
-                <TotalsRow key={`${total.event.id}-${idx}`} total={total} onSelect={onSelectTotals} />
+                <TotalsRow key={`${total.event.id}-${idx}`} total={total} onSelect={onSelectTotals} globalMode={globalMode} />
               ))}
             </tbody>
           </table>
@@ -113,7 +132,7 @@ export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, s
             </thead>
             <tbody>
               {middles.filter(m => m.marketType === 'totals').map((middle, idx) => (
-                <MiddleRow key={`${middle.event.id}-totals-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} />
+                <MiddleRow key={`${middle.event.id}-totals-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} globalMode={globalMode} />
               ))}
             </tbody>
           </table>
@@ -123,7 +142,7 @@ export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, s
   );
 }
 
-function TotalsRow({ total, onSelect }: { total: TotalsArb; onSelect: (t: TotalsArb) => void }) {
+function TotalsRow({ total, onSelect, globalMode }: { total: TotalsArb; onSelect: (t: TotalsArb) => void; globalMode: boolean }) {
   const eventDate = new Date(total.event.commenceTime);
   const soon = isEventSoon(eventDate);
   const timeUntil = getTimeUntil(eventDate);
@@ -158,7 +177,10 @@ function TotalsRow({ total, onSelect }: { total: TotalsArb; onSelect: (t: Totals
               <span className="font-mono text-white">{total.line}</span>
               <span className="text-[#888]">@ {total.over.odds.toFixed(2)}</span>
             </div>
-            <div className="text-xs text-[#555]">{total.over.bookmaker}</div>
+            <div className="flex items-center gap-1 text-xs text-[#555]">
+              <span>{getBookmakerName(total.over.bookmaker)}</span>
+              {globalMode && <RegionBadge bookmaker={total.over.bookmaker} />}
+            </div>
           </div>
           <div>
             <div className="flex items-center gap-2">
@@ -166,7 +188,10 @@ function TotalsRow({ total, onSelect }: { total: TotalsArb; onSelect: (t: Totals
               <span className="font-mono text-white">{total.line}</span>
               <span className="text-[#888]">@ {total.under.odds.toFixed(2)}</span>
             </div>
-            <div className="text-xs text-[#555]">{total.under.bookmaker}</div>
+            <div className="flex items-center gap-1 text-xs text-[#555]">
+              <span>{getBookmakerName(total.under.bookmaker)}</span>
+              {globalMode && <RegionBadge bookmaker={total.under.bookmaker} />}
+            </div>
           </div>
         </div>
       </td>
@@ -189,7 +214,7 @@ function TotalsRow({ total, onSelect }: { total: TotalsArb; onSelect: (t: Totals
   );
 }
 
-function MiddleRow({ middle, onSelect }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void }) {
+function MiddleRow({ middle, onSelect, globalMode }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void; globalMode: boolean }) {
   const eventDate = new Date(middle.event.commenceTime);
   const soon = isEventSoon(eventDate);
 
@@ -215,17 +240,19 @@ function MiddleRow({ middle, onSelect }: { middle: MiddleOpportunity; onSelect: 
       </td>
       <td className="px-4 py-3">
         <div className="space-y-1 text-xs">
-          <div>
+          <div className="flex items-center gap-1 flex-wrap">
             <span className="text-green-400 font-medium">Over</span>
-            <span className="font-mono text-white ml-1">{middle.side1.point}</span>
-            <span className="text-[#666]"> @ {middle.side1.odds.toFixed(2)}</span>
-            <span className="text-[#555]"> ({middle.side1.bookmaker})</span>
+            <span className="font-mono text-white">{middle.side1.point}</span>
+            <span className="text-[#666]">@ {middle.side1.odds.toFixed(2)}</span>
+            <span className="text-[#555]">({getBookmakerName(middle.side1.bookmaker)})</span>
+            {globalMode && <RegionBadge bookmaker={middle.side1.bookmaker} />}
           </div>
-          <div>
+          <div className="flex items-center gap-1 flex-wrap">
             <span className="text-red-400 font-medium">Under</span>
-            <span className="font-mono text-white ml-1">{middle.side2.point}</span>
-            <span className="text-[#666]"> @ {middle.side2.odds.toFixed(2)}</span>
-            <span className="text-[#555]"> ({middle.side2.bookmaker})</span>
+            <span className="font-mono text-white">{middle.side2.point}</span>
+            <span className="text-[#666]">@ {middle.side2.odds.toFixed(2)}</span>
+            <span className="text-[#555]">({getBookmakerName(middle.side2.bookmaker)})</span>
+            {globalMode && <RegionBadge bookmaker={middle.side2.bookmaker} />}
           </div>
         </div>
       </td>

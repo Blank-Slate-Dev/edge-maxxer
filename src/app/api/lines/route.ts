@@ -4,7 +4,6 @@ import { hasOddsApiKey } from '@/env';
 import { getTheOddsApiProvider, getMockOddsProvider } from '@/lib/providers';
 import { detectLineOpportunities } from '@/lib/arb/lineDetector';
 import { config } from '@/lib/config';
-import type { SpreadArb, TotalsArb, MiddleOpportunity, LineStats } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -14,27 +13,26 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const minProfit = parseFloat(searchParams.get('minProfit') || '-2');
     const maxHours = parseInt(searchParams.get('maxHours') || '72', 10);
-    const marketType = searchParams.get('market') || 'all'; // 'spreads', 'totals', or 'all'
+    const marketType = searchParams.get('market') || 'all';
     const showMiddles = searchParams.get('middles') !== 'false';
+    const globalMode = searchParams.get('global') === 'true';
 
     const useRealApi = hasOddsApiKey();
     const provider = useRealApi
       ? getTheOddsApiProvider()
       : getMockOddsProvider();
 
-    console.log(`[API /lines] Using provider: ${provider.name}`);
+    console.log(`[API /lines] Using provider: ${provider.name}, globalMode: ${globalMode}`);
 
     // Get sports list
     let sportsToFetch: string[] = [];
     
     if (useRealApi) {
       const allSports = await provider.getSupportedSports();
-      // Filter to sports that typically have spreads/totals
       sportsToFetch = allSports
         .filter(s => !s.hasOutrights)
         .filter(s => {
           const key = s.key.toLowerCase();
-          // Focus on sports with good spreads/totals coverage
           return key.includes('basketball') ||
                  key.includes('football') ||
                  key.includes('baseball') ||
@@ -53,9 +51,9 @@ export async function GET(request: Request) {
       ? ['spreads', 'totals'] 
       : [marketType];
 
-    // Fetch odds with spreads and/or totals
+    // Fetch odds - pass globalMode
     console.log(`[API /lines] Fetching ${markets.join(', ')} for ${sportsToFetch.length} sports...`);
-    const oddsResult = await provider.fetchOdds(sportsToFetch, markets);
+    const oddsResult = await provider.fetchOdds(sportsToFetch, markets, globalMode);
 
     console.log(`[API /lines] Total events fetched: ${oddsResult.events.length}`);
 
@@ -100,6 +98,7 @@ export async function GET(request: Request) {
       stats,
       lastUpdated: new Date().toISOString(),
       isUsingMockData: !useRealApi,
+      globalMode,
       remainingApiRequests: oddsResult.meta.remainingRequests,
     };
 
