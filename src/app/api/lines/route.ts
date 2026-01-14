@@ -1,9 +1,9 @@
 // src/app/api/lines/route.ts
 import { NextResponse } from 'next/server';
-import { hasOddsApiKey } from '@/env';
-import { getTheOddsApiProvider, getMockOddsProvider } from '@/lib/providers';
+import { createOddsApiProvider } from '@/lib/providers/theOddsApiProvider';
 import { detectLineOpportunities } from '@/lib/arb/lineDetector';
 import { config } from '@/lib/config';
+import { getUserApiKey } from '@/lib/getUserApiKey';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -17,34 +17,50 @@ export async function GET(request: Request) {
     const showMiddles = searchParams.get('middles') !== 'false';
     const globalMode = searchParams.get('global') === 'true';
 
-    const useRealApi = hasOddsApiKey();
-    const provider = useRealApi
-      ? getTheOddsApiProvider()
-      : getMockOddsProvider();
+    // Get user's API key from database
+    const userApiKey = await getUserApiKey();
+    
+    // If no API key, return helpful message
+    if (!userApiKey) {
+      return NextResponse.json({
+        spreadArbs: [],
+        totalsArbs: [],
+        middles: [],
+        stats: {
+          totalEvents: 0,
+          spreadArbsFound: 0,
+          totalsArbsFound: 0,
+          middlesFound: 0,
+          nearArbsFound: 0,
+        },
+        lastUpdated: new Date().toISOString(),
+        isUsingMockData: false,
+        globalMode,
+        noApiKey: true,
+        message: 'No API key configured. Go to Settings to add your Odds API key.',
+      });
+    }
+
+    // Create provider with user's key
+    const provider = createOddsApiProvider(userApiKey);
 
     console.log(`[API /lines] Using provider: ${provider.name}, globalMode: ${globalMode}`);
 
     // Get sports list
-    let sportsToFetch: string[] = [];
-    
-    if (useRealApi) {
-      const allSports = await provider.getSupportedSports();
-      sportsToFetch = allSports
-        .filter(s => !s.hasOutrights)
-        .filter(s => {
-          const key = s.key.toLowerCase();
-          return key.includes('basketball') ||
-                 key.includes('football') ||
-                 key.includes('baseball') ||
-                 key.includes('hockey') ||
-                 key.includes('aussierules') ||
-                 key.includes('rugby');
-        })
-        .map(s => s.key);
-      console.log(`[API /lines] Found ${sportsToFetch.length} sports with spreads/totals`);
-    } else {
-      sportsToFetch = ['basketball_nba', 'americanfootball_nfl', 'aussierules_afl'];
-    }
+    const allSports = await provider.getSupportedSports();
+    const sportsToFetch = allSports
+      .filter(s => !s.hasOutrights)
+      .filter(s => {
+        const key = s.key.toLowerCase();
+        return key.includes('basketball') ||
+               key.includes('football') ||
+               key.includes('baseball') ||
+               key.includes('hockey') ||
+               key.includes('aussierules') ||
+               key.includes('rugby');
+      })
+      .map(s => s.key);
+    console.log(`[API /lines] Found ${sportsToFetch.length} sports with spreads/totals`);
 
     // Determine which markets to fetch
     const markets = marketType === 'all' 
@@ -97,7 +113,7 @@ export async function GET(request: Request) {
       middles: filteredMiddles,
       stats,
       lastUpdated: new Date().toISOString(),
-      isUsingMockData: !useRealApi,
+      isUsingMockData: false,
       globalMode,
       remainingApiRequests: oddsResult.meta.remainingRequests,
     };

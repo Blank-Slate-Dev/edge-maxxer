@@ -1,5 +1,4 @@
 // src/lib/providers/theOddsApiProvider.ts
-import { env } from '@/env';
 import { config } from '@/lib/config';
 import type { SportEvent, BookmakerOdds } from '../types';
 import type { OddsProvider, ProviderResult, Sport, TheOddsApiEvent } from './types';
@@ -10,9 +9,13 @@ export class TheOddsApiProvider implements OddsProvider {
   private baseUrl: string;
   private apiKey: string;
 
-  constructor() {
-    this.baseUrl = env.ODDS_API_BASE_URL;
-    this.apiKey = env.ODDS_API_KEY || '';
+  constructor(apiKey: string) {
+    this.baseUrl = 'https://api.the-odds-api.com/v4';
+    this.apiKey = apiKey;
+  }
+
+  hasValidKey(): boolean {
+    return !!this.apiKey && this.apiKey.length > 0;
   }
 
   async getSupportedSports(): Promise<Sport[]> {
@@ -192,11 +195,7 @@ export class TheOddsApiProvider implements OddsProvider {
   }
 }
 
-let providerInstance: TheOddsApiProvider | null = null;
-
-export function getTheOddsApiProvider(): TheOddsApiProvider {
-  if (!providerInstance) {
-    providerInstance = new TheOddsApiProvider();
-  }
-  return providerInstance;
+// Factory function that creates provider with given API key
+export function createOddsApiProvider(apiKey: string): TheOddsApiProvider {
+  return new TheOddsApiProvider(apiKey);
 }

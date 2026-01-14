@@ -266,7 +266,10 @@ export default function DashboardPage() {
   const totalsMiddles = middles.filter(m => m.marketType === 'totals');
 
   return (
-    <div className="min-h-screen bg-black">
+    <div 
+      className="min-h-screen transition-colors"
+      style={{ backgroundColor: 'var(--background)' }}
+    >
       <Header
         lastUpdated={lastUpdated}
         isLoading={isLoading}
@@ -280,11 +283,12 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <button
             onClick={() => setGlobalMode(!globalMode)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium border transition-colors ${
-              globalMode
-                ? 'bg-blue-600 border-blue-600 text-white'
-                : 'border-[#333] text-[#888] hover:border-[#555]'
-            }`}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border transition-colors"
+            style={{
+              backgroundColor: globalMode ? 'var(--info)' : 'transparent',
+              borderColor: globalMode ? 'var(--info)' : 'var(--border)',
+              color: globalMode ? 'white' : 'var(--muted)'
+            }}
           >
             {globalMode ? (
               <>
@@ -299,7 +303,7 @@ export default function DashboardPage() {
             )}
           </button>
           {globalMode && (
-            <div className="text-xs text-blue-400">
+            <div className="text-xs" style={{ color: 'var(--info)' }}>
               ⚠️ Most global bookmakers require local residency
             </div>
           )}
@@ -307,12 +311,18 @@ export default function DashboardPage() {
 
         {/* Global Mode Banner */}
         {globalMode && (
-          <div className="border border-blue-700/50 bg-blue-900/20 px-4 py-3 text-sm">
+          <div 
+            className="border px-4 py-3 text-sm"
+            style={{
+              borderColor: 'var(--info)',
+              backgroundColor: 'color-mix(in srgb, var(--info) 10%, transparent)'
+            }}
+          >
             <div className="flex items-start gap-3">
-              <Globe className="w-5 h-5 text-blue-400 shrink-0 mt-0.5" />
+              <Globe className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--info)' }} />
               <div>
-                <div className="font-medium text-blue-400">Global Scan Active</div>
-                <div className="text-blue-300/80 text-xs mt-1">
+                <div className="font-medium" style={{ color: 'var(--info)' }}>Global Scan Active</div>
+                <div className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
                   Scanning {config.allBookmakers.length} bookmakers across AU, UK, US, EU. 
                   Most non-AU bookmakers require local ID/address to register. 
                   Use this to see what&apos;s available globally.
@@ -324,13 +334,19 @@ export default function DashboardPage() {
 
         {/* Initial State */}
         {!hasFetched && !isLoading && activeTab === 'opportunities' && (
-          <div className="border border-[#222] bg-[#0a0a0a] p-12 text-center">
+          <div 
+            className="border p-12 text-center"
+            style={{
+              borderColor: 'var(--border-light)',
+              backgroundColor: 'var(--surface-secondary)'
+            }}
+          >
             <div className="text-4xl mb-4">📡</div>
-            <h2 className="text-xl font-medium mb-2">Ready to scan</h2>
-            <p className="text-[#666] text-sm mb-4">
-              Click <span className="text-white font-medium">Scan</span> to search ALL markets for opportunities
+            <h2 className="text-xl font-medium mb-2" style={{ color: 'var(--foreground)' }}>Ready to scan</h2>
+            <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
+              Click <span className="font-medium" style={{ color: 'var(--foreground)' }}>Scan</span> to search ALL markets for opportunities
             </p>
-            <p className="text-xs text-[#444]">
+            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
               {globalMode 
                 ? `Scanning ${config.allRegions.join(', ').toUpperCase()} regions (${config.allBookmakers.length} bookmakers)`
                 : `Scanning ${config.regions.join(', ').toUpperCase()} regions (AU bookmakers only)`
@@ -341,21 +357,38 @@ export default function DashboardPage() {
 
         {/* Demo Mode Notice */}
         {isUsingMockData && hasFetched && (
-          <div className="border border-[#333] bg-[#111] px-4 py-3 text-sm text-[#888]">
-            Demo mode — add <code className="text-white">ODDS_API_KEY</code> to .env.local for live data
+          <div 
+            className="border px-4 py-3 text-sm"
+            style={{
+              borderColor: 'var(--border)',
+              backgroundColor: 'var(--surface)',
+              color: 'var(--muted)'
+            }}
+          >
+            Demo mode — add <code style={{ color: 'var(--foreground)' }}>ODDS_API_KEY</code> to .env.local for live data
           </div>
         )}
 
         {/* Error */}
         {error && (
-          <div className="border border-[#333] bg-[#111] px-4 py-3 text-sm text-[#888]">
+          <div 
+            className="border px-4 py-3 text-sm"
+            style={{
+              borderColor: 'var(--danger)',
+              backgroundColor: 'var(--danger-muted)',
+              color: 'var(--danger)'
+            }}
+          >
             {error}
           </div>
         )}
 
         {/* Stats Grid */}
         {hasFetched && stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-px bg-[#222]">
+          <div 
+            className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-px"
+            style={{ backgroundColor: 'var(--border-light)' }}
+          >
             <StatBox label="Events" value={stats.totalEvents} />
             <StatBox label="Sports" value={stats.sportsScanned} />
             <StatBox label="Bookmakers" value={stats.totalBookmakers} />
@@ -388,7 +421,10 @@ export default function DashboardPage() {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-1 border-b border-[#222] overflow-x-auto">
+        <div 
+          className="flex gap-1 border-b overflow-x-auto"
+          style={{ borderColor: 'var(--border-light)' }}
+        >
           <TabButton 
             active={activeTab === 'opportunities'} 
             onClick={() => setActiveTab('opportunities')}
@@ -445,11 +481,12 @@ export default function DashboardPage() {
             {(activeTab === 'spreads' || activeTab === 'totals') && (
               <button
                 onClick={() => setShowMiddles(!showMiddles)}
-                className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium border transition-colors ${
-                  showMiddles
-                    ? 'bg-yellow-600 text-black border-yellow-600'
-                    : 'border-[#333] text-[#888] hover:border-[#555]'
-                }`}
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border transition-colors"
+                style={{
+                  backgroundColor: showMiddles ? 'var(--warning)' : 'transparent',
+                  borderColor: showMiddles ? 'var(--warning)' : 'var(--border)',
+                  color: showMiddles ? 'black' : 'var(--muted)'
+                }}
               >
                 🎯 Show Middles
               </button>
@@ -546,13 +583,23 @@ function StatBox({
   highlight?: boolean;
 }) {
   return (
-    <div className="bg-black px-4 py-3">
-      <div className="text-xs text-[#666] uppercase tracking-wide mb-1">{label}</div>
-      <div className={`text-2xl font-mono ${highlight ? 'text-white' : 'text-[#888]'}`}>
+    <div className="px-4 py-3" style={{ backgroundColor: 'var(--background)' }}>
+      <div 
+        className="text-xs uppercase tracking-wide mb-1"
+        style={{ color: 'var(--muted)' }}
+      >
+        {label}
+      </div>
+      <div 
+        className="text-2xl font-mono"
+        style={{ color: highlight ? 'var(--foreground)' : 'var(--muted)' }}
+      >
         {value}
       </div>
       {subtitle && (
-        <div className="text-xs text-[#555] mt-0.5">{subtitle}</div>
+        <div className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+          {subtitle}
+        </div>
       )}
     </div>
   );
@@ -572,17 +619,21 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-        active 
-          ? 'border-white text-white' 
-          : 'border-transparent text-[#666] hover:text-[#888]'
-      }`}
+      className="px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap"
+      style={{
+        borderColor: active ? 'var(--accent)' : 'transparent',
+        color: active ? 'var(--foreground)' : 'var(--muted)'
+      }}
     >
       {children}
       {count !== undefined && count > 0 && (
-        <span className={`ml-2 text-xs px-1.5 py-0.5 ${
-          active ? 'bg-white text-black' : 'bg-[#333] text-[#888]'
-        }`}>
+        <span 
+          className="ml-2 text-xs px-1.5 py-0.5"
+          style={{
+            backgroundColor: active ? 'var(--accent)' : 'var(--surface)',
+            color: active ? 'var(--accent-foreground)' : 'var(--muted)'
+          }}
+        >
           {count}
         </span>
       )}
@@ -593,9 +644,15 @@ function TabButton({
 function ValueBetsTable({ valueBets, onSelectValueBet, globalMode }: { valueBets: ValueBet[]; onSelectValueBet: (vb: ValueBet) => void; globalMode?: boolean }) {
   if (valueBets.length === 0) {
     return (
-      <div className="border border-[#222] bg-[#0a0a0a] p-12 text-center">
-        <p className="text-[#888] mb-2">No value bets found</p>
-        <p className="text-xs text-[#555]">
+      <div 
+        className="border p-12 text-center"
+        style={{
+          borderColor: 'var(--border-light)',
+          backgroundColor: 'var(--surface-secondary)'
+        }}
+      >
+        <p className="mb-2" style={{ color: 'var(--muted)' }}>No value bets found</p>
+        <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
           Value bets appear when one bookmaker has odds significantly above the market average
         </p>
       </div>
@@ -603,29 +660,35 @@ function ValueBetsTable({ valueBets, onSelectValueBet, globalMode }: { valueBets
   }
 
   return (
-    <div className="border border-[#222] bg-[#0a0a0a] overflow-x-auto">
+    <div 
+      className="border overflow-x-auto"
+      style={{
+        borderColor: 'var(--border-light)',
+        backgroundColor: 'var(--surface-secondary)'
+      }}
+    >
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-[#222]">
-            <th className="text-left px-4 py-3 text-xs text-[#666] uppercase tracking-wide font-medium">
+          <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
+            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
               Event
             </th>
-            <th className="text-left px-4 py-3 text-xs text-[#666] uppercase tracking-wide font-medium">
+            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
               Time
             </th>
-            <th className="text-left px-4 py-3 text-xs text-[#666] uppercase tracking-wide font-medium">
+            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
               Outcome
             </th>
-            <th className="text-left px-4 py-3 text-xs text-[#666] uppercase tracking-wide font-medium">
+            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
               Best Odds
             </th>
-            <th className="text-left px-4 py-3 text-xs text-[#666] uppercase tracking-wide font-medium">
+            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
               Market Avg
             </th>
-            <th className="text-right px-4 py-3 text-xs text-[#666] uppercase tracking-wide font-medium">
+            <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
               Edge
             </th>
-            <th className="text-right px-4 py-3 text-xs text-[#666] uppercase tracking-wide font-medium">
+            <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
               Action
             </th>
           </tr>
@@ -634,35 +697,40 @@ function ValueBetsTable({ valueBets, onSelectValueBet, globalMode }: { valueBets
           {valueBets.map((vb, idx) => (
             <tr
               key={`${vb.event.id}-${vb.outcome.name}-${idx}`}
-              className="border-b border-[#222] hover:bg-[#111] transition-colors"
+              className="transition-colors"
+              style={{ borderBottom: '1px solid var(--border-light)' }}
             >
               <td className="px-4 py-3">
-                <div className="font-medium">{vb.event.homeTeam}</div>
-                <div className="text-[#666]">vs {vb.event.awayTeam}</div>
-                <div className="text-xs text-[#555] mt-1">{vb.event.sportTitle}</div>
+                <div className="font-medium" style={{ color: 'var(--foreground)' }}>{vb.event.homeTeam}</div>
+                <div style={{ color: 'var(--muted)' }}>vs {vb.event.awayTeam}</div>
+                <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>{vb.event.sportTitle}</div>
               </td>
-              <td className="px-4 py-3 text-[#888]">
+              <td className="px-4 py-3" style={{ color: 'var(--muted)' }}>
                 {format(new Date(vb.event.commenceTime), 'MMM d, HH:mm')}
               </td>
               <td className="px-4 py-3">
-                <div className="font-medium">{vb.outcome.name}</div>
+                <div className="font-medium" style={{ color: 'var(--foreground)' }}>{vb.outcome.name}</div>
               </td>
               <td className="px-4 py-3">
-                <div className="font-mono text-white">{vb.outcome.odds.toFixed(2)}</div>
-                <div className="text-xs text-[#666]">@ {vb.outcome.bookmaker}</div>
+                <div className="font-mono" style={{ color: 'var(--foreground)' }}>{vb.outcome.odds.toFixed(2)}</div>
+                <div className="text-xs" style={{ color: 'var(--muted)' }}>@ {vb.outcome.bookmaker}</div>
               </td>
-              <td className="px-4 py-3 font-mono text-[#666]">
+              <td className="px-4 py-3 font-mono" style={{ color: 'var(--muted)' }}>
                 {vb.marketAverage.toFixed(2)}
               </td>
               <td className="px-4 py-3 text-right">
-                <span className="font-mono font-medium text-white">
+                <span className="font-mono font-medium" style={{ color: 'var(--foreground)' }}>
                   +{vb.valuePercentage.toFixed(1)}%
                 </span>
               </td>
               <td className="px-4 py-3 text-right">
                 <button
                   onClick={() => onSelectValueBet(vb)}
-                  className="px-3 py-1 text-xs border border-[#333] text-[#888] hover:bg-white hover:text-black hover:border-white transition-colors"
+                  className="px-3 py-1 text-xs border transition-colors"
+                  style={{
+                    borderColor: 'var(--border)',
+                    color: 'var(--muted)'
+                  }}
                 >
                   Calculate
                 </button>

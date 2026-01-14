@@ -2,18 +2,70 @@
 @import "tailwindcss";
 
 :root {
+  /* Dark mode (default) */
   --background: #000000;
   --foreground: #ffffff;
   --muted: #888888;
+  --muted-foreground: #666666;
   --border: #333333;
+  --border-light: #222222;
   --surface: #111111;
   --surface-hover: #1a1a1a;
+  --surface-secondary: #0a0a0a;
   --accent: #ffffff;
+  --accent-foreground: #000000;
+  --success: #22c55e;
+  --success-muted: #166534;
+  --danger: #ef4444;
+  --danger-muted: #991b1b;
+  --warning: #eab308;
+  --warning-muted: #854d0e;
+  --info: #3b82f6;
+  --info-muted: #1e40af;
+}
+
+.light {
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --muted: #6b7280;
+  --muted-foreground: #9ca3af;
+  --border: #e5e7eb;
+  --border-light: #f3f4f6;
+  --surface: #f9fafb;
+  --surface-hover: #f3f4f6;
+  --surface-secondary: #ffffff;
+  --accent: #0a0a0a;
+  --accent-foreground: #ffffff;
+  --success: #16a34a;
+  --success-muted: #dcfce7;
+  --danger: #dc2626;
+  --danger-muted: #fee2e2;
+  --warning: #ca8a04;
+  --warning-muted: #fef9c3;
+  --info: #2563eb;
+  --info-muted: #dbeafe;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-border-light: var(--border-light);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-surface-secondary: var(--surface-secondary);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-success-muted: var(--success-muted);
+  --color-danger: var(--danger);
+  --color-danger-muted: var(--danger-muted);
+  --color-warning: var(--warning);
+  --color-warning-muted: var(--warning-muted);
+  --color-info: var(--info);
+  --color-info-muted: var(--info-muted);
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SF Mono", SFMono-Regular, ui-monospace, Menlo, Consolas, monospace;
 }
@@ -28,6 +80,7 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* Minimal scrollbar */
@@ -41,12 +94,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #333;
+  background: var(--border);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #555;
+  background: var(--muted);
 }
 
 /* Clean range input */
@@ -63,16 +116,16 @@ input[type="range"]::-webkit-slider-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--accent);
   cursor: pointer;
   margin-top: -5px;
-  border: 2px solid #000;
+  border: 2px solid var(--background);
 }
 
 input[type="range"]::-webkit-slider-runnable-track {
   width: 100%;
   height: 4px;
-  background: #333;
+  background: var(--border);
   border-radius: 2px;
 }
 
@@ -80,22 +133,22 @@ input[type="range"]::-moz-range-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #fff;
+  background: var(--accent);
   cursor: pointer;
-  border: 2px solid #000;
+  border: 2px solid var(--background);
 }
 
 input[type="range"]::-moz-range-track {
   width: 100%;
   height: 4px;
-  background: #333;
+  background: var(--border);
   border-radius: 2px;
 }
 
 /* Focus styles */
 button:focus-visible,
 input:focus-visible {
-  outline: 1px solid #fff;
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -113,4 +166,41 @@ input[type="number"]::-webkit-outer-spin-button {
 
 input[type="number"] {
   -moz-appearance: textfield;
+}
+
+/* Form inputs */
+input, select, textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--foreground);
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+input::placeholder {
+  color: var(--muted-foreground);
+}
+
+/* Floating animation for profit counter */
+@keyframes float-up {
+  0% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  70% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-20px);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-30px);
+  }
+}
+
+.animate-float-up {
+  animation: float-up 4s ease-out forwards;
 }

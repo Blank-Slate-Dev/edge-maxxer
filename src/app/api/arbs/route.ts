@@ -1,10 +1,10 @@
 // src/app/api/arbs/route.ts
 import { NextResponse } from 'next/server';
-import { hasOddsApiKey } from '@/env';
-import { getTheOddsApiProvider, getMockOddsProvider } from '@/lib/providers';
+import { createOddsApiProvider } from '@/lib/providers/theOddsApiProvider';
 import { detectAllOpportunities } from '@/lib/arb/detector';
 import { getCache } from '@/lib/cache';
 import { config } from '@/lib/config';
+import { getUserApiKey } from '@/lib/getUserApiKey';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -33,27 +33,44 @@ export async function GET(request: Request) {
       }
     }
 
-    // Get fresh data
-    const useRealApi = hasOddsApiKey();
-    const provider = useRealApi
-      ? getTheOddsApiProvider()
-      : getMockOddsProvider();
+    // Get user's API key from database
+    const userApiKey = await getUserApiKey();
+    
+    // If no API key, return helpful message
+    if (!userApiKey) {
+      return NextResponse.json({
+        opportunities: [],
+        valueBets: [],
+        stats: {
+          totalEvents: 0,
+          eventsWithMultipleBookmakers: 0,
+          totalBookmakers: 0,
+          arbsFound: 0,
+          nearArbsFound: 0,
+          valueBetsFound: 0,
+          sportsScanned: 0,
+        },
+        lastUpdated: new Date().toISOString(),
+        isUsingMockData: false,
+        cached: false,
+        globalMode,
+        noApiKey: true,
+        message: 'No API key configured. Go to Settings to add your Odds API key.',
+      });
+    }
+
+    // Create provider with user's key
+    const provider = createOddsApiProvider(userApiKey);
 
     console.log(`[API /arbs] Using provider: ${provider.name}, globalMode: ${globalMode}`);
 
     // Fetch ALL available sports
-    let sportsToFetch: string[] = [];
-    
-    if (useRealApi) {
-      console.log('[API /arbs] Fetching available sports list...');
-      const allSports = await provider.getSupportedSports();
-      sportsToFetch = allSports
-        .filter(s => !s.hasOutrights)
-        .map(s => s.key);
-      console.log(`[API /arbs] Found ${sportsToFetch.length} sports with h2h markets`);
-    } else {
-      sportsToFetch = [...config.sportCategories.popular];
-    }
+    console.log('[API /arbs] Fetching available sports list...');
+    const allSports = await provider.getSupportedSports();
+    const sportsToFetch = allSports
+      .filter(s => !s.hasOutrights)
+      .map(s => s.key);
+    console.log(`[API /arbs] Found ${sportsToFetch.length} sports with h2h markets`);
 
     // Fetch odds - pass globalMode
     console.log(`[API /arbs] Fetching odds for ${sportsToFetch.length} sports...`);
@@ -80,7 +97,7 @@ export async function GET(request: Request) {
     }
 
     // Detect all opportunities
-    const { arbs, valueBets, bestOdds, stats } = detectAllOpportunities(
+    const { arbs, valueBets, stats } = detectAllOpportunities(
       oddsResult.events,
       config.filters.nearArbThreshold,
       config.filters.valueThreshold
@@ -113,7 +130,7 @@ export async function GET(request: Request) {
       valueBets: filteredValueBets,
       stats,
       lastUpdated: new Date().toISOString(),
-      isUsingMockData: !useRealApi,
+      isUsingMockData: false,
       cached: false,
       globalMode,
       remainingApiRequests: oddsResult.meta.remainingRequests,
@@ -124,7 +141,7 @@ export async function GET(request: Request) {
       cache.setArbs({
         opportunities: arbs,
         valueBets,
-        isUsingMockData: !useRealApi,
+        isUsingMockData: false,
       });
     }
 

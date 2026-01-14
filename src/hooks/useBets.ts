@@ -34,8 +34,21 @@ export function useBets() {
     }
   }, [bets, isLoaded]);
 
-  const addBet = useCallback((bet: PlacedBet) => {
+  const addBet = useCallback(async (bet: PlacedBet) => {
     setBets(prev => [bet, ...prev]);
+
+    // Update global profit counter (webhook)
+    if (bet.expectedProfit > 0) {
+      try {
+        await fetch('/api/global-stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profit: bet.expectedProfit }),
+        });
+      } catch (err) {
+        console.error('Failed to update global stats:', err);
+      }
+    }
   }, []);
 
   const updateBet = useCallback((id: string, updates: Partial<PlacedBet>) => {
