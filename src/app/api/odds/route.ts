@@ -1,9 +1,9 @@
 // src/app/api/odds/route.ts
 import { NextResponse } from 'next/server';
-import { hasOddsApiKey } from '@/env';
-import { getTheOddsApiProvider, getMockOddsProvider } from '@/lib/providers';
+import { createOddsApiProvider } from '@/lib/providers/theOddsApiProvider';
 import { getCache } from '@/lib/cache';
 import { config } from '@/lib/config';
+import { getUserApiKey } from '@/lib/getUserApiKey';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -25,11 +25,23 @@ export async function GET() {
       });
     }
 
-    // Determine which provider to use
-    const useRealApi = hasOddsApiKey();
-    const provider = useRealApi
-      ? getTheOddsApiProvider()
-      : getMockOddsProvider();
+    // Get user's API key from database
+    const userApiKey = await getUserApiKey();
+    
+    // If no API key, return helpful message
+    if (!userApiKey) {
+      return NextResponse.json({
+        events: [],
+        source: 'none',
+        lastUpdated: new Date().toISOString(),
+        cached: false,
+        noApiKey: true,
+        message: 'No API key configured. Go to Settings to add your Odds API key.',
+      });
+    }
+
+    // Create provider with user's key
+    const provider = createOddsApiProvider(userApiKey);
 
     console.log(`[API /odds] Using provider: ${provider.name}`);
 
@@ -52,7 +64,7 @@ export async function GET() {
       usedRequests: result.meta.usedRequests,
       lastUpdated: timestamp?.toISOString(),
       cached: false,
-      isUsingMockData: !useRealApi,
+      isUsingMockData: false,
     });
   } catch (error) {
     console.error('[API /odds] Error:', error);

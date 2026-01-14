@@ -2,7 +2,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { Globe, MapPin } from 'lucide-react';
+import { Globe, MapPin, Loader2 } from 'lucide-react';
 import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal } from '@/components';
 import { useBets } from '@/hooks/useBets';
 import { useAccounts } from '@/hooks/useAccounts';
@@ -72,6 +72,7 @@ export default function DashboardPage() {
   const [sports, setSports] = useState<Sport[]>([]);
   const [bookmakers, setBookmakers] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [scanProgress, setScanProgress] = useState<string>('');
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isUsingMockData, setIsUsingMockData] = useState(false);
   const [remainingRequests, setRemainingRequests] = useState<number | undefined>();
@@ -109,9 +110,11 @@ export default function DashboardPage() {
   const fetchArbs = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setScanProgress('Initializing scan...');
 
     try {
       if (sports.length === 0) {
+        setScanProgress('Fetching available sports...');
         await fetchSports();
       }
 
@@ -129,10 +132,14 @@ export default function DashboardPage() {
         params.set('sports', filters.sports.join(','));
       }
 
+      setScanProgress('Scanning bookmakers for odds...');
+
       const [arbsRes, linesRes] = await Promise.all([
         fetch(`/api/arbs?${params}`),
         fetch(`/api/lines?${params}&middles=${showMiddles}`),
       ]);
+
+      setScanProgress('Analyzing opportunities...');
 
       const arbsData: ArbsResponse = await arbsRes.json();
       const linesData: LinesResponse = await linesRes.json();
@@ -140,6 +147,8 @@ export default function DashboardPage() {
       if (!arbsRes.ok) {
         throw new Error(arbsData.error || 'Failed to fetch arbs');
       }
+
+      setScanProgress('Processing results...');
 
       // Parse H2H opportunities
       const parsed = arbsData.opportunities.map(opp => ({
@@ -215,6 +224,7 @@ export default function DashboardPage() {
       setError(err instanceof Error ? err.message : 'Failed to fetch opportunities');
     } finally {
       setIsLoading(false);
+      setScanProgress('');
     }
   }, [filters, sports.length, fetchSports, showMiddles, globalMode]);
 
@@ -277,6 +287,97 @@ export default function DashboardPage() {
         remainingRequests={remainingRequests}
         onRefresh={fetchArbs}
       />
+
+      {/* Scanning Overlay */}
+      {isLoading && (
+        <div 
+          className="fixed inset-0 z-40 flex items-center justify-center"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
+        >
+          <div 
+            className="flex flex-col items-center gap-6 p-8 rounded-xl border"
+            style={{ 
+              backgroundColor: 'var(--surface)',
+              borderColor: 'var(--border)'
+            }}
+          >
+            {/* Animated Scanner */}
+            <div className="relative w-20 h-20">
+              {/* Outer ring */}
+              <div 
+                className="absolute inset-0 rounded-full border-2 animate-ping"
+                style={{ 
+                  borderColor: '#22c55e',
+                  opacity: 0.2,
+                  animationDuration: '2s'
+                }}
+              />
+              {/* Middle ring */}
+              <div 
+                className="absolute inset-2 rounded-full border-2 animate-ping"
+                style={{ 
+                  borderColor: '#22c55e',
+                  opacity: 0.4,
+                  animationDuration: '2s',
+                  animationDelay: '0.3s'
+                }}
+              />
+              {/* Inner spinning circle */}
+              <div 
+                className="absolute inset-4 rounded-full border-2 border-t-transparent animate-spin"
+                style={{ 
+                  borderColor: '#22c55e',
+                  borderTopColor: 'transparent',
+                  animationDuration: '1s'
+                }}
+              />
+              {/* Center dot */}
+              <div 
+                className="absolute inset-[38%] rounded-full animate-pulse"
+                style={{ backgroundColor: '#22c55e' }}
+              />
+            </div>
+
+            {/* Text */}
+            <div className="text-center">
+              <h3 
+                className="text-lg font-medium mb-2"
+                style={{ color: 'var(--foreground)' }}
+              >
+                Scanning Markets
+              </h3>
+              <p 
+                className="text-sm flex items-center gap-2"
+                style={{ color: 'var(--muted)' }}
+              >
+                <Loader2 className="w-3 h-3 animate-spin" />
+                {scanProgress || 'Please wait...'}
+              </p>
+            </div>
+
+            {/* Region indicator */}
+            <div 
+              className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs"
+              style={{ 
+                backgroundColor: 'var(--background)',
+                color: 'var(--muted)'
+              }}
+            >
+              {globalMode ? (
+                <>
+                  <Globe className="w-3 h-3" />
+                  Scanning AU, UK, US, EU
+                </>
+              ) : (
+                <>
+                  <MapPin className="w-3 h-3" />
+                  Scanning AU region
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
         {/* Global Mode Toggle */}
