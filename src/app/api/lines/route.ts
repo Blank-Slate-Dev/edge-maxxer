@@ -15,7 +15,10 @@ export async function GET(request: Request) {
     const maxHours = parseInt(searchParams.get('maxHours') || '72', 10);
     const marketType = searchParams.get('market') || 'all';
     const showMiddles = searchParams.get('middles') !== 'false';
-    const globalMode = searchParams.get('global') === 'true';
+    
+    // Get regions parameter (comma-separated API regions like 'au,uk,us,eu')
+    // Defaults to 'au' for backwards compatibility
+    const regions = searchParams.get('regions') || 'au';
 
     // Get user's API key from database
     const userApiKey = await getUserApiKey();
@@ -35,7 +38,7 @@ export async function GET(request: Request) {
         },
         lastUpdated: new Date().toISOString(),
         isUsingMockData: false,
-        globalMode,
+        regions,
         noApiKey: true,
         message: 'No API key configured. Go to Settings to add your Odds API key.',
       });
@@ -44,9 +47,9 @@ export async function GET(request: Request) {
     // Create provider with user's key
     const provider = createOddsApiProvider(userApiKey);
 
-    console.log(`[API /lines] Using provider: ${provider.name}, globalMode: ${globalMode}`);
+    console.log(`[API /lines] Using provider: ${provider.name}, regions: ${regions}`);
 
-    // Get sports list
+    // Get sports list - focus on sports that have spreads/totals
     const allSports = await provider.getSupportedSports();
     const sportsToFetch = allSports
       .filter(s => !s.hasOutrights)
@@ -64,16 +67,17 @@ export async function GET(request: Request) {
 
     // Determine which markets to fetch
     const markets = marketType === 'all' 
-      ? ['spreads', 'totals'] 
-      : [marketType];
+      ? ['spreads', 'totals']
+      : marketType === 'spreads' 
+        ? ['spreads'] 
+        : ['totals'];
 
-    // Fetch odds - pass globalMode
-    console.log(`[API /lines] Fetching ${markets.join(', ')} for ${sportsToFetch.length} sports...`);
-    const oddsResult = await provider.fetchOdds(sportsToFetch, markets, globalMode);
+    // Fetch odds with regions string
+    const oddsResult = await provider.fetchOdds(sportsToFetch, markets, regions);
 
     console.log(`[API /lines] Total events fetched: ${oddsResult.events.length}`);
 
-    // Detect line opportunities
+    // Detect opportunities (middles are always detected, filtered later if needed)
     const { spreadArbs, totalsArbs, middles, stats } = detectLineOpportunities(
       oddsResult.events,
       config.filters.nearArbThreshold
@@ -85,20 +89,19 @@ export async function GET(request: Request) {
     const now = new Date();
     const maxTime = new Date(now.getTime() + maxHours * 60 * 60 * 1000);
 
-    const filteredSpreads = spreadArbs.filter(opp => {
-      if (opp.profitPercentage < minProfit) return false;
-      if (opp.event.commenceTime > maxTime) return false;
-      if (opp.event.commenceTime < now) return false;
-      return true;
-    });
+    const filterByTime = <T extends { event: { commenceTime: Date }; profitPercentage: number }>(items: T[]): T[] => {
+      return items.filter(item => {
+        if (item.profitPercentage < minProfit) return false;
+        if (item.event.commenceTime > maxTime) return false;
+        if (item.event.commenceTime < now) return false;
+        return true;
+      });
+    };
 
-    const filteredTotals = totalsArbs.filter(opp => {
-      if (opp.profitPercentage < minProfit) return false;
-      if (opp.event.commenceTime > maxTime) return false;
-      if (opp.event.commenceTime < now) return false;
-      return true;
-    });
-
+    const filteredSpreads = filterByTime(spreadArbs);
+    const filteredTotals = filterByTime(totalsArbs);
+    
+    // Filter middles by time and showMiddles flag
     const filteredMiddles = showMiddles 
       ? middles.filter(m => {
           if (m.event.commenceTime > maxTime) return false;
@@ -107,18 +110,16 @@ export async function GET(request: Request) {
         })
       : [];
 
-    const response = {
+    return NextResponse.json({
       spreadArbs: filteredSpreads,
       totalsArbs: filteredTotals,
       middles: filteredMiddles,
       stats,
       lastUpdated: new Date().toISOString(),
       isUsingMockData: false,
-      globalMode,
+      regions,
       remainingApiRequests: oddsResult.meta.remainingRequests,
-    };
-
-    return NextResponse.json(response);
+    });
   } catch (error) {
     console.error('[API /lines] Error:', error);
     return NextResponse.json(

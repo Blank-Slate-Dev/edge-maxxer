@@ -17,18 +17,22 @@ export async function GET(request: Request) {
     const forceRefresh = searchParams.get('refresh') === 'true';
     const showNearArbs = searchParams.get('nearArbs') !== 'false';
     const showValueBets = searchParams.get('valueBets') !== 'false';
-    const globalMode = searchParams.get('global') === 'true';
+    
+    // Get regions parameter (comma-separated API regions like 'au,uk,us,eu')
+    // Defaults to 'au' for backwards compatibility
+    const regions = searchParams.get('regions') || 'au';
+    const isMultiRegion = regions.includes(',') || regions !== 'au';
 
     const cache = getCache();
 
-    // Check cache first (skip cache in global mode)
-    if (!forceRefresh && !globalMode) {
+    // Check cache first (only for single AU region)
+    if (!forceRefresh && !isMultiRegion) {
       const cached = cache.getArbs();
       if (cached) {
         return NextResponse.json({
           ...cached,
           cached: true,
-          globalMode: false,
+          regions,
         });
       }
     }
@@ -53,7 +57,7 @@ export async function GET(request: Request) {
         lastUpdated: new Date().toISOString(),
         isUsingMockData: false,
         cached: false,
-        globalMode,
+        regions,
         noApiKey: true,
         message: 'No API key configured. Go to Settings to add your Odds API key.',
       });
@@ -62,7 +66,7 @@ export async function GET(request: Request) {
     // Create provider with user's key
     const provider = createOddsApiProvider(userApiKey);
 
-    console.log(`[API /arbs] Using provider: ${provider.name}, globalMode: ${globalMode}`);
+    console.log(`[API /arbs] Using provider: ${provider.name}, regions: ${regions}`);
 
     // Fetch ALL available sports
     console.log('[API /arbs] Fetching available sports list...');
@@ -72,9 +76,9 @@ export async function GET(request: Request) {
       .map(s => s.key);
     console.log(`[API /arbs] Found ${sportsToFetch.length} sports with h2h markets`);
 
-    // Fetch odds - pass globalMode
+    // Fetch odds - pass regions string
     console.log(`[API /arbs] Fetching odds for ${sportsToFetch.length} sports...`);
-    const oddsResult = await provider.fetchOdds(sportsToFetch, ['h2h'], globalMode);
+    const oddsResult = await provider.fetchOdds(sportsToFetch, ['h2h'], regions);
 
     console.log(`[API /arbs] Total events fetched: ${oddsResult.events.length}`);
 
@@ -87,8 +91,8 @@ export async function GET(request: Request) {
     });
     console.log(`[API /arbs] Bookmakers found:`, Object.fromEntries(bookmakerCount));
 
-    // Update odds cache (only in AU mode)
-    if (!globalMode) {
+    // Update odds cache (only in single AU mode)
+    if (!isMultiRegion) {
       cache.setOdds({
         events: oddsResult.events,
         source: oddsResult.meta.source,
@@ -132,12 +136,12 @@ export async function GET(request: Request) {
       lastUpdated: new Date().toISOString(),
       isUsingMockData: false,
       cached: false,
-      globalMode,
+      regions,
       remainingApiRequests: oddsResult.meta.remainingRequests,
     };
 
-    // Cache the response (only in AU mode)
-    if (!globalMode) {
+    // Cache the response (only in single AU mode)
+    if (!isMultiRegion) {
       cache.setArbs({
         opportunities: arbs,
         valueBets,

@@ -5,25 +5,35 @@ import { useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import Image from 'next/image';
 import Link from 'next/link';
-import { ProfitCounter } from '@/components/ProfitCounter';
+import { 
+  AuthModals, 
+  SportsbooksModal, 
+  useGeoRegion,
+  LiveFeedPreview,
+  StepsSection,
+  FeaturesShowcase,
+  TestimonialsSection,
+  SportsbookSlider,
+  ProfitCounter
+} from '@/components';
 import { 
   Sun, 
   Moon, 
   ArrowRight, 
   Check, 
-  Zap, 
-  Globe, 
-  Shield, 
-  Calculator,
-  TrendingUp,
-  BarChart3,
-  ChevronDown
+  ChevronDown,
 } from 'lucide-react';
+
+type AuthModalType = 'login' | 'signup' | null;
 
 export default function LandingPage() {
   const { theme, toggleTheme } = useTheme();
+  const [authModal, setAuthModal] = useState<AuthModalType>(null);
+  const [sportsbooksOpen, setSportsbooksOpen] = useState(false);
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  
+  const detectedRegion = useGeoRegion();
 
   return (
     <div 
@@ -32,13 +42,13 @@ export default function LandingPage() {
     >
       {/* Navigation */}
       <nav 
-        className="fixed top-0 left-0 right-0 z-50 border-b"
+        className="fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-md"
         style={{ 
-          backgroundColor: 'var(--background)',
+          backgroundColor: 'color-mix(in srgb, var(--background) 80%, transparent)',
           borderColor: 'var(--border)'
         }}
       >
-        <div className="max-w-6xl mx-auto px-6 py-4">
+        <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center">
               {theme === 'dark' ? (
@@ -48,7 +58,7 @@ export default function LandingPage() {
                   width={260}
                   height={62}
                   priority
-                  className="h-14 w-auto"
+                  className="h-12 w-auto"
                 />
               ) : (
                 <Image
@@ -57,7 +67,7 @@ export default function LandingPage() {
                   width={260}
                   height={62}
                   priority
-                  className="h-14 w-auto"
+                  className="h-12 w-auto"
                 />
               )}
             </Link>
@@ -68,7 +78,7 @@ export default function LandingPage() {
                 className="text-sm transition-colors hover:opacity-70"
                 style={{ color: 'var(--muted)' }}
               >
-                Features
+                How it Works
               </a>
               <a 
                 href="#pricing" 
@@ -86,7 +96,7 @@ export default function LandingPage() {
               </a>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <button
                 onClick={toggleTheme}
                 className="p-2 rounded-lg transition-colors hover:bg-[var(--surface)]"
@@ -94,326 +104,178 @@ export default function LandingPage() {
               >
                 {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
-              <Link
-                href="/login"
-                className="text-sm transition-colors hover:opacity-70"
-                style={{ color: 'var(--muted)' }}
+              <button
+                onClick={() => setAuthModal('login')}
+                className="px-4 py-2 text-sm font-medium rounded-lg transition-colors hover:bg-[var(--surface)]"
+                style={{ color: 'var(--foreground)' }}
               >
-                Log in
-              </Link>
-              <Link
-                href="/signup"
-                className="text-sm px-4 py-2 rounded-lg transition-all hover:opacity-90"
+                Login
+              </button>
+              <button
+                onClick={() => setAuthModal('signup')}
+                className="px-5 py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
                 style={{ 
-                  backgroundColor: 'var(--foreground)',
-                  color: 'var(--background)'
+                  backgroundColor: '#14b8a6',
+                  color: '#fff'
                 }}
               >
-                Get started
-              </Link>
+                Join Now
+              </button>
             </div>
           </div>
         </div>
       </nav>
 
-      {/* Hero */}
-      <section className="pt-28 pb-20 px-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="max-w-3xl mx-auto text-center mb-16">
-            {/* Badge */}
-            <div 
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium mb-6"
-              style={{ 
-                backgroundColor: 'var(--surface)',
-                color: 'var(--muted)',
-                border: '1px solid var(--border)'
-              }}
-            >
-              <span 
-                className="w-1.5 h-1.5 rounded-full"
-                style={{ backgroundColor: '#22c55e' }}
-              />
-              Now scanning 50+ bookmakers
-            </div>
-
-            <h1 
-              className="text-4xl md:text-5xl lg:text-6xl font-semibold tracking-tight leading-[1.1] mb-6"
-              style={{ color: 'var(--foreground)' }}
-            >
-              Find guaranteed profits
-              <br />
-              <span style={{ color: 'var(--muted)' }}>across bookmakers</span>
-            </h1>
-            
-            <p 
-              className="text-lg mb-8 max-w-xl mx-auto leading-relaxed"
-              style={{ color: 'var(--muted)' }}
-            >
-              The most affordable arbitrage scanner on the market. 
-              Scan 4 regions in real-time and lock in risk-free returns.
-            </p>
-
-            {/* Profit Counter Highlight */}
-            <div 
-              className="inline-flex items-center gap-3 px-5 py-3 rounded-xl mb-8"
-              style={{ 
-                backgroundColor: 'var(--surface)',
-                border: '1px solid var(--border)'
-              }}
-            >
+      {/* Hero Section */}
+      <section className="pt-28 pb-16 px-6 relative overflow-hidden">
+        {/* Grid pattern background */}
+        <div className="absolute inset-0 hero-grid-pattern" />
+        
+        <div className="max-w-7xl mx-auto relative">
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-8 items-start">
+            {/* Left: Text Content */}
+            <div className="max-w-xl lg:max-w-lg">
+              {/* Live badge */}
               <div 
-                className="w-2 h-2 rounded-full animate-pulse"
-                style={{ backgroundColor: '#22c55e' }}
-              />
-              <span className="text-sm" style={{ color: 'var(--muted)' }}>
-                Users have made
-              </span>
-              <ProfitCounter initialValue={0} refreshInterval={5000} />
-              <span className="text-sm" style={{ color: 'var(--muted)' }}>
-                in profit
-              </span>
-            </div>
-
-            <div className="flex items-center justify-center gap-4">
-              <Link
-                href="/signup"
-                className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all hover:opacity-90 hover:gap-3"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium mb-6"
                 style={{ 
-                  backgroundColor: 'var(--foreground)',
-                  color: 'var(--background)'
+                  backgroundColor: 'var(--surface)',
+                  color: 'var(--muted)',
+                  border: '1px solid var(--border)'
                 }}
               >
-                Get started for $4.99
-                <ArrowRight className="w-4 h-4" />
-              </Link>
-              <Link
-                href="#pricing"
-                className="px-6 py-3 rounded-lg text-sm font-medium border transition-colors hover:bg-[var(--surface)]"
-                style={{ 
-                  borderColor: 'var(--border)',
-                  color: 'var(--foreground)'
-                }}
-              >
-                View pricing
-              </Link>
-            </div>
-
-            <p className="text-xs mt-4" style={{ color: 'var(--muted)' }}>
-              First month just $4.99 • Cancel anytime
-            </p>
-          </div>
-
-          {/* Product Preview */}
-          <div 
-            className="relative rounded-xl border overflow-hidden"
-            style={{ 
-              backgroundColor: 'var(--surface)',
-              borderColor: 'var(--border)'
-            }}
-          >
-            {/* Browser Header */}
-            <div 
-              className="flex items-center gap-2 px-4 py-3 border-b"
-              style={{ borderColor: 'var(--border)' }}
-            >
-              <div className="flex gap-1.5">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--border)' }} />
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--border)' }} />
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: 'var(--border)' }} />
+                <span 
+                  className="w-2 h-2 rounded-full animate-pulse"
+                  style={{ backgroundColor: '#22c55e' }}
+                />
+                LIVE MARKET REFRESHED EVERY 2S
               </div>
+
+              {/* Headline */}
+              <h1 
+                className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-6"
+                style={{ color: 'var(--foreground)' }}
+              >
+                Beat the{' '}
+                <span className="gradient-text">House.</span>
+              </h1>
+              
+              {/* Subheadline */}
+              <p 
+                className="text-lg md:text-xl font-semibold mb-4"
+                style={{ color: 'var(--foreground)' }}
+              >
+                Stop Guessing. Start Profiting. Bet both sides—profit no matter the outcome.
+              </p>
+
+              <p 
+                className="text-base mb-8 leading-relaxed"
+                style={{ color: 'var(--muted)' }}
+              >
+                We spent years mastering arbitrage betting. We built the tool we always needed—now we're sharing it with you. Our software scans over 80 sportsbooks for profitable discrepancies 24/7.
+              </p>
+
+              {/* CTA Buttons */}
+              <div className="flex flex-wrap items-center gap-4 mb-8">
+                <button
+                  onClick={() => setAuthModal('signup')}
+                  className="inline-flex items-center gap-2 px-6 py-3.5 rounded-lg text-sm font-medium transition-all hover:opacity-90"
+                  style={{ 
+                    backgroundColor: '#14b8a6',
+                    color: '#fff'
+                  }}
+                >
+                  Join Now
+                </button>
+                <button
+                  onClick={() => setAuthModal('signup')}
+                  className="inline-flex items-center gap-2 px-6 py-3.5 rounded-lg text-sm font-medium border transition-colors hover:bg-[var(--surface)]"
+                  style={{ 
+                    borderColor: 'var(--border)',
+                    color: 'var(--foreground)'
+                  }}
+                >
+                  Start a free trial
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Profit Counter */}
               <div 
-                className="flex-1 mx-4 px-3 py-1 rounded text-xs text-center"
+                className="inline-flex items-center gap-3 px-4 py-2.5 rounded-lg mb-10"
                 style={{ 
-                  backgroundColor: 'var(--background)',
-                  color: 'var(--muted)'
+                  backgroundColor: 'var(--surface)',
+                  border: '1px solid var(--border)'
                 }}
               >
-                edgemaxxer.com/dashboard
+                <div 
+                  className="w-2 h-2 rounded-full animate-pulse"
+                  style={{ backgroundColor: '#22c55e' }}
+                />
+                <span className="text-sm" style={{ color: 'var(--muted)' }}>
+                  Users have made
+                </span>
+                <ProfitCounter initialValue={0} refreshInterval={5000} />
+                <span className="text-sm" style={{ color: 'var(--muted)' }}>
+                  in profit
+                </span>
               </div>
-            </div>
 
-            {/* Dashboard Preview */}
-            <div className="p-6">
               {/* Stats Row */}
-              <div className="grid grid-cols-4 gap-4 mb-6">
+              <div className="flex items-center gap-8 md:gap-12 mb-6">
                 {[
-                  { label: 'Live Arbs', value: '23', highlight: true },
-                  { label: 'Best Profit', value: '5.2%' },
-                  { label: 'Events', value: '142' },
-                  { label: 'Bookmakers', value: '47' },
+                  { value: '80+', label: 'SPORTSBOOKS' },
+                  { value: '<2s', label: 'LATENCY' },
+                  { value: '24/7', label: 'UPTIME' },
                 ].map((stat, i) => (
-                  <div 
-                    key={i}
-                    className="p-4 rounded-lg border"
-                    style={{ 
-                      backgroundColor: 'var(--background)',
-                      borderColor: stat.highlight ? '#22c55e' : 'var(--border)'
-                    }}
-                  >
-                    <div className="text-xs mb-1" style={{ color: 'var(--muted)' }}>
-                      {stat.label}
-                    </div>
+                  <div key={i}>
                     <div 
-                      className="text-2xl font-semibold font-mono"
-                      style={{ color: stat.highlight ? '#22c55e' : 'var(--foreground)' }}
+                      className="text-2xl md:text-3xl font-bold mb-0.5"
+                      style={{ color: 'var(--foreground)' }}
                     >
                       {stat.value}
                     </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* Sample Table */}
-              <div 
-                className="rounded-lg border overflow-hidden"
-                style={{ borderColor: 'var(--border)' }}
-              >
-                <div 
-                  className="grid grid-cols-4 gap-4 px-4 py-3 text-xs font-medium border-b"
-                  style={{ 
-                    backgroundColor: 'var(--background)',
-                    borderColor: 'var(--border)',
-                    color: 'var(--muted)'
-                  }}
-                >
-                  <div>Event</div>
-                  <div>Bookmakers</div>
-                  <div>Sport</div>
-                  <div className="text-right">Profit</div>
-                </div>
-                {[
-                  { event: 'Lakers vs Celtics', books: 'Sportsbet • TAB', sport: 'NBA', profit: '+5.2%' },
-                  { event: 'Man City vs Arsenal', books: 'Bet365 • Ladbrokes', sport: 'EPL', profit: '+3.8%' },
-                  { event: 'Djokovic vs Alcaraz', books: 'Unibet • Pointsbet', sport: 'Tennis', profit: '+2.9%' },
-                ].map((row, i) => (
-                  <div 
-                    key={i}
-                    className="grid grid-cols-4 gap-4 px-4 py-3 text-sm border-b last:border-0"
-                    style={{ borderColor: 'var(--border)' }}
-                  >
-                    <div style={{ color: 'var(--foreground)' }}>{row.event}</div>
-                    <div style={{ color: 'var(--muted)' }}>{row.books}</div>
-                    <div style={{ color: 'var(--muted)' }}>{row.sport}</div>
-                    <div className="text-right font-mono font-medium" style={{ color: '#22c55e' }}>
-                      {row.profit}
+                    <div 
+                      className="text-[10px] tracking-wider"
+                      style={{ color: 'var(--muted)' }}
+                    >
+                      {stat.label}
                     </div>
                   </div>
                 ))}
               </div>
+
+              {/* Sportsbook logos slider */}
+              <div className="mb-4">
+                <SportsbookSlider onViewAll={() => setSportsbooksOpen(true)} compact />
+              </div>
+            </div>
+
+            {/* Right: Live Feed Preview */}
+            <div className="relative flex justify-center lg:justify-end">
+              <LiveFeedPreview />
             </div>
           </div>
         </div>
       </section>
 
-      {/* Social Proof */}
-      <section className="py-12 px-6 border-y" style={{ borderColor: 'var(--border)' }}>
-        <div className="max-w-4xl mx-auto">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            {[
-              { value: '1,200+', label: 'Active users' },
-              { value: '50+', label: 'Bookmakers' },
-              { value: '4', label: 'Regions' },
-              { value: '$9.99', label: 'Per month' },
-            ].map((stat, i) => (
-              <div key={i}>
-                <div 
-                  className="text-2xl font-semibold mb-1"
-                  style={{ color: 'var(--foreground)' }}
-                >
-                  {stat.value}
-                </div>
-                <div className="text-sm" style={{ color: 'var(--muted)' }}>
-                  {stat.label}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* Steps Section */}
+      <div id="features">
+        <StepsSection />
+      </div>
 
-      {/* Features */}
-      <section id="features" className="py-20 px-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 
-              className="text-3xl font-semibold mb-4"
-              style={{ color: 'var(--foreground)' }}
-            >
-              Everything you need to profit
-            </h2>
-            <p style={{ color: 'var(--muted)' }}>
-              Professional-grade tools at a fraction of the cost
-            </p>
-          </div>
+      {/* Testimonials */}
+      <TestimonialsSection />
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {[
-              {
-                icon: Zap,
-                title: 'Real-time scanning',
-                description: 'Scan 50+ bookmakers simultaneously. Get instant alerts when new opportunities appear.'
-              },
-              {
-                icon: Globe,
-                title: 'Multi-region support',
-                description: 'Access AU, UK, US, and EU markets from a single dashboard.'
-              },
-              {
-                icon: Shield,
-                title: 'Stealth mode',
-                description: 'Randomize stakes to avoid detection. Stay profitable longer.'
-              },
-              {
-                icon: Calculator,
-                title: 'Smart calculator',
-                description: 'Calculate optimal stake distribution instantly for maximum profit.'
-              },
-              {
-                icon: TrendingUp,
-                title: 'Spreads & totals',
-                description: 'Not just head-to-head. Find arbs in spreads, totals, and alternative lines.'
-              },
-              {
-                icon: BarChart3,
-                title: 'Account tracking',
-                description: 'Monitor your bankroll and track account health across bookmakers.'
-              },
-            ].map((feature, i) => (
-              <div 
-                key={i}
-                className="p-6 rounded-xl border transition-all hover:border-[var(--muted)]"
-                style={{ 
-                  backgroundColor: 'var(--surface)',
-                  borderColor: 'var(--border)'
-                }}
-              >
-                <div 
-                  className="w-10 h-10 rounded-lg flex items-center justify-center mb-4"
-                  style={{ backgroundColor: 'var(--background)' }}
-                >
-                  <feature.icon className="w-5 h-5" style={{ color: 'var(--foreground)' }} />
-                </div>
-                <h3 
-                  className="font-medium mb-2"
-                  style={{ color: 'var(--foreground)' }}
-                >
-                  {feature.title}
-                </h3>
-                <p className="text-sm leading-relaxed" style={{ color: 'var(--muted)' }}>
-                  {feature.description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* Features Showcase */}
+      <FeaturesShowcase />
 
       {/* Comparison */}
       <section className="py-20 px-6 border-t" style={{ borderColor: 'var(--border)' }}>
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
             <h2 
-              className="text-3xl font-semibold mb-4"
+              className="text-3xl font-bold mb-4"
               style={{ color: 'var(--foreground)' }}
             >
               Stop overpaying for arb software
@@ -456,16 +318,16 @@ export default function LandingPage() {
               className="p-6 rounded-xl border-2"
               style={{ 
                 backgroundColor: 'var(--surface)',
-                borderColor: '#22c55e'
+                borderColor: '#14b8a6'
               }}
             >
               <div className="flex items-center justify-between mb-4">
-                <div className="text-sm font-medium" style={{ color: '#22c55e' }}>
+                <div className="text-sm font-medium" style={{ color: '#14b8a6' }}>
                   Edge Maxxer
                 </div>
                 <span 
                   className="text-xs px-2 py-0.5 rounded-full font-medium"
-                  style={{ backgroundColor: '#22c55e', color: '#000' }}
+                  style={{ backgroundColor: '#14b8a6', color: '#fff' }}
                 >
                   Save 90%
                 </span>
@@ -494,7 +356,7 @@ export default function LandingPage() {
         <div className="max-w-lg mx-auto">
           <div className="text-center mb-10">
             <h2 
-              className="text-3xl font-semibold mb-4"
+              className="text-3xl font-bold mb-4"
               style={{ color: 'var(--foreground)' }}
             >
               Simple pricing
@@ -553,7 +415,7 @@ export default function LandingPage() {
               <div className="text-center mb-8">
                 <div className="flex items-baseline justify-center gap-1 mb-2">
                   <span 
-                    className="text-5xl font-semibold"
+                    className="text-5xl font-bold"
                     style={{ color: 'var(--foreground)' }}
                   >
                     ${billingCycle === 'monthly' ? '9.99' : '99'}
@@ -579,6 +441,7 @@ export default function LandingPage() {
                   'All 4 regions (AU, UK, US, EU)',
                   'Real-time arbitrage scanning',
                   'Spreads, totals & middles',
+                  'Positive EV alerts',
                   'Stealth mode',
                   'Bet tracking & history',
                   'Account health monitoring',
@@ -591,16 +454,16 @@ export default function LandingPage() {
                 ))}
               </div>
 
-              <Link
-                href="/signup"
-                className="block w-full py-3 rounded-lg text-sm font-medium text-center transition-all hover:opacity-90"
+              <button
+                onClick={() => setAuthModal('signup')}
+                className="block w-full py-3.5 rounded-lg text-sm font-medium text-center transition-all hover:opacity-90"
                 style={{ 
-                  backgroundColor: 'var(--foreground)',
-                  color: 'var(--background)'
+                  backgroundColor: '#14b8a6',
+                  color: '#fff'
                 }}
               >
                 {billingCycle === 'monthly' ? 'Start for $4.99' : 'Get started'}
-              </Link>
+              </button>
             </div>
             
             <div 
@@ -621,7 +484,7 @@ export default function LandingPage() {
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-12">
             <h2 
-              className="text-3xl font-semibold mb-4"
+              className="text-3xl font-bold mb-4"
               style={{ color: 'var(--foreground)' }}
             >
               Frequently asked questions
@@ -648,7 +511,7 @@ export default function LandingPage() {
               },
               {
                 q: 'Which bookmakers do you support?',
-                a: 'We scan 50+ bookmakers across Australia, UK, US, and EU including Sportsbet, TAB, Bet365, Ladbrokes, DraftKings, FanDuel, and many more.'
+                a: 'We scan 80+ bookmakers across Australia, UK, US, and EU including Sportsbet, TAB, Bet365, Ladbrokes, DraftKings, FanDuel, and many more.'
               },
             ].map((faq, i) => (
               <div 
@@ -692,7 +555,7 @@ export default function LandingPage() {
       >
         <div className="max-w-2xl mx-auto text-center">
           <h2 
-            className="text-3xl font-semibold mb-4"
+            className="text-3xl font-bold mb-4"
             style={{ color: 'var(--foreground)' }}
           >
             Ready to find your edge?
@@ -700,17 +563,17 @@ export default function LandingPage() {
           <p className="mb-8" style={{ color: 'var(--muted)' }}>
             Start scanning for arbitrage opportunities today.
           </p>
-          <Link
-            href="/signup"
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-lg text-sm font-medium transition-all hover:opacity-90 hover:gap-3"
+          <button
+            onClick={() => setAuthModal('signup')}
+            className="inline-flex items-center gap-2 px-6 py-3.5 rounded-lg text-sm font-medium transition-all hover:opacity-90 hover:gap-3"
             style={{ 
-              backgroundColor: 'var(--foreground)',
-              color: 'var(--background)'
+              backgroundColor: '#14b8a6',
+              color: '#fff'
             }}
           >
             Get started for $4.99
             <ArrowRight className="w-4 h-4" />
-          </Link>
+          </button>
         </div>
       </section>
 
@@ -751,6 +614,19 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Modals */}
+      <AuthModals 
+        isOpen={authModal} 
+        onClose={() => setAuthModal(null)}
+        onSwitch={setAuthModal}
+      />
+      
+      <SportsbooksModal 
+        isOpen={sportsbooksOpen}
+        onClose={() => setSportsbooksOpen(false)}
+        detectedRegion={detectedRegion}
+      />
     </div>
   );
 }

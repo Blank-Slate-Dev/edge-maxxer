@@ -1,14 +1,14 @@
 // src/app/dashboard/page.tsx
 'use client';
 
-import { useState, useCallback } from 'react';
-import { Globe, MapPin, Loader2 } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { Globe, Loader2 } from 'lucide-react';
 import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal } from '@/components';
 import { useBets } from '@/hooks/useBets';
 import { useAccounts } from '@/hooks/useAccounts';
-import type { ArbOpportunity, ValueBet, ArbFilters as FilterType, ScanStats, SpreadArb, TotalsArb, MiddleOpportunity, LineStats } from '@/lib/types';
+import type { ArbOpportunity, ValueBet, ArbFilters as FilterType, ScanStats, SpreadArb, TotalsArb, MiddleOpportunity, LineStats, BookVsBookArb } from '@/lib/types';
 import type { PlacedBet } from '@/lib/bets';
-import { config } from '@/lib/config';
+import { config, getApiRegionsForUserRegions, countBookmakersForRegions, type UserRegion } from '@/lib/config';
 import { format } from 'date-fns';
 
 interface Sport {
@@ -24,7 +24,7 @@ interface ArbsResponse {
   lastUpdated: string;
   isUsingMockData: boolean;
   cached: boolean;
-  globalMode?: boolean;
+  regions?: string;
   remainingApiRequests?: number;
   error?: string;
   details?: string;
@@ -37,7 +37,7 @@ interface LinesResponse {
   stats: LineStats;
   lastUpdated: string;
   isUsingMockData: boolean;
-  globalMode?: boolean;
+  regions?: string;
   remainingApiRequests?: number;
   error?: string;
 }
@@ -59,6 +59,72 @@ const DEFAULT_FILTERS: FilterType = {
 };
 
 type Tab = 'opportunities' | 'spreads' | 'totals' | 'value-bets' | 'history' | 'accounts';
+
+// Region tab component
+function RegionTab({ 
+  region, 
+  isSelected, 
+  onClick 
+}: { 
+  region: UserRegion; 
+  isSelected: boolean; 
+  onClick: () => void;
+}) {
+  const info = config.regionInfo[region];
+  const colorMap: Record<string, string> = {
+    red: isSelected ? 'bg-red-600 border-red-600 text-white' : 'border-red-600/50 text-red-500 hover:bg-red-900/20',
+    blue: isSelected ? 'bg-blue-600 border-blue-600 text-white' : 'border-blue-600/50 text-blue-500 hover:bg-blue-900/20',
+    purple: isSelected ? 'bg-purple-600 border-purple-600 text-white' : 'border-purple-600/50 text-purple-500 hover:bg-purple-900/20',
+    green: isSelected ? 'bg-green-600 border-green-600 text-white' : 'border-green-600/50 text-green-500 hover:bg-green-900/20',
+  };
+
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border rounded-lg transition-all ${colorMap[info.color]}`}
+    >
+      <span>{info.flag}</span>
+      <span>{region}</span>
+    </button>
+  );
+}
+
+// Global toggle button
+function GlobalToggle({ 
+  isGlobal, 
+  onClick 
+}: { 
+  isGlobal: boolean; 
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border rounded-lg transition-all ${
+        isGlobal 
+          ? 'bg-gradient-to-r from-red-600 via-purple-600 to-green-600 border-transparent text-white' 
+          : 'border-zinc-600 text-zinc-400 hover:bg-zinc-800/50'
+      }`}
+    >
+      <Globe className="w-4 h-4" />
+      <span>Global</span>
+    </button>
+  );
+}
+
+// Helper function to extract bookmakers from an ArbOpportunity
+function getBookmakersFromArb(opp: ArbOpportunity): string[] {
+  if (opp.mode === 'book-vs-book') {
+    const bookmakers = [opp.outcome1.bookmaker, opp.outcome2.bookmaker];
+    if (opp.outcome3) {
+      bookmakers.push(opp.outcome3.bookmaker);
+    }
+    return bookmakers;
+  } else {
+    // book-vs-betfair
+    return [opp.backOutcome.bookmaker];
+  }
+}
 
 export default function DashboardPage() {
   const [opportunities, setOpportunities] = useState<ArbOpportunity[]>([]);
@@ -83,7 +149,11 @@ export default function DashboardPage() {
   const [hasFetched, setHasFetched] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('opportunities');
   const [showMiddles, setShowMiddles] = useState(true);
-  const [globalMode, setGlobalMode] = useState(false);
+  
+  // Region selection state
+  const [selectedRegions, setSelectedRegions] = useState<UserRegion[]>(['AU']);
+  const [userDefaultRegion, setUserDefaultRegion] = useState<UserRegion>('AU');
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   const { bets, isLoaded: betsLoaded, addBet, updateBet, deleteBet, clearAllBets } = useBets();
   const { 
@@ -94,6 +164,50 @@ export default function DashboardPage() {
     addTransaction, 
     deleteTransaction 
   } = useAccounts();
+
+  // Load user's default region from settings
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          const region = data.region || 'AU';
+          setUserDefaultRegion(region);
+          setSelectedRegions([region]);
+        }
+      } catch (err) {
+        console.error('Failed to fetch user settings:', err);
+      } finally {
+        setSettingsLoaded(true);
+      }
+    };
+    fetchSettings();
+  }, []);
+
+  const isGlobalMode = selectedRegions.length === config.regionOrder.length;
+
+  const toggleRegion = (region: UserRegion) => {
+    setSelectedRegions(prev => {
+      if (prev.includes(region)) {
+        // Don't allow deselecting the last region
+        if (prev.length === 1) return prev;
+        return prev.filter(r => r !== region);
+      } else {
+        return [...prev, region];
+      }
+    });
+  };
+
+  const toggleGlobal = () => {
+    if (isGlobalMode) {
+      // Go back to just user's default region
+      setSelectedRegions([userDefaultRegion]);
+    } else {
+      // Select all regions
+      setSelectedRegions([...config.regionOrder]);
+    }
+  };
 
   const fetchSports = useCallback(async () => {
     try {
@@ -118,6 +232,9 @@ export default function DashboardPage() {
         await fetchSports();
       }
 
+      // Get API regions string from selected user regions
+      const apiRegions = getApiRegionsForUserRegions(selectedRegions);
+
       // Fetch H2H arbs
       const params = new URLSearchParams({
         minProfit: filters.minProfit.toString(),
@@ -125,14 +242,14 @@ export default function DashboardPage() {
         refresh: 'true',
         nearArbs: filters.showNearArbs ? 'true' : 'false',
         valueBets: filters.showValueBets ? 'true' : 'false',
-        global: globalMode ? 'true' : 'false',
+        regions: apiRegions,
       });
       
       if (filters.sports.length > 0) {
         params.set('sports', filters.sports.join(','));
       }
 
-      setScanProgress('Scanning bookmakers for odds...');
+      setScanProgress(`Scanning ${selectedRegions.join(', ')} bookmakers for odds...`);
 
       const [arbsRes, linesRes] = await Promise.all([
         fetch(`/api/arbs?${params}`),
@@ -205,49 +322,42 @@ export default function DashboardPage() {
       setStats(arbsData.stats);
       setLineStats(linesData.stats);
       setLastUpdated(arbsData.lastUpdated ? new Date(arbsData.lastUpdated) : new Date());
-      setIsUsingMockData(arbsData.isUsingMockData);
+      setIsUsingMockData(arbsData.isUsingMockData || false);
       setRemainingRequests(arbsData.remainingApiRequests);
       setHasFetched(true);
 
+      // Collect unique bookmakers from all opportunities
       const uniqueBookmakers = new Set<string>();
       parsed.forEach(opp => {
-        if (opp.mode === 'book-vs-book') {
-          uniqueBookmakers.add(opp.outcome1.bookmaker);
-          uniqueBookmakers.add(opp.outcome2.bookmaker);
-        } else {
-          uniqueBookmakers.add(opp.backOutcome.bookmaker);
-        }
+        getBookmakersFromArb(opp).forEach(bm => uniqueBookmakers.add(bm));
       });
-      setBookmakers(Array.from(uniqueBookmakers).sort());
+      setBookmakers(Array.from(uniqueBookmakers));
+
     } catch (err) {
       console.error('Failed to fetch arbs:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch opportunities');
+      setError(err instanceof Error ? err.message : 'Failed to scan');
     } finally {
       setIsLoading(false);
       setScanProgress('');
     }
-  }, [filters, sports.length, fetchSports, showMiddles, globalMode]);
+  }, [filters, sports, fetchSports, showMiddles, selectedRegions]);
 
+  // Handle logging a bet
+  const handleLogBet = (bet: Omit<PlacedBet, 'id' | 'createdAt'>) => {
+    addBet(bet);
+    setSelectedArb(null);
+    setSelectedValueBet(null);
+    setSelectedLineOpp(null);
+  };
+
+  // Filter opportunities based on current filters
   const filteredOpportunities = opportunities.filter(opp => {
-    if (filters.profitableOnly && opp.profitPercentage < 0) {
-      return false;
-    }
-    if (filters.mode !== 'all' && opp.mode !== filters.mode) {
-      return false;
-    }
-    if (!filters.showNearArbs && opp.type === 'near-arb') {
-      return false;
-    }
+    if (filters.profitableOnly && opp.profitPercentage < 0) return false;
+    if (!filters.showNearArbs && opp.type === 'near-arb') return false;
+    if (filters.sports.length > 0 && !filters.sports.includes(opp.event.sportKey)) return false;
     if (filters.bookmakers.length > 0) {
-      if (opp.mode === 'book-vs-book') {
-        const hasBook1 = filters.bookmakers.includes(opp.outcome1.bookmaker);
-        const hasBook2 = filters.bookmakers.includes(opp.outcome2.bookmaker);
-        if (!hasBook1 && !hasBook2) return false;
-      } else {
-        if (!filters.bookmakers.includes(opp.backOutcome.bookmaker)) {
-          return false;
-        }
-      }
+      const oppBookmakers = getBookmakersFromArb(opp);
+      if (!filters.bookmakers.some(b => oppBookmakers.includes(b))) return false;
     }
     return true;
   });
@@ -264,16 +374,13 @@ export default function DashboardPage() {
     return true;
   });
 
-  const handleLogBet = (bet: PlacedBet) => {
-    addBet(bet);
-  };
-
-  const arbCount = filteredOpportunities.filter(o => o.type === 'arb').length;
-  const nearArbCount = filteredOpportunities.filter(o => o.type === 'near-arb').length;
   const profitableCount = filteredOpportunities.filter(o => o.profitPercentage >= 0).length;
   const activeAccountsCount = accounts.filter(a => a.isActive).length;
   const spreadMiddles = middles.filter(m => m.marketType === 'spreads');
   const totalsMiddles = middles.filter(m => m.marketType === 'totals');
+
+  // Calculate bookmaker count for selected regions
+  const selectedBookmakerCount = countBookmakersForRegions(selectedRegions);
 
   return (
     <div 
@@ -303,7 +410,6 @@ export default function DashboardPage() {
           >
             {/* Animated Scanner */}
             <div className="relative w-20 h-20">
-              {/* Outer ring */}
               <div 
                 className="absolute inset-0 rounded-full border-2 animate-ping"
                 style={{ 
@@ -312,7 +418,6 @@ export default function DashboardPage() {
                   animationDuration: '2s'
                 }}
               />
-              {/* Middle ring */}
               <div 
                 className="absolute inset-2 rounded-full border-2 animate-ping"
                 style={{ 
@@ -322,7 +427,6 @@ export default function DashboardPage() {
                   animationDelay: '0.3s'
                 }}
               />
-              {/* Inner spinning circle */}
               <div 
                 className="absolute inset-4 rounded-full border-2 border-t-transparent animate-spin"
                 style={{ 
@@ -331,7 +435,6 @@ export default function DashboardPage() {
                   animationDuration: '1s'
                 }}
               />
-              {/* Center dot */}
               <div 
                 className="absolute inset-[38%] rounded-full animate-pulse"
                 style={{ backgroundColor: '#22c55e' }}
@@ -363,57 +466,38 @@ export default function DashboardPage() {
                 color: 'var(--muted)'
               }}
             >
-              {globalMode ? (
-                <>
-                  <Globe className="w-3 h-3" />
-                  Scanning AU, UK, US, EU
-                </>
-              ) : (
-                <>
-                  <MapPin className="w-3 h-3" />
-                  Scanning AU region
-                </>
-              )}
+              <Globe className="w-3 h-3" />
+              Scanning {selectedRegions.join(', ')} ({selectedBookmakerCount} bookmakers)
             </div>
           </div>
         </div>
       )}
 
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-        {/* Global Mode Toggle */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => setGlobalMode(!globalMode)}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border transition-colors"
-            style={{
-              backgroundColor: globalMode ? 'var(--info)' : 'transparent',
-              borderColor: globalMode ? 'var(--info)' : 'var(--border)',
-              color: globalMode ? 'white' : 'var(--muted)'
-            }}
-          >
-            {globalMode ? (
-              <>
-                <Globe className="w-4 h-4" />
-                Global Mode
-              </>
-            ) : (
-              <>
-                <MapPin className="w-4 h-4" />
-                AU Only
-              </>
-            )}
-          </button>
-          {globalMode && (
-            <div className="text-xs" style={{ color: 'var(--info)' }}>
-              ⚠️ Most global bookmakers require local residency
-            </div>
-          )}
-        </div>
+        {/* Region Tabs */}
+        {settingsLoaded && (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm mr-2" style={{ color: 'var(--muted)' }}>Regions:</span>
+            {config.regionOrder.map(region => (
+              <RegionTab
+                key={region}
+                region={region}
+                isSelected={selectedRegions.includes(region)}
+                onClick={() => toggleRegion(region)}
+              />
+            ))}
+            <div className="w-px h-6 mx-2" style={{ backgroundColor: 'var(--border)' }} />
+            <GlobalToggle isGlobal={isGlobalMode} onClick={toggleGlobal} />
+            <span className="text-xs ml-2" style={{ color: 'var(--muted)' }}>
+              {selectedBookmakerCount} bookmakers
+            </span>
+          </div>
+        )}
 
-        {/* Global Mode Banner */}
-        {globalMode && (
+        {/* Multi-Region Warning */}
+        {selectedRegions.length > 1 && (
           <div 
-            className="border px-4 py-3 text-sm"
+            className="border px-4 py-3 text-sm rounded-lg"
             style={{
               borderColor: 'var(--info)',
               backgroundColor: 'color-mix(in srgb, var(--info) 10%, transparent)'
@@ -422,11 +506,14 @@ export default function DashboardPage() {
             <div className="flex items-start gap-3">
               <Globe className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--info)' }} />
               <div>
-                <div className="font-medium" style={{ color: 'var(--info)' }}>Global Scan Active</div>
+                <div className="font-medium" style={{ color: 'var(--info)' }}>
+                  Multi-Region Scan: {selectedRegions.join(', ')}
+                </div>
                 <div className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-                  Scanning {config.allBookmakers.length} bookmakers across AU, UK, US, EU. 
-                  Most non-AU bookmakers require local ID/address to register. 
-                  Use this to see what&apos;s available globally.
+                  Scanning {selectedBookmakerCount} bookmakers. 
+                  {selectedRegions.some(r => r !== userDefaultRegion) && (
+                    <> Note: Bookmakers outside your region ({userDefaultRegion}) may require local ID/address to register.</>
+                  )}
                 </div>
               </div>
             </div>
@@ -436,7 +523,7 @@ export default function DashboardPage() {
         {/* Initial State */}
         {!hasFetched && !isLoading && activeTab === 'opportunities' && (
           <div 
-            className="border p-12 text-center"
+            className="border p-12 text-center rounded-lg"
             style={{
               borderColor: 'var(--border-light)',
               backgroundColor: 'var(--surface-secondary)'
@@ -448,10 +535,7 @@ export default function DashboardPage() {
               Click <span className="font-medium" style={{ color: 'var(--foreground)' }}>Scan</span> to search ALL markets for opportunities
             </p>
             <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              {globalMode 
-                ? `Scanning ${config.allRegions.join(', ').toUpperCase()} regions (${config.allBookmakers.length} bookmakers)`
-                : `Scanning ${config.regions.join(', ').toUpperCase()} regions (AU bookmakers only)`
-              }
+              Scanning {selectedRegions.join(', ')} regions ({selectedBookmakerCount} bookmakers)
             </p>
           </div>
         )}
@@ -459,7 +543,7 @@ export default function DashboardPage() {
         {/* Demo Mode Notice */}
         {isUsingMockData && hasFetched && (
           <div 
-            className="border px-4 py-3 text-sm"
+            className="border px-4 py-3 text-sm rounded-lg"
             style={{
               borderColor: 'var(--border)',
               backgroundColor: 'var(--surface)',
@@ -473,7 +557,7 @@ export default function DashboardPage() {
         {/* Error */}
         {error && (
           <div 
-            className="border px-4 py-3 text-sm"
+            className="border px-4 py-3 text-sm rounded-lg"
             style={{
               borderColor: 'var(--danger)',
               backgroundColor: 'var(--danger-muted)',
@@ -487,7 +571,7 @@ export default function DashboardPage() {
         {/* Stats Grid */}
         {hasFetched && stats && (
           <div 
-            className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-px"
+            className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-px rounded-lg overflow-hidden"
             style={{ backgroundColor: 'var(--border-light)' }}
           >
             <StatBox label="Events" value={stats.totalEvents} />
@@ -582,7 +666,7 @@ export default function DashboardPage() {
             {(activeTab === 'spreads' || activeTab === 'totals') && (
               <button
                 onClick={() => setShowMiddles(!showMiddles)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border transition-colors rounded-lg"
                 style={{
                   backgroundColor: showMiddles ? 'var(--warning)' : 'transparent',
                   borderColor: showMiddles ? 'var(--warning)' : 'var(--border)',
@@ -600,7 +684,7 @@ export default function DashboardPage() {
           <ArbTable
             opportunities={filteredOpportunities}
             onSelectArb={setSelectedArb}
-            globalMode={globalMode}
+            globalMode={selectedRegions.length > 1}
           />
         )}
 
@@ -611,7 +695,7 @@ export default function DashboardPage() {
             onSelectSpread={(s) => setSelectedLineOpp(s)}
             onSelectMiddle={(m) => setSelectedLineOpp(m)}
             showMiddles={showMiddles}
-            globalMode={globalMode}
+            globalMode={selectedRegions.length > 1}
           />
         )}
 
@@ -622,12 +706,12 @@ export default function DashboardPage() {
             onSelectTotals={(t) => setSelectedLineOpp(t)}
             onSelectMiddle={(m) => setSelectedLineOpp(m)}
             showMiddles={showMiddles}
-            globalMode={globalMode}
+            globalMode={selectedRegions.length > 1}
           />
         )}
 
         {hasFetched && activeTab === 'value-bets' && (
-          <ValueBetsTable valueBets={valueBets} onSelectValueBet={setSelectedValueBet} globalMode={globalMode} />
+          <ValueBetsTable valueBets={valueBets} onSelectValueBet={setSelectedValueBet} globalMode={selectedRegions.length > 1} />
         )}
 
         {activeTab === 'history' && betsLoaded && (
@@ -729,7 +813,7 @@ function TabButton({
       {children}
       {count !== undefined && count > 0 && (
         <span 
-          className="ml-2 text-xs px-1.5 py-0.5"
+          className="ml-2 text-xs px-1.5 py-0.5 rounded"
           style={{
             backgroundColor: active ? 'var(--accent)' : 'var(--surface)',
             color: active ? 'var(--accent-foreground)' : 'var(--muted)'
@@ -746,15 +830,15 @@ function ValueBetsTable({ valueBets, onSelectValueBet, globalMode }: { valueBets
   if (valueBets.length === 0) {
     return (
       <div 
-        className="border p-12 text-center"
+        className="border p-12 text-center rounded-lg"
         style={{
-          borderColor: 'var(--border-light)',
-          backgroundColor: 'var(--surface-secondary)'
+          borderColor: 'var(--border)',
+          backgroundColor: 'var(--surface)'
         }}
       >
-        <p className="mb-2" style={{ color: 'var(--muted)' }}>No value bets found</p>
+        <p style={{ color: 'var(--muted)' }} className="mb-2">No value bets found</p>
         <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-          Value bets appear when one bookmaker has odds significantly above the market average
+          Value bets have {'>'}5% expected edge based on implied probability
         </p>
       </div>
     );
@@ -762,75 +846,45 @@ function ValueBetsTable({ valueBets, onSelectValueBet, globalMode }: { valueBets
 
   return (
     <div 
-      className="border overflow-x-auto"
+      className="border overflow-x-auto rounded-lg"
       style={{
-        borderColor: 'var(--border-light)',
-        backgroundColor: 'var(--surface-secondary)'
+        borderColor: 'var(--border)',
+        backgroundColor: 'var(--surface)'
       }}
     >
       <table className="w-full text-sm">
         <thead>
-          <tr style={{ borderBottom: '1px solid var(--border-light)' }}>
-            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
-              Event
-            </th>
-            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
-              Time
-            </th>
-            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
-              Outcome
-            </th>
-            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
-              Best Odds
-            </th>
-            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
-              Market Avg
-            </th>
-            <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
-              Edge
-            </th>
-            <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
-              Action
-            </th>
+          <tr style={{ borderBottom: '1px solid var(--border)' }}>
+            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Event</th>
+            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Bookmaker</th>
+            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Selection</th>
+            <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Odds</th>
+            <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Edge</th>
+            <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Action</th>
           </tr>
         </thead>
         <tbody>
           {valueBets.map((vb, idx) => (
-            <tr
-              key={`${vb.event.id}-${vb.outcome.name}-${idx}`}
-              className="transition-colors"
-              style={{ borderBottom: '1px solid var(--border-light)' }}
+            <tr 
+              key={`${vb.event.id}-${idx}`}
+              className="hover:bg-[var(--background)] transition-colors"
+              style={{ borderBottom: '1px solid var(--border)' }}
             >
               <td className="px-4 py-3">
                 <div className="font-medium" style={{ color: 'var(--foreground)' }}>{vb.event.homeTeam}</div>
                 <div style={{ color: 'var(--muted)' }}>vs {vb.event.awayTeam}</div>
-                <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>{vb.event.sportTitle}</div>
               </td>
-              <td className="px-4 py-3" style={{ color: 'var(--muted)' }}>
-                {format(new Date(vb.event.commenceTime), 'MMM d, HH:mm')}
-              </td>
-              <td className="px-4 py-3">
-                <div className="font-medium" style={{ color: 'var(--foreground)' }}>{vb.outcome.name}</div>
-              </td>
-              <td className="px-4 py-3">
-                <div className="font-mono" style={{ color: 'var(--foreground)' }}>{vb.outcome.odds.toFixed(2)}</div>
-                <div className="text-xs" style={{ color: 'var(--muted)' }}>@ {vb.outcome.bookmaker}</div>
-              </td>
-              <td className="px-4 py-3 font-mono" style={{ color: 'var(--muted)' }}>
-                {vb.marketAverage.toFixed(2)}
-              </td>
-              <td className="px-4 py-3 text-right">
-                <span className="font-mono font-medium" style={{ color: 'var(--foreground)' }}>
-                  +{vb.valuePercentage.toFixed(1)}%
-                </span>
-              </td>
+              <td className="px-4 py-3" style={{ color: 'var(--foreground)' }}>{vb.outcome.bookmaker}</td>
+              <td className="px-4 py-3" style={{ color: 'var(--foreground)' }}>{vb.outcome.name}</td>
+              <td className="px-4 py-3 text-right font-mono" style={{ color: 'var(--foreground)' }}>{vb.outcome.odds.toFixed(2)}</td>
+              <td className="px-4 py-3 text-right font-mono" style={{ color: '#22c55e' }}>+{vb.valuePercentage.toFixed(1)}%</td>
               <td className="px-4 py-3 text-right">
                 <button
                   onClick={() => onSelectValueBet(vb)}
-                  className="px-3 py-1 text-xs border transition-colors"
+                  className="px-3 py-1 text-xs font-medium rounded transition-colors"
                   style={{
-                    borderColor: 'var(--border)',
-                    color: 'var(--muted)'
+                    backgroundColor: 'var(--foreground)',
+                    color: 'var(--background)'
                   }}
                 >
                   Calculate

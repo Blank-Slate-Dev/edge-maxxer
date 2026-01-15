@@ -1,12 +1,15 @@
 // src/lib/models/User.ts
 import mongoose, { Schema, Model } from 'mongoose';
 
+export type UserRegion = 'US' | 'EU' | 'UK' | 'AU';
+
 export interface IUser {
   _id: mongoose.Types.ObjectId;
   name: string;
   email: string;
   password: string;
   image?: string;
+  region: UserRegion;
   subscription: 'none' | 'trial' | 'active' | 'expired';
   trialEndsAt?: Date;
   subscriptionEndsAt?: Date;
@@ -39,6 +42,11 @@ const UserSchema = new Schema<IUser>(
     },
     image: {
       type: String,
+    },
+    region: {
+      type: String,
+      enum: ['US', 'EU', 'UK', 'AU'],
+      default: 'AU',
     },
     subscription: {
       type: String,

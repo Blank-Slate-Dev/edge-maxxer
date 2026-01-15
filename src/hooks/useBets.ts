@@ -3,8 +3,12 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import type { PlacedBet } from '@/lib/bets';
+import { generateBetId } from '@/lib/bets';
 
 const STORAGE_KEY = 'edge-maxxer-bets';
+
+// Type for new bets without id and createdAt (these are generated internally)
+type NewBet = Omit<PlacedBet, 'id' | 'createdAt'>;
 
 export function useBets() {
   const [bets, setBets] = useState<PlacedBet[]>([]);
@@ -34,7 +38,14 @@ export function useBets() {
     }
   }, [bets, isLoaded]);
 
-  const addBet = useCallback(async (bet: PlacedBet) => {
+  const addBet = useCallback(async (newBet: NewBet) => {
+    // Generate id and createdAt for the new bet
+    const bet: PlacedBet = {
+      ...newBet,
+      id: generateBetId(),
+      createdAt: new Date().toISOString(),
+    };
+
     setBets(prev => [bet, ...prev]);
 
     // Update global profit counter (webhook)

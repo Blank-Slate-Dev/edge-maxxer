@@ -1,5 +1,4 @@
 // src/lib/providers/theOddsApiProvider.ts
-import { config } from '@/lib/config';
 import type { SportEvent, BookmakerOdds } from '../types';
 import type { OddsProvider, ProviderResult, Sport, TheOddsApiEvent } from './types';
 import { theOddsApiResponseSchema, theOddsApiSportsResponseSchema } from './types';
@@ -58,10 +57,16 @@ export class TheOddsApiProvider implements OddsProvider {
     return this.getSupportedSports();
   }
 
+  /**
+   * Fetch odds for given sports
+   * @param sports - Array of sport keys to fetch
+   * @param markets - Array of market types (e.g., ['h2h', 'spreads'])
+   * @param regions - Comma-separated API region string (e.g., 'au,uk,us,eu')
+   */
   async fetchOdds(
     sports: string[], 
     markets: string[] = ['h2h'],
-    globalMode: boolean = false
+    regions: string = 'au'
   ): Promise<ProviderResult> {
     if (!this.apiKey) {
       console.log('[TheOddsApiProvider] No API key configured');
@@ -76,13 +81,9 @@ export class TheOddsApiProvider implements OddsProvider {
     let usedRequests: number | undefined;
     const errors: string[] = [];
 
-    // Use different regions based on mode
-    const regions = globalMode 
-      ? config.allRegions.join(',')
-      : config.regions.join(',');
     const marketsStr = markets.join(',');
 
-    console.log(`[TheOddsApiProvider] Fetching ${sports.length} sports with regions: ${regions}, markets: ${marketsStr}, globalMode: ${globalMode}`);
+    console.log(`[TheOddsApiProvider] Fetching ${sports.length} sports with regions: ${regions}, markets: ${marketsStr}`);
 
     for (const sport of sports) {
       try {
@@ -96,9 +97,11 @@ export class TheOddsApiProvider implements OddsProvider {
         remainingRequests = result.remainingRequests;
         usedRequests = result.usedRequests;
 
+        // Small delay between requests to be nice to the API
         await new Promise(resolve => setTimeout(resolve, 100));
       } catch (error) {
         const msg = error instanceof Error ? error.message : String(error);
+        // 404 is expected for sports without odds
         if (!msg.includes('404')) {
           console.error(`[TheOddsApiProvider] Error fetching ${sport}:`, msg);
           errors.push(`${sport}: ${msg}`);

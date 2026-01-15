@@ -19,8 +19,19 @@ import {
   Eye, 
   EyeOff,
   ExternalLink,
-  AlertCircle
+  AlertCircle,
+  Globe,
+  ChevronDown
 } from 'lucide-react';
+
+type UserRegion = 'US' | 'EU' | 'UK' | 'AU';
+
+const REGIONS: { value: UserRegion; label: string; flag: string }[] = [
+  { value: 'AU', label: 'Australia', flag: '🇦🇺' },
+  { value: 'US', label: 'United States', flag: '🇺🇸' },
+  { value: 'UK', label: 'United Kingdom', flag: '🇬🇧' },
+  { value: 'EU', label: 'Europe', flag: '🇪🇺' },
+];
 
 export default function SettingsPage() {
   const { data: session, status } = useSession();
@@ -28,10 +39,14 @@ export default function SettingsPage() {
   const { theme, toggleTheme } = useTheme();
   
   const [apiKey, setApiKey] = useState('');
+  const [region, setRegion] = useState<UserRegion>('AU');
   const [showApiKey, setShowApiKey] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingRegion, setIsSavingRegion] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [regionSaveSuccess, setRegionSaveSuccess] = useState(false);
   const [error, setError] = useState('');
+  const [regionError, setRegionError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
 
   // Redirect if not logged in
@@ -41,7 +56,7 @@ export default function SettingsPage() {
     }
   }, [status, router]);
 
-  // Fetch current API key
+  // Fetch current settings
   useEffect(() => {
     const fetchSettings = async () => {
       try {
@@ -49,6 +64,7 @@ export default function SettingsPage() {
         if (res.ok) {
           const data = await res.json();
           setApiKey(data.oddsApiKey || '');
+          setRegion(data.region || 'AU');
         }
       } catch (err) {
         console.error('Failed to fetch settings:', err);
@@ -85,6 +101,33 @@ export default function SettingsPage() {
       setError(err instanceof Error ? err.message : 'Failed to save API key');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleSaveRegion = async (newRegion: UserRegion) => {
+    setRegion(newRegion);
+    setIsSavingRegion(true);
+    setRegionError('');
+    setRegionSaveSuccess(false);
+
+    try {
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ region: newRegion }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to save');
+      }
+
+      setRegionSaveSuccess(true);
+      setTimeout(() => setRegionSaveSuccess(false), 3000);
+    } catch (err) {
+      setRegionError(err instanceof Error ? err.message : 'Failed to save region');
+    } finally {
+      setIsSavingRegion(false);
     }
   };
 
@@ -238,6 +281,80 @@ export default function SettingsPage() {
                   )}
                 </div>
               </div>
+            </div>
+          </section>
+
+          {/* Region Section */}
+          <section 
+            className="p-6 rounded-xl border"
+            style={{ 
+              backgroundColor: 'var(--surface)',
+              borderColor: 'var(--border)'
+            }}
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div 
+                className="w-10 h-10 rounded-lg flex items-center justify-center"
+                style={{ backgroundColor: 'var(--background)' }}
+              >
+                <Globe className="w-5 h-5" style={{ color: 'var(--foreground)' }} />
+              </div>
+              <div>
+                <h2 className="font-medium" style={{ color: 'var(--foreground)' }}>
+                  Default Region
+                </h2>
+                <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                  Your home region for bookmaker scanning
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label 
+                  className="block text-sm font-medium mb-1.5"
+                  style={{ color: 'var(--foreground)' }}
+                >
+                  Region
+                </label>
+                <div className="relative">
+                  <select
+                    value={region}
+                    onChange={(e) => handleSaveRegion(e.target.value as UserRegion)}
+                    disabled={isSavingRegion}
+                    className="w-full px-3 py-2.5 text-sm rounded-lg transition-colors disabled:opacity-50 appearance-none cursor-pointer"
+                    style={{
+                      backgroundColor: 'var(--background)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
+                    }}
+                  >
+                    {REGIONS.map((r) => (
+                      <option key={r.value} value={r.value}>
+                        {r.flag} {r.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none flex items-center gap-2">
+                    {isSavingRegion && <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--muted)' }} />}
+                    {regionSaveSuccess && <Check className="w-4 h-4" style={{ color: '#22c55e' }} />}
+                    <ChevronDown className="w-4 h-4" style={{ color: 'var(--muted)' }} />
+                  </div>
+                </div>
+                <p className="text-xs mt-1.5" style={{ color: 'var(--muted)' }}>
+                  This sets your default region on the dashboard. You can still scan other regions.
+                </p>
+              </div>
+
+              {regionError && (
+                <div 
+                  className="flex items-center gap-2 text-sm"
+                  style={{ color: 'var(--danger)' }}
+                >
+                  <AlertCircle className="w-4 h-4" />
+                  {regionError}
+                </div>
+              )}
             </div>
           </section>
 

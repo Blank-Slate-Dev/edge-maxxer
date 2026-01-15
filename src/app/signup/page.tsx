@@ -7,7 +7,16 @@ import { signIn } from 'next-auth/react';
 import { useTheme } from '@/contexts/ThemeContext';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Sun, Moon, Eye, EyeOff, Loader2, Check } from 'lucide-react';
+import { Sun, Moon, Eye, EyeOff, Loader2, Check, ChevronDown } from 'lucide-react';
+
+type UserRegion = 'US' | 'EU' | 'UK' | 'AU';
+
+const REGIONS: { value: UserRegion; label: string; flag: string }[] = [
+  { value: 'AU', label: 'Australia', flag: '🇦🇺' },
+  { value: 'US', label: 'United States', flag: '🇺🇸' },
+  { value: 'UK', label: 'United Kingdom', flag: '🇬🇧' },
+  { value: 'EU', label: 'Europe', flag: '🇪🇺' },
+];
 
 export default function SignupPage() {
   const router = useRouter();
@@ -16,6 +25,7 @@ export default function SignupPage() {
     name: '',
     email: '',
     password: '',
+    region: 'AU' as UserRegion,
   });
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -242,6 +252,42 @@ export default function SignupPage() {
               {errors.password && (
                 <p className="text-xs mt-1.5" style={{ color: 'var(--danger)' }}>{errors.password}</p>
               )}
+            </div>
+
+            {/* Region Selector */}
+            <div>
+              <label 
+                className="block text-sm font-medium mb-1.5"
+                style={{ color: 'var(--foreground)' }}
+              >
+                Your region
+              </label>
+              <div className="relative">
+                <select
+                  value={formData.region}
+                  onChange={(e) => setFormData({ ...formData, region: e.target.value as UserRegion })}
+                  disabled={isLoading}
+                  className="w-full px-3 py-2.5 text-sm rounded-lg transition-colors disabled:opacity-50 appearance-none cursor-pointer"
+                  style={{
+                    backgroundColor: 'var(--surface)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--foreground)',
+                  }}
+                >
+                  {REGIONS.map((region) => (
+                    <option key={region.value} value={region.value}>
+                      {region.flag} {region.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown 
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
+                  style={{ color: 'var(--muted)' }}
+                />
+              </div>
+              <p className="text-xs mt-1.5" style={{ color: 'var(--muted)' }}>
+                This sets your default bookmaker region. You can scan other regions anytime.
+              </p>
             </div>
 
             <button

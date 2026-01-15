@@ -2,11 +2,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import dbConnect from '@/lib/mongodb';
-import User from '@/lib/models/User';
+import User, { UserRegion } from '@/lib/models/User';
+
+const VALID_REGIONS: UserRegion[] = ['US', 'EU', 'UK', 'AU'];
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, email, password, referralCode } = await request.json();
+    const { name, email, password, region, referralCode } = await request.json();
 
     // Validation
     if (!name || !email || !password) {
@@ -31,6 +33,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate region (default to AU if not provided or invalid)
+    const validatedRegion: UserRegion = VALID_REGIONS.includes(region) ? region : 'AU';
+
     await dbConnect();
 
     // Check if user already exists
@@ -50,6 +55,7 @@ export async function POST(request: NextRequest) {
       name: name.trim(),
       email: email.toLowerCase().trim(),
       password: hashedPassword,
+      region: validatedRegion,
       subscription: 'trial',
       trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
       referredBy: referralCode || undefined,
@@ -60,6 +66,7 @@ export async function POST(request: NextRequest) {
       id: user._id.toString(),
       name: user.name,
       email: user.email,
+      region: user.region,
       subscription: user.subscription,
       trialEndsAt: user.trialEndsAt,
       referralCode: user.referralCode,

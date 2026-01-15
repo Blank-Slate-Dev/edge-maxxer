@@ -57,11 +57,13 @@ export const authOptions: NextAuthOptions = {
         const existingUser = await User.findOne({ email });
         
         if (!existingUser) {
+          // Create new user with default region AU (they can change it in settings)
           await User.create({
             name: user.name || 'User',
             email,
             image: user.image || undefined,
             password: await bcrypt.hash(Math.random().toString(36), 10),
+            region: 'AU', // Default region for Google OAuth users
             subscription: 'trial',
             trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
           });
@@ -85,6 +87,7 @@ export const authOptions: NextAuthOptions = {
         if (user) {
           (session.user as { subscription: string }).subscription = user.subscription;
           (session.user as { trialEndsAt?: Date }).trialEndsAt = user.trialEndsAt;
+          (session.user as { region: string }).region = user.region;
         }
       }
       return session;
