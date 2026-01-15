@@ -172,7 +172,7 @@ export default function LandingPage() {
                 className="text-base mb-8 leading-relaxed"
                 style={{ color: 'var(--muted)' }}
               >
-                We spent years mastering arbitrage betting. We built the tool we always needed—now we're sharing it with you. Our software scans over 80 sportsbooks for profitable discrepancies 24/7.
+                We spent years mastering arbitrage betting. We built the tool we always needed, now we're sharing it with you. Our software scans over 80 sportsbooks for profitable discrepancies 24/7.
               </p>
 
               {/* CTA Buttons */}
