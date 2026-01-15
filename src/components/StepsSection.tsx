@@ -2,7 +2,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Search, Smartphone, Trophy, Zap, ExternalLink } from 'lucide-react';
+import { Search, Smartphone, Trophy, Zap } from 'lucide-react';
+import Image from 'next/image';
+import { getLogoPath, getBookmaker, getBookmakerAbbr } from '@/lib/bookmakers';
 
 interface StepCardProps {
   step: number;
@@ -77,98 +79,169 @@ function StepCard({ step, icon: Icon, title, description, children, delay = 0 }:
   );
 }
 
-// Animated scanning visualization
-function ScanningAnimation() {
-  const [scanPosition, setScanPosition] = useState(0);
-  const [dots, setDots] = useState<{ x: number; y: number; active: boolean }[]>([]);
+// Book logo component for the animation - matches SportsbooksModal implementation
+function BookLogo({ bookKey, size = 40, highlighted = false }: { bookKey: string; size?: number; highlighted?: boolean }) {
+  const [imgError, setImgError] = useState(false);
+  const bookmaker = getBookmaker(bookKey);
 
-  useEffect(() => {
-    // Generate grid dots
-    const gridDots = [];
-    for (let i = 0; i < 5; i++) {
-      for (let j = 0; j < 5; j++) {
-        gridDots.push({
-          x: 30 + i * 50,
-          y: 30 + j * 40,
-          active: false
-        });
-      }
-    }
-    setDots(gridDots);
+  // Get proper abbreviation and colors from config
+  const abbr = bookmaker ? getBookmakerAbbr(bookmaker.name) : bookKey.slice(0, 2).toUpperCase();
+  const bgColor = bookmaker?.color || 'var(--border)';
+  const textColor = bookmaker?.textColor || 'var(--muted)';
 
-    // Animate scan line
-    const scanInterval = setInterval(() => {
-      setScanPosition(prev => (prev + 2) % 220);
-    }, 30);
-
-    // Randomly activate dots
-    const dotInterval = setInterval(() => {
-      setDots(prev => prev.map(dot => ({
-        ...dot,
-        active: Math.random() > 0.7
-      })));
-    }, 500);
-
-    return () => {
-      clearInterval(scanInterval);
-      clearInterval(dotInterval);
-    };
-  }, []);
+  if (imgError || !bookmaker) {
+    // Fallback to colored box with abbreviation
+    return (
+      <div 
+        className="rounded-lg flex items-center justify-center font-bold text-xs"
+        style={{ 
+          width: size,
+          height: size,
+          backgroundColor: highlighted ? '#14b8a6' : bgColor,
+          color: highlighted ? '#fff' : textColor,
+          boxShadow: highlighted ? '0 0 20px rgba(20, 184, 166, 0.5)' : 'none',
+          transition: 'all 0.3s ease'
+        }}
+      >
+        {abbr}
+      </div>
+    );
+  }
 
   return (
-    <div className="absolute inset-0 grid-pattern">
-      {/* Grid dots */}
-      {dots.map((dot, i) => (
-        <div
-          key={i}
-          className={`absolute w-3 h-3 rounded-full transition-all duration-300 ${dot.active ? 'scale-150' : 'scale-100'}`}
-          style={{
-            left: dot.x,
-            top: dot.y,
-            backgroundColor: dot.active ? '#14b8a6' : 'var(--border)',
-            boxShadow: dot.active ? '0 0 20px rgba(20, 184, 166, 0.5)' : 'none'
-          }}
-        />
-      ))}
+    <div 
+      className="rounded-lg overflow-hidden"
+      style={{ 
+        width: size,
+        height: size,
+        boxShadow: highlighted ? '0 0 20px rgba(20, 184, 166, 0.5)' : 'none',
+        border: highlighted ? '2px solid #14b8a6' : '2px solid transparent',
+        transition: 'all 0.3s ease'
+      }}
+    >
+      <Image
+        src={getLogoPath(bookKey)}
+        alt={bookmaker.name}
+        width={size}
+        height={size}
+        className="w-full h-full object-contain"
+        onError={() => setImgError(true)}
+      />
+    </div>
+  );
+}
 
-      {/* Scanning line */}
+// Animated scanning visualization - shows bookmakers on left and right with connecting lines
+function ScanningAnimation() {
+  const [activeConnection, setActiveConnection] = useState(0);
+
+  const leftBooks = ['fanduel', 'draftkings', 'betmgm'];
+  const rightBooks = ['williamhill_us', 'pointsbetau', 'betonlineag'];
+
+  // Define connection paths: [leftIndex, rightIndex]
+  const connections = [
+    { from: 0, to: 0 }, // straight across top
+    { from: 0, to: 2 }, // diagonal down
+    { from: 2, to: 1 }, // diagonal up
+    { from: 1, to: 1 }, // straight across middle
+    { from: 2, to: 0 }, // diagonal up steep
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setActiveConnection(prev => (prev + 1) % connections.length);
+    }, 1800);
+
+    return () => clearInterval(interval);
+  }, [connections.length]);
+
+  const currentConnection = connections[activeConnection];
+  
+  // Calculate Y positions (top of container + offset for each book)
+  const leftY = 76 + currentConnection.from * 52;
+  const rightY = 76 + currentConnection.to * 52;
+
+  return (
+    <div className="absolute inset-0">
+      {/* Grid background */}
       <div 
-        className="absolute left-0 right-0 h-0.5"
+        className="absolute inset-0 opacity-30"
         style={{
-          top: scanPosition,
-          background: 'linear-gradient(90deg, transparent, #14b8a6, transparent)',
-          boxShadow: '0 0 20px rgba(20, 184, 166, 0.5)'
+          backgroundImage: 'linear-gradient(to right, var(--border) 1px, transparent 1px), linear-gradient(to bottom, var(--border) 1px, transparent 1px)',
+          backgroundSize: '30px 30px'
         }}
       />
 
-      {/* Connection lines */}
-      <svg className="absolute inset-0 w-full h-full">
-        <line 
-          x1="80" y1="70" x2="180" y2="150" 
-          stroke="#14b8a6" 
-          strokeWidth="2" 
-          strokeDasharray="5,5"
-          opacity="0.5"
-        />
-        <line 
-          x1="180" y1="150" x2="130" y2="110" 
-          stroke="#14b8a6" 
-          strokeWidth="2" 
-          strokeDasharray="5,5"
-          opacity="0.5"
-        />
-      </svg>
-
-      {/* Center search icon */}
+      {/* Search icon at top */}
       <div 
-        className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 rounded-full flex items-center justify-center animate-pulse"
+        className="absolute top-3 left-1/2 -translate-x-1/2 flex items-center gap-2 px-3 py-1.5 rounded-full"
         style={{ 
-          backgroundColor: 'rgba(20, 184, 166, 0.2)',
-          border: '2px solid #14b8a6'
+          backgroundColor: 'rgba(20, 184, 166, 0.15)',
+          border: '1px solid rgba(20, 184, 166, 0.3)'
         }}
       >
-        <Search className="w-8 h-8" style={{ color: '#14b8a6' }} />
+        <Search className="w-4 h-4" style={{ color: '#14b8a6' }} />
+        <span className="text-[10px] font-medium" style={{ color: '#14b8a6' }}>
+          Scanning
+        </span>
       </div>
+
+      {/* Left bookmakers */}
+      <div className="absolute left-6 top-14 flex flex-col gap-3">
+        {leftBooks.map((book, i) => (
+          <BookLogo 
+            key={book} 
+            bookKey={book} 
+            size={40} 
+            highlighted={currentConnection.from === i}
+          />
+        ))}
+      </div>
+
+      {/* Right bookmakers */}
+      <div className="absolute right-6 top-14 flex flex-col gap-3">
+        {rightBooks.map((book, i) => (
+          <BookLogo 
+            key={book} 
+            bookKey={book} 
+            size={40} 
+            highlighted={currentConnection.to === i}
+          />
+        ))}
+      </div>
+
+      {/* Connection line SVG */}
+      <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
+        {/* Line from active left to active right */}
+        <line 
+          x1="70" 
+          y1={leftY} 
+          x2="280" 
+          y2={rightY}
+          stroke="#14b8a6" 
+          strokeWidth="2"
+          strokeDasharray="8,4"
+          style={{
+            filter: 'drop-shadow(0 0 6px rgba(20, 184, 166, 0.5))',
+            transition: 'all 0.3s ease'
+          }}
+        />
+        {/* Animated dot on the line */}
+        <circle 
+          r="5" 
+          fill="#14b8a6"
+          style={{
+            filter: 'drop-shadow(0 0 10px rgba(20, 184, 166, 0.8))'
+          }}
+        >
+          <animateMotion
+            dur="1.2s"
+            repeatCount="indefinite"
+            path={`M70,${leftY} L280,${rightY}`}
+            key={activeConnection}
+          />
+        </circle>
+      </svg>
 
       {/* Label */}
       <div 
@@ -186,99 +259,135 @@ function ScanningAnimation() {
   );
 }
 
-// Bet placement visualization
+// Bet placement visualization - tree structure showing the two bets
 function BetPlacementAnimation() {
-  const [cursorY, setCursorY] = useState(100);
-  const [clicked, setClicked] = useState(false);
+  const [showTree, setShowTree] = useState(false);
 
   useEffect(() => {
-    // Animate cursor
-    const interval = setInterval(() => {
-      setCursorY(prev => {
-        if (prev >= 120) {
-          setClicked(true);
-          setTimeout(() => setClicked(false), 200);
-          return 80;
-        }
-        return prev + 0.5;
-      });
-    }, 30);
-
-    return () => clearInterval(interval);
+    const timer = setTimeout(() => setShowTree(true), 500);
+    return () => clearTimeout(timer);
   }, []);
 
   return (
-    <div className="absolute inset-0 flex items-center justify-center">
-      {/* Direct Link badge */}
+    <div className="absolute inset-0 flex flex-col items-center justify-center">
+      {/* Place Bet button at top */}
       <div 
-        className="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium"
-        style={{ 
-          backgroundColor: 'var(--background)',
-          border: '1px solid var(--border)',
-          color: 'var(--foreground)'
-        }}
-      >
-        <ExternalLink className="w-3 h-3" />
-        Direct Link
-      </div>
-
-      {/* Place Bet button */}
-      <button
-        className={`px-8 py-3 rounded-lg font-medium text-sm transition-all ${clicked ? 'scale-95' : 'scale-100'}`}
+        className="px-6 py-2.5 rounded-lg font-medium text-sm"
         style={{ 
           backgroundColor: '#14b8a6',
           color: '#fff',
-          boxShadow: clicked ? '0 0 30px rgba(20, 184, 166, 0.5)' : '0 4px 20px rgba(20, 184, 166, 0.3)'
+          boxShadow: '0 4px 20px rgba(20, 184, 166, 0.4)'
         }}
       >
         PLACE BET
-      </button>
-
-      {/* Cursor */}
-      <div 
-        className="absolute pointer-events-none transition-transform"
-        style={{ 
-          left: '60%',
-          top: cursorY,
-        }}
-      >
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-          <path 
-            d="M4 4L10.5 20L13 13L20 10.5L4 4Z" 
-            fill="white" 
-            stroke="black" 
-            strokeWidth="1"
-          />
-        </svg>
       </div>
 
-      {/* Bet slip preview */}
-      <div 
-        className="absolute bottom-6 left-1/2 -translate-x-1/2 w-48 rounded-lg border overflow-hidden"
-        style={{ 
-          backgroundColor: 'var(--background)',
-          borderColor: 'var(--border)'
-        }}
-      >
-        <div className="h-8" style={{ backgroundColor: 'var(--surface)' }} />
-        <div className="flex justify-center gap-3 py-3">
+      {/* Tree structure */}
+      <div className={`transition-all duration-500 ${showTree ? 'opacity-100' : 'opacity-0'}`}>
+        {/* Vertical line from button */}
+        <div 
+          className="w-0.5 h-4 mx-auto"
+          style={{ backgroundColor: 'var(--border)' }}
+        />
+
+        {/* Total stake label */}
+        <div 
+          className="text-center py-1.5 px-3 rounded mb-1"
+          style={{ backgroundColor: 'var(--background)' }}
+        >
+          <span className="text-[10px] font-medium" style={{ color: 'var(--muted)' }}>
+            Total Stake:{' '}
+          </span>
+          <span className="text-[10px] font-bold" style={{ color: 'var(--foreground)' }}>
+            $1,000
+          </span>
+        </div>
+
+        {/* Vertical line to connector */}
+        <div 
+          className="w-0.5 h-3 mx-auto"
+          style={{ backgroundColor: 'var(--border)' }}
+        />
+
+        {/* Horizontal connector - width matches the gap between book centers */}
+        <div className="relative" style={{ width: '224px' }}>
           <div 
-            className="px-3 py-1 rounded text-xs font-medium"
+            className="h-0.5 mx-auto"
             style={{ 
-              backgroundColor: 'var(--surface)',
-              color: 'var(--foreground)'
+              backgroundColor: 'var(--border)',
+              width: '124px'
+            }}
+          />
+          {/* Left vertical */}
+          <div 
+            className="absolute top-0 w-0.5 h-3"
+            style={{ 
+              backgroundColor: 'var(--border)',
+              left: '50px'
+            }}
+          />
+          {/* Right vertical */}
+          <div 
+            className="absolute top-0 w-0.5 h-3"
+            style={{ 
+              backgroundColor: 'var(--border)',
+              right: '50px'
+            }}
+          />
+        </div>
+
+        {/* Book boxes */}
+        <div className="flex gap-6 mt-3">
+          {/* Book A */}
+          <div 
+            className="p-3 rounded-lg text-center"
+            style={{ 
+              backgroundColor: 'var(--background)',
+              border: '1px solid var(--border)',
+              width: '100px'
             }}
           >
-            BOOK A
+            <div className="text-[10px] font-medium mb-1" style={{ color: 'var(--muted)' }}>
+              BOOK A
+            </div>
+            <div className="text-sm font-bold mb-1" style={{ color: '#14b8a6' }}>
+              $2.12
+            </div>
+            <div className="text-[10px]" style={{ color: 'var(--muted)' }}>
+              Bet: $494.88
+            </div>
+            <div className="text-[10px] font-medium" style={{ color: '#22c55e' }}>
+              Return: $1,050
+            </div>
+            <div className="text-[10px] font-bold" style={{ color: '#eab308' }}>
+              Profit: $50
+            </div>
           </div>
+
+          {/* Book B */}
           <div 
-            className="px-3 py-1 rounded text-xs font-medium"
+            className="p-3 rounded-lg text-center"
             style={{ 
-              backgroundColor: 'var(--surface)',
-              color: 'var(--foreground)'
+              backgroundColor: 'var(--background)',
+              border: '1px solid var(--border)',
+              width: '100px'
             }}
           >
-            BOOK B
+            <div className="text-[10px] font-medium mb-1" style={{ color: 'var(--muted)' }}>
+              BOOK B
+            </div>
+            <div className="text-sm font-bold mb-1" style={{ color: '#14b8a6' }}>
+              $2.08
+            </div>
+            <div className="text-[10px]" style={{ color: 'var(--muted)' }}>
+              Bet: $505.12
+            </div>
+            <div className="text-[10px] font-medium" style={{ color: '#22c55e' }}>
+              Return: $1,050
+            </div>
+            <div className="text-[10px] font-bold" style={{ color: '#eab308' }}>
+              Profit: $50
+            </div>
           </div>
         </div>
       </div>
@@ -289,85 +398,67 @@ function BetPlacementAnimation() {
 // Profit chart visualization
 function ProfitAnimation() {
   const [bars, setBars] = useState([0, 0, 0, 0]);
-  const [profit, setProfit] = useState(0);
 
   useEffect(() => {
-    // Animate bars growing
-    const targetBars = [0.4, 0.6, 0.75, 1];
+    const targetBars = [0.35, 0.5, 0.7, 1];
     let frame = 0;
     
     const interval = setInterval(() => {
       frame++;
-      if (frame <= 60) {
-        const progress = frame / 60;
+      if (frame <= 40) {
+        const progress = frame / 40;
         setBars(targetBars.map(t => t * progress));
-        setProfit(Math.round(progress * 1240.50 * 100) / 100);
       }
-    }, 30);
+    }, 40);
 
     return () => clearInterval(interval);
   }, []);
 
   return (
     <div className="absolute inset-0 flex items-center justify-center">
-      {/* Trophy icon */}
+      {/* Chart area */}
+      <div className="flex items-end gap-3 h-36">
+        {bars.map((height, i) => (
+          <div
+            key={i}
+            className="w-10 rounded-t transition-all duration-300"
+            style={{
+              height: `${height * 100}%`,
+              backgroundColor: i === 3 ? '#eab308' : 'var(--border)',
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Dotted trend line */}
+      <svg 
+        className="absolute" 
+        style={{ width: '140px', height: '100px', left: '50%', top: '25%', transform: 'translateX(-50%)' }}
+      >
+        <path
+          d="M10,80 Q40,70 70,50 T130,15"
+          fill="none"
+          stroke="#eab308"
+          strokeWidth="2"
+          strokeDasharray="6,4"
+          opacity="0.8"
+        />
+        {/* End circle with lock icon area */}
+        <circle cx="130" cy="15" r="12" fill="var(--background)" stroke="#eab308" strokeWidth="2" />
+        {/* Lock icon (simplified) */}
+        <rect x="125" y="12" width="10" height="8" rx="1" fill="none" stroke="#eab308" strokeWidth="1.5" />
+        <path d="M127,12 V9 a3,3 0 0 1 6,0 V12" fill="none" stroke="#eab308" strokeWidth="1.5" />
+      </svg>
+
+      {/* Trophy badge */}
       <div 
-        className="absolute top-4 right-4 w-10 h-10 rounded-full flex items-center justify-center"
+        className="absolute top-4 right-4 w-9 h-9 rounded-full flex items-center justify-center"
         style={{ 
           backgroundColor: 'rgba(234, 179, 8, 0.15)',
           border: '1px solid rgba(234, 179, 8, 0.3)'
         }}
       >
-        <Trophy className="w-5 h-5" style={{ color: '#eab308' }} />
-      </div>
-
-      {/* Chart and stats */}
-      <div className="flex items-end gap-8">
-        {/* Bar chart */}
-        <div className="flex items-end gap-3 h-32">
-          {bars.map((height, i) => (
-            <div
-              key={i}
-              className="w-8 rounded-t transition-all duration-300"
-              style={{
-                height: `${height * 100}%`,
-                backgroundColor: i === 3 ? '#eab308' : 'var(--border)',
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Profit line */}
-        <svg className="absolute w-32 h-24" style={{ left: '25%', top: '30%' }}>
-          <path
-            d="M0,80 Q30,70 50,50 T100,10"
-            fill="none"
-            stroke="#14b8a6"
-            strokeWidth="2"
-            strokeDasharray="5,5"
-          />
-          <circle cx="100" cy="10" r="6" fill="#14b8a6" />
-        </svg>
-      </div>
-
-      {/* Profit display */}
-      <div 
-        className="absolute bottom-4 left-1/2 -translate-x-1/2 p-4 rounded-lg"
-        style={{ 
-          backgroundColor: 'var(--background)',
-          border: '1px solid var(--border)'
-        }}
-      >
-        <div className="text-xs mb-1" style={{ color: 'var(--muted)' }}>
-          TOTAL PROFIT
-        </div>
-        <div className="text-2xl font-bold font-mono" style={{ color: '#22c55e' }}>
-          +${profit.toFixed(2)}
-        </div>
-        <div className="flex items-center justify-between mt-2 text-xs" style={{ color: 'var(--muted)' }}>
-          <span>ROI: 12.5%</span>
-          <span>Vol: $10k</span>
-        </div>
+        <Trophy className="w-4 h-4" style={{ color: '#eab308' }} />
       </div>
     </div>
   );

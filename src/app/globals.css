@@ -411,7 +411,7 @@ input::placeholder {
   background-clip: text;
 }
 
-/* Convex underline effect */
+/* Convex underline effect - wave style like reference image */
 .convex-underline {
   position: relative;
   display: inline-block;
@@ -422,11 +422,11 @@ input::placeholder {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: -4px;
+  bottom: -8px;
   height: 6px;
-  background: linear-gradient(180deg, #22c55e 0%, transparent 100%);
-  border-radius: 0 0 50% 50% / 0 0 100% 100%;
-  opacity: 0.6;
+  background: transparent;
+  border-top: 3px solid #22c55e;
+  border-radius: 50% 50% 0 0 / 100% 100% 0 0;
 }
 
 /* Glass effect */

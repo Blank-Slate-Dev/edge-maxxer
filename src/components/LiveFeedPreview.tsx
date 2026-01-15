@@ -317,6 +317,12 @@ export function LiveFeedPreview() {
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ffbd2e' }} />
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#27ca40' }} />
           </div>
+          <div 
+            className="flex-1 mx-4 px-3 py-1.5 rounded-md text-xs text-center"
+            style={{ backgroundColor: '#0d0d0c', color: '#666' }}
+          >
+            edgemaxxer.com/dashboard
+          </div>
           <div className="flex items-center gap-2">
             <span 
               className="w-2 h-2 rounded-full animate-pulse"
