@@ -251,8 +251,9 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Right: Live Feed Preview */}
-            <div className="relative flex justify-center lg:justify-end">
+            {/* Right: Feed Preview - aligned with headline */}
+            <div className="relative flex justify-center lg:justify-start lg:mt-16">
+
               <LiveFeedPreview />
             </div>
           </div>

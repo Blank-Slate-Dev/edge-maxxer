@@ -22,9 +22,8 @@ interface ArbOpportunity {
   profit: number;
   profitAmount: number;
   tag?: string;
-  status: 'live' | 'pregame';
+  status: 'pregame';
   gameTime?: string;
-  score?: string;
   outcomes: {
     label: string;
     book: string;
@@ -39,37 +38,37 @@ interface ArbOpportunity {
 }
 
 // Sample data matching Gambit Odds style - ordered by profit % (highest to lowest)
+// All pre-game markets: h2h (moneyline), spreads, totals
 const SAMPLE_ARBS: ArbOpportunity[] = [
   {
     id: '1', 
     matchup: 'CELTICS @ KNICKS',
     league: 'NBA',
     sport: 'NBA',
-    betType: 'JALEN BRUNSON - TOTAL POINTS',
+    betType: 'TOTAL POINTS',
     profit: 25.8,
     profitAmount: 129,
     tag: 'Middle',
-    status: 'live',
-    gameTime: 'Q1 6:45',
-    score: '17 - 3',
+    status: 'pregame',
+    gameTime: 'Today 7:30 PM',
     outcomes: [
       { 
-        label: 'Over 28.5', 
+        label: 'Over 218.5', 
         book: 'FanDuel', 
         bookKey: 'fanduel',
         odds: 150, 
         ev: 26.2, 
-        line: 28.5,
+        line: 218.5,
         stake: 268,
         altOdds: [{ book: 'DK', bookKey: 'draftkings', odds: -110 }]
       },
       { 
-        label: 'Under 32.5', 
+        label: 'Under 222.5', 
         book: 'Caesars', 
         bookKey: 'williamhill_us',
         odds: 190, 
         ev: 21.8, 
-        line: 32.5,
+        line: 222.5,
         stake: 232
       },
     ]
@@ -79,31 +78,30 @@ const SAMPLE_ARBS: ArbOpportunity[] = [
     matchup: 'SUNS @ LAKERS',
     league: 'NBA',
     sport: 'NBA',
-    betType: 'LEBRON JAMES - TOTAL POINTS',
+    betType: 'SPREAD',
     profit: 22.5,
     profitAmount: 112,
     tag: 'Staying Power',
-    status: 'live',
-    gameTime: 'Q2 8:15',
-    score: '52 - 50',
+    status: 'pregame',
+    gameTime: 'Today 10:00 PM',
     outcomes: [
       { 
-        label: 'Over 27.5', 
+        label: 'Lakers -4.5', 
         book: 'DraftKings', 
         bookKey: 'draftkings',
         odds: 185, 
         ev: 24.5, 
-        line: 27.5,
+        line: -4.5,
         stake: 215,
         altOdds: [{ book: 'CZ', bookKey: 'williamhill_us', odds: 135 }, { book: 'FD', bookKey: 'fanduel', odds: 140 }]
       },
       { 
-        label: 'Under 27.5', 
+        label: 'Suns +5.5', 
         book: 'Caesars', 
         bookKey: 'williamhill_us',
         odds: 115, 
         ev: 18.2, 
-        line: 27.5,
+        line: 5.5,
         stake: 285,
         altOdds: [{ book: 'MGM', bookKey: 'betmgm', odds: -160 }]
       },
@@ -118,9 +116,8 @@ const SAMPLE_ARBS: ArbOpportunity[] = [
     profit: 17.6,
     profitAmount: 88,
     tag: 'Staying Power',
-    status: 'live',
-    gameTime: 'P3 10:00',
-    score: '2 - 3',
+    status: 'pregame',
+    gameTime: 'Tomorrow 9:00 PM',
     outcomes: [
       { 
         label: 'Over 5.5', 
@@ -133,12 +130,12 @@ const SAMPLE_ARBS: ArbOpportunity[] = [
         altOdds: [{ book: 'FD', bookKey: 'fanduel', odds: 125 }, { book: 'DK', bookKey: 'draftkings', odds: 130 }]
       },
       { 
-        label: 'Under 5.5', 
+        label: 'Under 6.5', 
         book: 'Caesars', 
         bookKey: 'williamhill_us',
         odds: 115, 
         ev: 2.5,
-        line: 5.5,
+        line: 6.5,
         stake: 274,
         altOdds: [{ book: 'PB', bookKey: 'pointsbetau', odds: -145 }]
       },
@@ -152,9 +149,8 @@ const SAMPLE_ARBS: ArbOpportunity[] = [
     betType: 'MONEYLINE',
     profit: 13.7,
     profitAmount: 68,
-    status: 'live',
-    gameTime: 'Top 7th',
-    score: '1 - 2',
+    status: 'pregame',
+    gameTime: 'Tomorrow 1:05 PM',
     outcomes: [
       { 
         label: 'Yankees', 
@@ -181,12 +177,11 @@ const SAMPLE_ARBS: ArbOpportunity[] = [
     matchup: 'KNICKS @ NUGGETS',
     league: 'NBA',
     sport: 'NBA',
-    betType: 'POINT SPREAD',
+    betType: 'SPREAD',
     profit: 11.2,
     profitAmount: 56,
-    status: 'live',
-    gameTime: 'Q4 3:30',
-    score: '95 - 89',
+    status: 'pregame',
+    gameTime: 'Sat 8:30 PM',
     outcomes: [
       { 
         label: 'Nuggets -5.5', 
@@ -212,7 +207,7 @@ const SAMPLE_ARBS: ArbOpportunity[] = [
 ];
 
 const SIDEBAR_ITEMS = [
-  { icon: TrendingUp, label: 'Real-time Scores' },
+  { icon: TrendingUp, label: 'H2H, Spreads & Totals' },
   { icon: DollarSign, label: 'Guaranteed Profit %' },
   { icon: BarChart3, label: 'Expected Value (+EV)' },
   { icon: LinkIcon, label: '1-Click Deep Links' },
@@ -262,18 +257,26 @@ function BookLogo({ bookKey, size = 28 }: { bookKey: string; size?: number }) {
 function BookBadge({ bookKey, odds }: { bookKey: string; odds: number }) {
   const bookmaker = getBookmaker(bookKey);
   const abbr = bookmaker ? getBookmakerAbbr(bookmaker.name) : bookKey.slice(0, 2).toUpperCase();
+  const bgColor = bookmaker?.color || '#333';
+  const textColor = bookmaker?.textColor || '#fff';
   
   const formatOdds = (o: number) => o > 0 ? `+${o}` : o.toString();
 
   return (
     <span 
-      className="text-[9px] px-1 py-0.5 rounded"
+      className="inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded"
       style={{ 
         backgroundColor: '#2a2a28',
-        color: '#888'
+        color: '#aaa'
       }}
     >
-      {abbr} {formatOdds(odds)}
+      <span 
+        className="w-4 h-4 rounded flex items-center justify-center text-[8px] font-bold"
+        style={{ backgroundColor: bgColor, color: textColor }}
+      >
+        {abbr.slice(0, 1)}
+      </span>
+      {formatOdds(odds)}
     </span>
   );
 }
@@ -293,17 +296,17 @@ export function LiveFeedPreview() {
     >
       {/* Main Container - fixed width, doesn't change */}
       <div 
-        className="relative rounded-2xl overflow-hidden shadow-2xl"
+        className="relative rounded-2xl overflow-hidden"
         style={{ 
           backgroundColor: '#0d0d0c',
           border: '1px solid #2a2a28',
-          width: '480px',
-          boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255,255,255,0.05)'
+          width: '780px',
+          boxShadow: '0 0 60px rgba(20, 184, 166, 0.15), 0 25px 50px -12px rgba(0, 0, 0, 0.5)'
         }}
       >
         {/* Browser Chrome */}
         <div 
-          className="flex items-center px-4 py-3"
+          className="flex items-center justify-between px-4 py-3"
           style={{ 
             backgroundColor: '#161614',
             borderBottom: '1px solid #2a2a28'
@@ -314,13 +317,22 @@ export function LiveFeedPreview() {
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ffbd2e' }} />
             <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#27ca40' }} />
           </div>
+          <div className="flex items-center gap-2">
+            <span 
+              className="w-2 h-2 rounded-full animate-pulse"
+              style={{ backgroundColor: '#22c55e' }}
+            />
+            <span className="text-[10px] font-medium tracking-wider" style={{ color: '#888' }}>
+              ARB SCANNER
+            </span>
+          </div>
         </div>
 
         {/* Scrollable Feed - Manual scroll only */}
         <div 
           className="overflow-y-auto overflow-x-hidden custom-scrollbar"
           style={{ 
-            height: '420px',
+            height: '535px',
           }}
         >
           <div className="p-3 space-y-3">
@@ -366,21 +378,16 @@ export function LiveFeedPreview() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {arb.status === 'live' && (
-                      <>
-                        <span 
-                          className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                          style={{ 
-                            backgroundColor: 'rgba(34, 197, 94, 0.15)',
-                            color: '#22c55e'
-                          }}
-                        >
-                          {arb.gameTime}
-                        </span>
-                        <span className="text-[10px] font-mono" style={{ color: '#fff' }}>
-                          {arb.score}
-                        </span>
-                      </>
+                    {arb.gameTime && (
+                      <span 
+                        className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                        style={{ 
+                          backgroundColor: 'rgba(20, 184, 166, 0.15)',
+                          color: '#14b8a6'
+                        }}
+                      >
+                        {arb.gameTime}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -432,48 +439,71 @@ export function LiveFeedPreview() {
                 {arb.outcomes.map((outcome, i) => (
                   <div 
                     key={i}
-                    className="px-3 py-2.5 flex items-center justify-between"
-                    style={{ borderTop: '1px solid #2a2a28' }}
+                    className="px-4 py-3"
+                    style={{ 
+                      borderTop: '1px solid #2a2a28',
+                      backgroundColor: '#141412'
+                    }}
                   >
-                    <div className="flex items-center gap-2.5">
-                      {/* Book Logo */}
-                      <BookLogo bookKey={outcome.bookKey} size={28} />
-                      <span className="font-medium text-sm" style={{ color: '#fff' }}>
-                        {outcome.label}
-                      </span>
+                    <div className="flex items-center justify-between">
+                      {/* Left: Book Logo + Label */}
+                      <div className="flex items-center gap-3 min-w-[160px]">
+                        <BookLogo bookKey={outcome.bookKey} size={32} />
+                        <span className="font-medium text-sm" style={{ color: '#fff' }}>
+                          {outcome.label}
+                        </span>
+                      </div>
+                      
+                      {/* Right: Stats row */}
+                      <div className="flex items-center gap-3">
+                        {/* EV Badge */}
+                        <div className="w-[70px] text-right">
+                          {outcome.ev && (
+                            <span 
+                              className="text-[10px] px-2 py-1 rounded"
+                              style={{ 
+                                backgroundColor: 'rgba(20, 184, 166, 0.15)',
+                                color: '#14b8a6'
+                              }}
+                            >
+                              {outcome.ev.toFixed(1)}% EV
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Line */}
+                        <div className="w-[50px] text-right">
+                          {outcome.line !== undefined && (
+                            <span className="text-sm font-mono font-medium" style={{ color: '#14b8a6' }}>
+                              {outcome.line > 0 ? '+' : ''}{outcome.line}
+                            </span>
+                          )}
+                        </div>
+                        
+                        {/* Odds */}
+                        <div className="w-[55px] text-right">
+                          <span className="text-sm font-mono font-bold" style={{ color: '#22c55e' }}>
+                            {formatOdds(outcome.odds)}
+                          </span>
+                        </div>
+                        
+                        {/* Stake */}
+                        <div className="w-[50px] text-right">
+                          <span className="text-xs font-mono" style={{ color: '#666' }}>
+                            ${outcome.stake}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                     
-                    <div className="flex items-center gap-4">
-                      {outcome.ev && (
-                        <span 
-                          className="text-[10px] px-1.5 py-0.5 rounded"
-                          style={{ 
-                            backgroundColor: 'rgba(20, 184, 166, 0.15)',
-                            color: '#14b8a6'
-                          }}
-                        >
-                          {outcome.ev.toFixed(1)}% EV
-                        </span>
-                      )}
-                      {outcome.line && (
-                        <span className="text-xs font-mono" style={{ color: '#14b8a6' }}>
-                          +{outcome.line}
-                        </span>
-                      )}
-                      <span className="text-sm font-mono font-bold" style={{ color: '#22c55e' }}>
-                        {formatOdds(outcome.odds)}
-                      </span>
-                      <span className="text-[10px] font-mono" style={{ color: '#666' }}>
-                        ${outcome.stake}
-                      </span>
-                      {outcome.altOdds && outcome.altOdds.length > 0 && (
-                        <div className="flex gap-1">
-                          {outcome.altOdds.slice(0, 2).map((alt, j) => (
-                            <BookBadge key={j} bookKey={alt.bookKey} odds={alt.odds} />
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    {/* Alt Odds Row */}
+                    {outcome.altOdds && outcome.altOdds.length > 0 && (
+                      <div className="flex justify-end mt-2 gap-2">
+                        {outcome.altOdds.slice(0, 3).map((alt, j) => (
+                          <BookBadge key={j} bookKey={alt.bookKey} odds={alt.odds} />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -499,7 +529,7 @@ export function LiveFeedPreview() {
             className="text-[10px] font-semibold uppercase tracking-wider mb-4"
             style={{ color: '#14b8a6' }}
           >
-            Live Data Feeds
+            Key Features
           </h3>
           <div className="space-y-3">
             {SIDEBAR_ITEMS.map((item, i) => (
