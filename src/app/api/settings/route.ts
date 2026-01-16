@@ -18,7 +18,9 @@ export async function GET() {
 
     await dbConnect();
     
-    const user = await User.findById((session.user as { id: string }).id).select('oddsApiKey subscription trialEndsAt region');
+    const user = await User.findById((session.user as { id: string }).id).select(
+      'oddsApiKey plan subscriptionStatus subscriptionEndsAt region'
+    );
     
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -26,8 +28,9 @@ export async function GET() {
 
     return NextResponse.json({
       oddsApiKey: user.oddsApiKey || '',
-      subscription: user.subscription,
-      trialEndsAt: user.trialEndsAt,
+      plan: user.plan,
+      subscriptionStatus: user.subscriptionStatus,
+      subscriptionEndsAt: user.subscriptionEndsAt,
       region: user.region || 'AU',
     });
   } catch (error) {

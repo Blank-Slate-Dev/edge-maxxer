@@ -20,9 +20,10 @@ interface AuthModalsProps {
   isOpen: ModalType;
   onClose: () => void;
   onSwitch: (type: ModalType) => void;
+  onAuthSuccess?: () => void;
 }
 
-export function AuthModals({ isOpen, onClose, onSwitch }: AuthModalsProps) {
+export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthModalsProps) {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -111,7 +112,13 @@ export function AuthModals({ isOpen, onClose, onSwitch }: AuthModalsProps) {
         return;
       }
 
-      router.push('/dashboard');
+      // Call success callback if provided, otherwise navigate to dashboard
+      if (onAuthSuccess) {
+        onAuthSuccess();
+        onClose();
+      } else {
+        router.push('/dashboard');
+      }
     } catch (error) {
       setApiError('Something went wrong');
       setIsLoading(false);
@@ -148,9 +155,16 @@ export function AuthModals({ isOpen, onClose, onSwitch }: AuthModalsProps) {
       });
 
       if (signInResult?.error) {
+        // If auto sign-in fails, switch to login modal
         onSwitch('login');
       } else {
-        router.push('/dashboard');
+        // Call success callback if provided, otherwise navigate to dashboard
+        if (onAuthSuccess) {
+          onAuthSuccess();
+          onClose();
+        } else {
+          router.push('/dashboard');
+        }
       }
     } catch (error) {
       setApiError('Something went wrong');
@@ -162,6 +176,7 @@ export function AuthModals({ isOpen, onClose, onSwitch }: AuthModalsProps) {
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     try {
+      // For Google sign-in, we redirect - the callback will handle the rest
       await signIn('google', { callbackUrl: '/dashboard' });
     } catch (error) {
       setApiError('Failed to sign in with Google');
@@ -206,7 +221,7 @@ export function AuthModals({ isOpen, onClose, onSwitch }: AuthModalsProps) {
             <p className="text-sm" style={{ color: 'var(--muted)' }}>
               {isOpen === 'login' 
                 ? 'Enter your credentials to continue' 
-                : 'Start your 7-day free trial'}
+                : 'Get started with Edge Maxxer'}
             </p>
           </div>
 

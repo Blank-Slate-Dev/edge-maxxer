@@ -2,6 +2,8 @@
 import mongoose, { Schema, Model } from 'mongoose';
 
 export type UserRegion = 'US' | 'EU' | 'UK' | 'AU';
+export type UserPlan = 'none' | 'trial' | 'monthly' | 'yearly';
+export type SubscriptionStatus = 'inactive' | 'active' | 'past_due' | 'canceled' | 'expired';
 
 export interface IUser {
   _id: mongoose.Types.ObjectId;
@@ -10,13 +12,21 @@ export interface IUser {
   password: string;
   image?: string;
   region: UserRegion;
-  subscription: 'none' | 'trial' | 'active' | 'expired';
-  trialEndsAt?: Date;
+  
+  // Subscription fields
+  plan: UserPlan;
+  subscriptionStatus: SubscriptionStatus;
   subscriptionEndsAt?: Date;
+  
+  // Stripe fields
   stripeCustomerId?: string;
+  stripeSubscriptionId?: string;
+  
+  // Other fields
   oddsApiKey?: string;
   referralCode?: string;
   referredBy?: string;
+  
   createdAt: Date;
   updatedAt: Date;
 }
@@ -48,21 +58,31 @@ const UserSchema = new Schema<IUser>(
       enum: ['US', 'EU', 'UK', 'AU'],
       default: 'AU',
     },
-    subscription: {
+    
+    // Subscription fields
+    plan: {
       type: String,
-      enum: ['none', 'trial', 'active', 'expired'],
-      default: 'trial',
+      enum: ['none', 'trial', 'monthly', 'yearly'],
+      default: 'none',
     },
-    trialEndsAt: {
-      type: Date,
-      default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    subscriptionStatus: {
+      type: String,
+      enum: ['inactive', 'active', 'past_due', 'canceled', 'expired'],
+      default: 'inactive',
     },
     subscriptionEndsAt: {
       type: Date,
     },
+    
+    // Stripe fields
     stripeCustomerId: {
       type: String,
     },
+    stripeSubscriptionId: {
+      type: String,
+    },
+    
+    // Other fields
     oddsApiKey: {
       type: String,
     },
@@ -86,6 +106,22 @@ UserSchema.pre('save', function () {
     this.referralCode = generateReferralCode();
   }
 });
+
+// Virtual to check if subscription is currently active
+UserSchema.virtual('isSubscriptionActive').get(function () {
+  if (this.subscriptionStatus !== 'active') return false;
+  if (!this.subscriptionEndsAt) return false;
+  return new Date(this.subscriptionEndsAt) > new Date();
+});
+
+// Method to check subscription access
+UserSchema.methods.hasAccess = function (): boolean {
+  // Active subscription that hasn't expired
+  if (this.subscriptionStatus === 'active' && this.subscriptionEndsAt) {
+    return new Date(this.subscriptionEndsAt) > new Date();
+  }
+  return false;
+};
 
 function generateReferralCode(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';

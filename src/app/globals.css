@@ -192,6 +192,42 @@ input::placeholder {
   color: var(--muted-foreground);
 }
 
+/* ========================================
+   STRIPE EMBEDDED CHECKOUT STYLES
+   ======================================== */
+
+/* Container for the embedded checkout */
+.stripe-checkout-container {
+  min-height: 400px;
+}
+
+/* Override Stripe iframe container to fit modal */
+#checkout-root,
+.EmbeddedCheckoutProvider,
+[data-stripe-embedded-checkout] {
+  width: 100% !important;
+}
+
+/* Ensure the checkout iframe is properly sized */
+iframe[name^="embedded-checkout"] {
+  width: 100% !important;
+  min-height: 500px;
+  border: none !important;
+}
+
+/* Dark mode specific adjustments for Stripe checkout container */
+:root {
+  --stripe-checkout-bg: #232321;
+  --stripe-checkout-text: #ffffff;
+  --stripe-checkout-border: #2e2e2c;
+}
+
+.light {
+  --stripe-checkout-bg: #faf9f7;
+  --stripe-checkout-text: #1c1c1a;
+  --stripe-checkout-border: #d4d3cf;
+}
+
 /* Floating animation for profit counter */
 @keyframes float-up {
   0% {

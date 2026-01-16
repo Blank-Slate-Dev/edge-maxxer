@@ -3,6 +3,8 @@
 
 import { useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { 
@@ -16,24 +18,111 @@ import {
   SportsbookSlider,
   ProfitCounter
 } from '@/components';
+import { CheckoutModal } from '@/components/CheckoutModal';
 import { 
   Sun, 
   Moon, 
   ArrowRight, 
   Check, 
   ChevronDown,
+  Loader2,
 } from 'lucide-react';
 
 type AuthModalType = 'login' | 'signup' | null;
+type PlanType = 'trial' | 'monthly' | 'yearly';
+
+interface PricingPlan {
+  id: PlanType;
+  name: string;
+  price: number;
+  originalPrice?: number;
+  period: string;
+  periodNote?: string;
+  description: string;
+  badge?: string;
+  badgeColor?: string;
+  popular?: boolean;
+}
+
+const PRICING_PLANS: PricingPlan[] = [
+  {
+    id: 'trial',
+    name: '3-Day Trial',
+    price: 2.99,
+    period: 'one-time',
+    description: 'Try all features risk-free',
+  },
+  {
+    id: 'monthly',
+    name: 'Monthly',
+    price: 4.99,
+    originalPrice: 9.99,
+    period: 'first month',
+    periodNote: 'then $9.99/mo',
+    description: 'Full access, cancel anytime',
+    popular: true,
+  },
+  {
+    id: 'yearly',
+    name: 'Yearly',
+    price: 99,
+    period: 'year',
+    description: 'Best value — save 17%',
+    badge: 'Best value',
+    badgeColor: '#22c55e',
+  },
+];
+
+const FEATURES = [
+  'All 4 regions (AU, UK, US, EU)',
+  'Real-time arbitrage scanning',
+  'Spreads, totals & middles',
+  'Positive EV alerts',
+  'Stealth mode',
+  'Bet tracking & history',
+  'Account health monitoring',
+  'Unlimited scans',
+];
 
 export default function LandingPage() {
   const { theme, toggleTheme } = useTheme();
+  const { data: session } = useSession();
+  const router = useRouter();
   const [authModal, setAuthModal] = useState<AuthModalType>(null);
   const [sportsbooksOpen, setSportsbooksOpen] = useState(false);
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [loadingPlan, setLoadingPlan] = useState<PlanType | null>(null);
+  const [pendingPlan, setPendingPlan] = useState<PlanType | null>(null);
+  const [checkoutPlan, setCheckoutPlan] = useState<PlanType | null>(null);
   
   const detectedRegion = useGeoRegion();
+
+  const handleSelectPlan = async (planId: PlanType) => {
+    // If not logged in, show signup modal and store the plan they wanted
+    if (!session) {
+      setPendingPlan(planId);
+      setAuthModal('signup');
+      return;
+    }
+
+    // User is logged in, open embedded checkout modal
+    setCheckoutPlan(planId);
+  };
+
+  // Handle successful signup - proceed to checkout if they had a pending plan
+  const handleAuthClose = () => {
+    setAuthModal(null);
+    
+    // If user just signed up and had selected a plan, open checkout modal
+    if (pendingPlan && session) {
+      setCheckoutPlan(pendingPlan);
+      setPendingPlan(null);
+    }
+  };
+
+  const handleCheckoutClose = () => {
+    setCheckoutPlan(null);
+  };
 
   return (
     <div 
@@ -104,23 +193,38 @@ export default function LandingPage() {
               >
                 {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
-              <button
-                onClick={() => setAuthModal('login')}
-                className="px-4 py-2 text-sm font-medium rounded-lg transition-colors hover:bg-[var(--surface)]"
-                style={{ color: 'var(--foreground)' }}
-              >
-                Login
-              </button>
-              <button
-                onClick={() => setAuthModal('signup')}
-                className="px-5 py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
-                style={{ 
-                  backgroundColor: '#14b8a6',
-                  color: '#fff'
-                }}
-              >
-                Join Now
-              </button>
+              {session ? (
+                <button
+                  onClick={() => router.push('/dashboard')}
+                  className="px-5 py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
+                  style={{ 
+                    backgroundColor: '#14b8a6',
+                    color: '#fff'
+                  }}
+                >
+                  Dashboard
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setAuthModal('login')}
+                    className="px-4 py-2 text-sm font-medium rounded-lg transition-colors hover:bg-[var(--surface)]"
+                    style={{ color: 'var(--foreground)' }}
+                  >
+                    Login
+                  </button>
+                  <button
+                    onClick={() => setAuthModal('signup')}
+                    className="px-5 py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
+                    style={{ 
+                      backgroundColor: '#14b8a6',
+                      color: '#fff'
+                    }}
+                  >
+                    Join Now
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -178,26 +282,26 @@ export default function LandingPage() {
               {/* CTA Buttons */}
               <div className="flex flex-wrap items-center gap-4 mb-8">
                 <button
-                  onClick={() => setAuthModal('signup')}
+                  onClick={() => handleSelectPlan('trial')}
                   className="inline-flex items-center gap-2 px-6 py-3.5 rounded-lg text-sm font-medium transition-all hover:opacity-90"
                   style={{ 
                     backgroundColor: '#14b8a6',
                     color: '#fff'
                   }}
                 >
-                  Join Now
+                  Try for $2.99
                 </button>
-                <button
-                  onClick={() => setAuthModal('signup')}
+                <a
+                  href="#pricing"
                   className="inline-flex items-center gap-2 px-6 py-3.5 rounded-lg text-sm font-medium border transition-colors hover:bg-[var(--surface)]"
                   style={{ 
                     borderColor: 'var(--border)',
                     color: 'var(--foreground)'
                   }}
                 >
-                  Start a free trial
+                  View pricing
                   <ArrowRight className="w-4 h-4" />
-                </button>
+                </a>
               </div>
 
               {/* Profit Counter */}
@@ -253,7 +357,6 @@ export default function LandingPage() {
 
             {/* Right: Feed Preview - aligned with headline */}
             <div className="relative flex justify-center lg:justify-start lg:mt-16">
-
               <LiveFeedPreview />
             </div>
           </div>
@@ -354,129 +457,146 @@ export default function LandingPage() {
 
       {/* Pricing */}
       <section id="pricing" className="py-20 px-6 border-t" style={{ borderColor: 'var(--border)' }}>
-        <div className="max-w-lg mx-auto">
-          <div className="text-center mb-10">
+        <div className="max-w-5xl mx-auto">
+          <div className="text-center mb-12">
             <h2 
               className="text-3xl font-bold mb-4"
               style={{ color: 'var(--foreground)' }}
             >
-              Simple pricing
+              Choose your plan
             </h2>
             <p style={{ color: 'var(--muted)' }}>
-              One plan. All features. No hidden fees.
+              All plans include every feature. No hidden fees.
             </p>
           </div>
 
-          {/* Toggle */}
-          <div className="flex justify-center mb-8">
-            <div 
-              className="inline-flex items-center p-1 rounded-lg"
-              style={{ backgroundColor: 'var(--surface)' }}
-            >
-              <button
-                onClick={() => setBillingCycle('monthly')}
-                className="px-4 py-2 text-sm rounded-md transition-all"
-                style={{
-                  backgroundColor: billingCycle === 'monthly' ? 'var(--background)' : 'transparent',
-                  color: billingCycle === 'monthly' ? 'var(--foreground)' : 'var(--muted)',
-                  boxShadow: billingCycle === 'monthly' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
+          {/* Pricing Cards - 3 side by side */}
+          <div className="grid md:grid-cols-3 gap-6 mb-12">
+            {PRICING_PLANS.map((plan) => (
+              <div
+                key={plan.id}
+                className={`relative rounded-xl border overflow-hidden transition-all flex flex-col ${
+                  plan.popular ? 'ring-2 ring-[#14b8a6]' : ''
+                }`}
+                style={{ 
+                  backgroundColor: 'var(--surface)',
+                  borderColor: plan.popular ? '#14b8a6' : 'var(--border)'
                 }}
               >
-                Monthly
-              </button>
-              <button
-                onClick={() => setBillingCycle('yearly')}
-                className="px-4 py-2 text-sm rounded-md transition-all flex items-center gap-2"
-                style={{
-                  backgroundColor: billingCycle === 'yearly' ? 'var(--background)' : 'transparent',
-                  color: billingCycle === 'yearly' ? 'var(--foreground)' : 'var(--muted)',
-                  boxShadow: billingCycle === 'yearly' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none'
-                }}
-              >
-                Yearly
-                <span 
-                  className="text-xs px-1.5 py-0.5 rounded"
-                  style={{ backgroundColor: '#22c55e', color: '#000' }}
-                >
-                  Save 17%
-                </span>
-              </button>
-            </div>
+                {plan.badge && (
+                  <div 
+                    className="absolute top-4 right-4 px-2.5 py-1 rounded-full text-xs font-semibold z-10"
+                    style={{ 
+                      backgroundColor: plan.badgeColor || '#14b8a6',
+                      color: '#fff'
+                    }}
+                  >
+                    {plan.badge}
+                  </div>
+                )}
+
+                {plan.popular && (
+                  <div 
+                    className="text-center py-2 text-xs font-medium"
+                    style={{ backgroundColor: '#14b8a6', color: '#fff' }}
+                  >
+                    Most Popular
+                  </div>
+                )}
+
+                <div className="p-6 flex flex-col flex-1">
+                  <h3 
+                    className="text-lg font-semibold mb-4"
+                    style={{ color: 'var(--foreground)' }}
+                  >
+                    {plan.name}
+                  </h3>
+
+                  <div className="mb-4">
+                    <div className="flex items-baseline gap-1">
+                      {plan.originalPrice && (
+                        <span 
+                          className="text-lg line-through"
+                          style={{ color: 'var(--muted)' }}
+                        >
+                          ${plan.originalPrice}
+                        </span>
+                      )}
+                      <span 
+                        className="text-4xl font-bold"
+                        style={{ color: 'var(--foreground)' }}
+                      >
+                        ${plan.price}
+                      </span>
+                      <span style={{ color: 'var(--muted)' }}>
+                        /{plan.period}
+                      </span>
+                    </div>
+                    {plan.periodNote && (
+                      <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
+                        {plan.periodNote}
+                      </p>
+                    )}
+                  </div>
+
+                  <p 
+                    className="text-sm mb-6"
+                    style={{ color: 'var(--muted)' }}
+                  >
+                    {plan.description}
+                  </p>
+
+                  <div className="flex-1" />
+
+                  <button
+                    onClick={() => handleSelectPlan(plan.id)}
+                    className="w-full py-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 hover:opacity-90"
+                    style={{ 
+                      backgroundColor: plan.popular ? '#14b8a6' : 'var(--background)',
+                      color: plan.popular ? '#fff' : 'var(--foreground)',
+                      border: plan.popular ? 'none' : '1px solid var(--border)'
+                    }}
+                  >
+                    Get {plan.name}
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
 
-          {/* Price Card */}
+          {/* Features list */}
           <div 
-            className="rounded-xl border overflow-hidden"
+            className="rounded-xl border p-8"
             style={{ 
               backgroundColor: 'var(--surface)',
               borderColor: 'var(--border)'
             }}
           >
-            <div className="p-8">
-              <div className="text-center mb-8">
-                <div className="flex items-baseline justify-center gap-1 mb-2">
-                  <span 
-                    className="text-5xl font-bold"
-                    style={{ color: 'var(--foreground)' }}
-                  >
-                    ${billingCycle === 'monthly' ? '9.99' : '99'}
-                  </span>
-                  <span style={{ color: 'var(--muted)' }}>
-                    /{billingCycle === 'monthly' ? 'mo' : 'yr'}
+            <h3 
+              className="text-lg font-semibold mb-6 text-center"
+              style={{ color: 'var(--foreground)' }}
+            >
+              All plans include
+            </h3>
+            <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4">
+              {FEATURES.map((feature, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <Check className="w-4 h-4 shrink-0" style={{ color: '#22c55e' }} />
+                  <span className="text-sm" style={{ color: 'var(--foreground)' }}>
+                    {feature}
                   </span>
                 </div>
-                {billingCycle === 'monthly' && (
-                  <p className="text-lg font-medium" style={{ color: '#22c55e' }}>
-                    First month just $4.99
-                  </p>
-                )}
-                {billingCycle === 'yearly' && (
-                  <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                    $8.25/month
-                  </p>
-                )}
-              </div>
-
-              <div className="space-y-3 mb-8">
-                {[
-                  'All 4 regions (AU, UK, US, EU)',
-                  'Real-time arbitrage scanning',
-                  'Spreads, totals & middles',
-                  'Positive EV alerts',
-                  'Stealth mode',
-                  'Bet tracking & history',
-                  'Account health monitoring',
-                  'Unlimited scans',
-                ].map((feature, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <Check className="w-4 h-4 shrink-0" style={{ color: '#22c55e' }} />
-                    <span className="text-sm" style={{ color: 'var(--foreground)' }}>{feature}</span>
-                  </div>
-                ))}
-              </div>
-
-              <button
-                onClick={() => setAuthModal('signup')}
-                className="block w-full py-3.5 rounded-lg text-sm font-medium text-center transition-all hover:opacity-90"
-                style={{ 
-                  backgroundColor: '#14b8a6',
-                  color: '#fff'
-                }}
-              >
-                {billingCycle === 'monthly' ? 'Start for $4.99' : 'Get started'}
-              </button>
-            </div>
-            
-            <div 
-              className="px-8 py-4 text-center text-sm border-t"
-              style={{ 
-                borderColor: 'var(--border)',
-                color: 'var(--muted)'
-              }}
-            >
-              Cancel anytime • Instant access
+              ))}
             </div>
           </div>
+
+          {/* Trust note */}
+          <p 
+            className="text-center text-sm mt-6"
+            style={{ color: 'var(--muted)' }}
+          >
+            Cancel anytime • Instant access • Secure payment via Stripe
+          </p>
         </div>
       </section>
 
@@ -513,6 +633,10 @@ export default function LandingPage() {
               {
                 q: 'Which bookmakers do you support?',
                 a: 'We scan 80+ bookmakers across Australia, UK, US, and EU including Sportsbet, TAB, Bet365, Ladbrokes, DraftKings, FanDuel, and many more.'
+              },
+              {
+                q: 'What happens after my 3-day trial?',
+                a: 'The 3-day trial is a one-time payment with no automatic renewal. After 3 days, you can choose to subscribe to our monthly or yearly plan to continue using the service.'
               },
             ].map((faq, i) => (
               <div 
@@ -565,14 +689,14 @@ export default function LandingPage() {
             Start scanning for arbitrage opportunities today.
           </p>
           <button
-            onClick={() => setAuthModal('signup')}
+            onClick={() => handleSelectPlan('trial')}
             className="inline-flex items-center gap-2 px-6 py-3.5 rounded-lg text-sm font-medium transition-all hover:opacity-90 hover:gap-3"
             style={{ 
               backgroundColor: '#14b8a6',
               color: '#fff'
             }}
           >
-            Get started for $4.99
+            Try for $2.99
             <ArrowRight className="w-4 h-4" />
           </button>
         </div>
@@ -619,14 +743,30 @@ export default function LandingPage() {
       {/* Modals */}
       <AuthModals 
         isOpen={authModal} 
-        onClose={() => setAuthModal(null)}
+        onClose={handleAuthClose}
         onSwitch={setAuthModal}
+        onAuthSuccess={() => {
+          // After successful auth, if there was a pending plan, open checkout
+          if (pendingPlan) {
+            setTimeout(() => {
+              setCheckoutPlan(pendingPlan);
+              setPendingPlan(null);
+            }, 500);
+          }
+        }}
       />
       
       <SportsbooksModal 
         isOpen={sportsbooksOpen}
         onClose={() => setSportsbooksOpen(false)}
         detectedRegion={detectedRegion}
+      />
+
+      {/* Embedded Checkout Modal */}
+      <CheckoutModal
+        isOpen={checkoutPlan !== null}
+        onClose={handleCheckoutClose}
+        plan={checkoutPlan}
       />
     </div>
   );

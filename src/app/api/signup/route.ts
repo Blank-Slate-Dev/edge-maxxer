@@ -50,14 +50,14 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 12);
 
-    // Create user
+    // Create user with no subscription (they need to purchase a plan)
     const user = await User.create({
       name: name.trim(),
       email: email.toLowerCase().trim(),
       password: hashedPassword,
       region: validatedRegion,
-      subscription: 'trial',
-      trialEndsAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
+      plan: 'none',
+      subscriptionStatus: 'inactive',
       referredBy: referralCode || undefined,
     });
 
@@ -67,8 +67,8 @@ export async function POST(request: NextRequest) {
       name: user.name,
       email: user.email,
       region: user.region,
-      subscription: user.subscription,
-      trialEndsAt: user.trialEndsAt,
+      plan: user.plan,
+      subscriptionStatus: user.subscriptionStatus,
       referralCode: user.referralCode,
     };
 

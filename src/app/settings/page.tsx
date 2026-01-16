@@ -21,10 +21,13 @@ import {
   ExternalLink,
   AlertCircle,
   Globe,
-  ChevronDown
+  ChevronDown,
+  CreditCard
 } from 'lucide-react';
 
 type UserRegion = 'US' | 'EU' | 'UK' | 'AU';
+type UserPlan = 'none' | 'trial' | 'monthly' | 'yearly';
+type SubscriptionStatus = 'inactive' | 'active' | 'past_due' | 'canceled' | 'expired';
 
 const REGIONS: { value: UserRegion; label: string; flag: string }[] = [
   { value: 'AU', label: 'Australia', flag: '🇦🇺' },
@@ -32,6 +35,24 @@ const REGIONS: { value: UserRegion; label: string; flag: string }[] = [
   { value: 'UK', label: 'United Kingdom', flag: '🇬🇧' },
   { value: 'EU', label: 'Europe', flag: '🇪🇺' },
 ];
+
+const PLAN_LABELS: Record<UserPlan, string> = {
+  none: 'No Plan',
+  trial: '3-Day Trial',
+  monthly: 'Monthly',
+  yearly: 'Yearly',
+};
+
+interface SessionUser {
+  id: string;
+  email?: string | null;
+  name?: string | null;
+  plan?: UserPlan;
+  subscriptionStatus?: SubscriptionStatus;
+  subscriptionEndsAt?: string;
+  hasAccess?: boolean;
+  region?: UserRegion;
+}
 
 export default function SettingsPage() {
   const { data: session, status } = useSession();
@@ -48,6 +69,8 @@ export default function SettingsPage() {
   const [error, setError] = useState('');
   const [regionError, setRegionError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+
+  const user = session?.user as SessionUser | undefined;
 
   // Redirect if not logged in
   useEffect(() => {
@@ -134,6 +157,50 @@ export default function SettingsPage() {
   const handleSignOut = async () => {
     await signOut({ callbackUrl: '/' });
   };
+
+  // Get subscription display info
+  const getSubscriptionInfo = () => {
+    const plan = user?.plan || 'none';
+    const status = user?.subscriptionStatus || 'inactive';
+    const hasAccess = user?.hasAccess || false;
+    const endsAt = user?.subscriptionEndsAt ? new Date(user.subscriptionEndsAt) : null;
+
+    let label = PLAN_LABELS[plan];
+    let statusColor = 'var(--muted)';
+    let statusBg = 'var(--surface)';
+    let description = '';
+
+    if (hasAccess && endsAt) {
+      statusColor = '#22c55e';
+      statusBg = 'color-mix(in srgb, #22c55e 15%, transparent)';
+      
+      if (plan === 'trial') {
+        const daysLeft = Math.ceil((endsAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+        description = `${daysLeft} day${daysLeft !== 1 ? 's' : ''} remaining`;
+      } else {
+        description = `Renews ${endsAt.toLocaleDateString()}`;
+      }
+    } else if (status === 'canceled' && endsAt && endsAt > new Date()) {
+      statusColor = 'var(--warning)';
+      statusBg = 'color-mix(in srgb, var(--warning) 15%, transparent)';
+      label = `${PLAN_LABELS[plan]} (Canceled)`;
+      description = `Access until ${endsAt.toLocaleDateString()}`;
+    } else if (status === 'past_due') {
+      statusColor = 'var(--danger)';
+      statusBg = 'color-mix(in srgb, var(--danger) 15%, transparent)';
+      label = `${PLAN_LABELS[plan]} (Past Due)`;
+      description = 'Please update your payment method';
+    } else {
+      statusColor = 'var(--muted)';
+      statusBg = 'var(--background)';
+      label = 'No Active Plan';
+      description = 'Subscribe to access all features';
+    }
+
+    return { label, statusColor, statusBg, description, hasAccess };
+  };
+
+  const subscriptionInfo = getSubscriptionInfo();
 
   if (status === 'loading' || isLoading) {
     return (
@@ -255,32 +322,70 @@ export default function SettingsPage() {
                   {session.user?.email}
                 </div>
               </div>
+            </div>
+          </section>
 
+          {/* Subscription Section */}
+          <section 
+            className="p-6 rounded-xl border"
+            style={{ 
+              backgroundColor: 'var(--surface)',
+              borderColor: 'var(--border)'
+            }}
+          >
+            <div className="flex items-center gap-3 mb-6">
+              <div 
+                className="w-10 h-10 rounded-lg flex items-center justify-center"
+                style={{ backgroundColor: 'var(--background)' }}
+              >
+                <CreditCard className="w-5 h-5" style={{ color: 'var(--foreground)' }} />
+              </div>
+              <div>
+                <h2 className="font-medium" style={{ color: 'var(--foreground)' }}>
+                  Subscription
+                </h2>
+                <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                  Manage your subscription plan
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
               <div>
                 <label className="text-sm" style={{ color: 'var(--muted)' }}>
-                  Subscription
+                  Current Plan
                 </label>
-                <div className="mt-1 flex items-center gap-2">
+                <div className="mt-2 flex items-center gap-3">
                   <span 
                     className="px-3 py-1.5 rounded-lg text-sm font-medium"
                     style={{ 
-                      backgroundColor: (session.user as { subscription?: string })?.subscription === 'active' 
-                        ? 'color-mix(in srgb, #22c55e 15%, transparent)'
-                        : 'color-mix(in srgb, var(--warning) 15%, transparent)',
-                      color: (session.user as { subscription?: string })?.subscription === 'active'
-                        ? '#22c55e'
-                        : 'var(--warning)'
+                      backgroundColor: subscriptionInfo.statusBg,
+                      color: subscriptionInfo.statusColor
                     }}
                   >
-                    {(session.user as { subscription?: string })?.subscription === 'active' ? 'Pro' : 'Trial'}
+                    {subscriptionInfo.label}
                   </span>
-                  {(session.user as { subscription?: string })?.subscription !== 'active' && (
-                    <span className="text-xs" style={{ color: 'var(--muted)' }}>
-                      7-day free trial
+                  {subscriptionInfo.description && (
+                    <span className="text-sm" style={{ color: 'var(--muted)' }}>
+                      {subscriptionInfo.description}
                     </span>
                   )}
                 </div>
               </div>
+
+              {!subscriptionInfo.hasAccess && (
+                <Link
+                  href="/#pricing"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
+                  style={{
+                    backgroundColor: '#14b8a6',
+                    color: '#fff'
+                  }}
+                >
+                  View Plans
+                  <ExternalLink className="w-4 h-4" />
+                </Link>
+              )}
             </div>
           </section>
 
