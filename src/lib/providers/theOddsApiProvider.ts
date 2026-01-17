@@ -3,6 +3,27 @@ import type { SportEvent, BookmakerOdds } from '../types';
 import type { OddsProvider, ProviderResult, Sport, TheOddsApiEvent } from './types';
 import { theOddsApiResponseSchema, theOddsApiSportsResponseSchema } from './types';
 
+// Priority sports - these have the most arb opportunities and should be fetched first
+const PRIORITY_SPORTS = [
+  // Tennis - high arb frequency
+  'tennis_atp', 'tennis_wta', 'tennis_itf_men', 'tennis_itf_women',
+  // Basketball - good arb potential
+  'basketball_nba', 'basketball_nbl', 'basketball_euroleague', 'basketball_ncaab',
+  // American Football
+  'americanfootball_nfl', 'americanfootball_ncaaf',
+  // Combat sports - often have arbs
+  'mma_mixed_martial_arts', 'boxing_boxing',
+  // Baseball
+  'baseball_mlb',
+  // Hockey
+  'icehockey_nhl',
+  // Aussie sports
+  'aussierules_afl', 'rugbyleague_nrl',
+];
+
+// Number of sports to fetch in parallel
+const PARALLEL_BATCH_SIZE = 6;
+
 export class TheOddsApiProvider implements OddsProvider {
   name = 'The Odds API';
   private baseUrl: string;
@@ -58,7 +79,29 @@ export class TheOddsApiProvider implements OddsProvider {
   }
 
   /**
-   * Fetch odds for given sports
+   * Sort sports by priority - put high-arb sports first
+   */
+  private sortByPriority(sports: string[]): string[] {
+    const prioritySet = new Set(PRIORITY_SPORTS);
+    const priority: string[] = [];
+    const other: string[] = [];
+
+    for (const sport of sports) {
+      if (prioritySet.has(sport)) {
+        priority.push(sport);
+      } else {
+        other.push(sport);
+      }
+    }
+
+    // Sort priority sports by their order in PRIORITY_SPORTS
+    priority.sort((a, b) => PRIORITY_SPORTS.indexOf(a) - PRIORITY_SPORTS.indexOf(b));
+
+    return [...priority, ...other];
+  }
+
+  /**
+   * Fetch odds for given sports - PARALLEL VERSION
    * @param sports - Array of sport keys to fetch
    * @param markets - Array of market types (e.g., ['h2h', 'spreads'])
    * @param regions - Comma-separated API region string (e.g., 'au,uk,us,eu')
@@ -83,33 +126,59 @@ export class TheOddsApiProvider implements OddsProvider {
 
     const marketsStr = markets.join(',');
 
-    console.log(`[TheOddsApiProvider] Fetching ${sports.length} sports with regions: ${regions}, markets: ${marketsStr}`);
+    // Sort sports by priority so we get high-arb sports first
+    const sortedSports = this.sortByPriority(sports);
 
-    for (const sport of sports) {
-      try {
-        if (remainingRequests !== undefined && remainingRequests < 10) {
-          console.log(`[TheOddsApiProvider] Low on API calls (${remainingRequests} left), stopping`);
-          break;
-        }
+    console.log(`[TheOddsApiProvider] Fetching ${sortedSports.length} sports (parallel batches of ${PARALLEL_BATCH_SIZE})`);
+    console.log(`[TheOddsApiProvider] Regions: ${regions}, Markets: ${marketsStr}`);
+    console.log(`[TheOddsApiProvider] Priority sports first: ${sortedSports.slice(0, 5).join(', ')}...`);
 
-        const result = await this.fetchSportOdds(sport, regions, marketsStr);
-        allEvents.push(...result.events);
-        remainingRequests = result.remainingRequests;
-        usedRequests = result.usedRequests;
+    // Process sports in parallel batches
+    for (let i = 0; i < sortedSports.length; i += PARALLEL_BATCH_SIZE) {
+      // Check if we're low on API calls
+      if (remainingRequests !== undefined && remainingRequests < 10) {
+        console.log(`[TheOddsApiProvider] Low on API calls (${remainingRequests} left), stopping`);
+        break;
+      }
 
-        // Small delay between requests to be nice to the API
-        await new Promise(resolve => setTimeout(resolve, 100));
-      } catch (error) {
-        const msg = error instanceof Error ? error.message : String(error);
-        // 404 is expected for sports without odds
-        if (!msg.includes('404')) {
-          console.error(`[TheOddsApiProvider] Error fetching ${sport}:`, msg);
-          errors.push(`${sport}: ${msg}`);
+      const batch = sortedSports.slice(i, i + PARALLEL_BATCH_SIZE);
+      
+      console.log(`[TheOddsApiProvider] Batch ${Math.floor(i / PARALLEL_BATCH_SIZE) + 1}: ${batch.join(', ')}`);
+
+      // Fetch all sports in this batch in parallel
+      const results = await Promise.allSettled(
+        batch.map(sport => this.fetchSportOdds(sport, regions, marketsStr))
+      );
+
+      // Process results
+      for (let j = 0; j < results.length; j++) {
+        const result = results[j];
+        const sport = batch[j];
+
+        if (result.status === 'fulfilled') {
+          allEvents.push(...result.value.events);
+          // Update remaining requests from the latest response
+          if (result.value.remainingRequests !== undefined) {
+            remainingRequests = result.value.remainingRequests;
+          }
+          if (result.value.usedRequests !== undefined) {
+            usedRequests = result.value.usedRequests;
+          }
+        } else {
+          const msg = result.reason instanceof Error ? result.reason.message : String(result.reason);
+          // 404 is expected for sports without odds - don't log as error
+          if (!msg.includes('404')) {
+            console.error(`[TheOddsApiProvider] Error fetching ${sport}:`, msg);
+            errors.push(`${sport}: ${msg}`);
+          }
         }
       }
     }
 
-    console.log(`[TheOddsApiProvider] Total: ${allEvents.length} events from ${sports.length} sports`);
+    console.log(`[TheOddsApiProvider] Complete: ${allEvents.length} events from ${sortedSports.length} sports`);
+    if (remainingRequests !== undefined) {
+      console.log(`[TheOddsApiProvider] API calls remaining: ${remainingRequests}`);
+    }
 
     return {
       events: allEvents,
@@ -120,6 +189,16 @@ export class TheOddsApiProvider implements OddsProvider {
         errors: errors.length > 0 ? errors : undefined,
       },
     };
+  }
+
+  /**
+   * Fetch odds for priority sports only - for faster initial results
+   */
+  async fetchPriorityOdds(
+    markets: string[] = ['h2h'],
+    regions: string = 'au'
+  ): Promise<ProviderResult> {
+    return this.fetchOdds(PRIORITY_SPORTS, markets, regions);
   }
 
   private async fetchSportOdds(sport: string, regions: string, markets: string): Promise<{
@@ -202,3 +281,6 @@ export class TheOddsApiProvider implements OddsProvider {
 export function createOddsApiProvider(apiKey: string): TheOddsApiProvider {
   return new TheOddsApiProvider(apiKey);
 }
+
+// Export priority sports for use elsewhere
+export { PRIORITY_SPORTS };
