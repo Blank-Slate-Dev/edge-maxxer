@@ -60,25 +60,23 @@ export function Header({
           {/* Logo & Brand */}
           <div className="flex items-center gap-6">
             <Link href="/dashboard" className="flex items-center">
-              {theme === 'dark' ? (
-                <Image
-                  src="/logo_thin_dark_version.png"
-                  alt="Edge Maxxer"
-                  width={300}
-                  height={72}
-                  priority
-                  className="h-16 w-auto"
-                />
-              ) : (
-                <Image
-                  src="/logo_thin_light_version.png"
-                  alt="Edge Maxxer"
-                  width={300}
-                  height={72}
-                  priority
-                  className="h-16 w-auto"
-                />
-              )}
+              {/* Both logos rendered, CSS controls visibility based on theme */}
+              <Image
+                src="/logo_thin_dark_version.png"
+                alt="Edge Maxxer"
+                width={300}
+                height={72}
+                priority
+                className="h-16 w-auto logo-dark"
+              />
+              <Image
+                src="/logo_thin_light_version.png"
+                alt="Edge Maxxer"
+                width={300}
+                height={72}
+                priority
+                className="h-16 w-auto logo-light"
+              />
             </Link>
             {lastUpdated && (
               <span className="text-sm hidden sm:block" style={{ color: 'var(--muted)' }}>

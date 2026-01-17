@@ -142,25 +142,23 @@ export default function LandingPage() {
             {/* Logo wrapper - matches Header.tsx structure */}
             <div className="flex items-center gap-6">
               <Link href="/" className="flex items-center">
-                {theme === 'dark' ? (
-                  <Image
-                    src="/logo_thin_dark_version.png"
-                    alt="Edge Maxxer"
-                    width={300}
-                    height={72}
-                    priority
-                    className="h-16 w-auto"
-                  />
-                ) : (
-                  <Image
-                    src="/logo_thin_light_version.png"
-                    alt="Edge Maxxer"
-                    width={300}
-                    height={72}
-                    priority
-                    className="h-16 w-auto"
-                  />
-                )}
+                {/* Both logos rendered, CSS controls visibility based on theme */}
+                <Image
+                  src="/logo_thin_dark_version.png"
+                  alt="Edge Maxxer"
+                  width={300}
+                  height={72}
+                  priority
+                  className="h-16 w-auto logo-dark"
+                />
+                <Image
+                  src="/logo_thin_light_version.png"
+                  alt="Edge Maxxer"
+                  width={300}
+                  height={72}
+                  priority
+                  className="h-16 w-auto logo-light"
+                />
               </Link>
             </div>
 
@@ -712,23 +710,21 @@ export default function LandingPage() {
       >
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            {theme === 'dark' ? (
-              <Image
-                src="/logo_thin_dark_version.png"
-                alt="Edge Maxxer"
-                width={100}
-                height={24}
-                className="h-5 w-auto opacity-50"
-              />
-            ) : (
-              <Image
-                src="/logo_thin_light_version.png"
-                alt="Edge Maxxer"
-                width={100}
-                height={24}
-                className="h-5 w-auto opacity-50"
-              />
-            )}
+            {/* Both logos rendered, CSS controls visibility based on theme */}
+            <Image
+              src="/logo_thin_dark_version.png"
+              alt="Edge Maxxer"
+              width={100}
+              height={24}
+              className="h-5 w-auto opacity-50 logo-dark"
+            />
+            <Image
+              src="/logo_thin_light_version.png"
+              alt="Edge Maxxer"
+              width={100}
+              height={24}
+              className="h-5 w-auto opacity-50 logo-light"
+            />
             <div className="flex items-center gap-6 text-sm" style={{ color: 'var(--muted)' }}>
               <Link href="/terms" className="hover:opacity-70 transition-opacity">Terms</Link>
               <Link href="/privacy" className="hover:opacity-70 transition-opacity">Privacy</Link>

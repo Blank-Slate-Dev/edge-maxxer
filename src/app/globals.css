@@ -502,3 +502,17 @@ iframe[name^="embedded-checkout"] {
   opacity: 0.02;
   pointer-events: none;
 }
+
+/* Theme-aware logo visibility - prevents flash on page load */
+.logo-dark {
+  display: block;
+}
+.logo-light {
+  display: none;
+}
+.light .logo-dark {
+  display: none;
+}
+.light .logo-light {
+  display: block;
+}
