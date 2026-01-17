@@ -19,7 +19,13 @@ function RiskBadge({ bookmaker }: { bookmaker: string }) {
   
   if (!profile) {
     return (
-      <span className="text-xs px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-300">
+      <span 
+        className="text-xs px-1.5 py-0.5 rounded"
+        style={{
+          backgroundColor: 'var(--surface-secondary)',
+          color: 'var(--muted)'
+        }}
+      >
         Unknown
       </span>
     );
@@ -308,20 +314,33 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
       }}
     >
       <div className="min-h-full flex items-start justify-center p-4 py-8">
-        <div className="w-full max-w-xl bg-[#0a0a0a] border border-[#222] relative">
+        <div 
+          className="w-full max-w-xl border relative rounded-lg"
+          style={{
+            backgroundColor: 'var(--surface)',
+            borderColor: 'var(--border)'
+          }}
+        >
           {/* Header */}
-          <div className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b border-[#222] bg-[#0a0a0a]">
+          <div 
+            className="sticky top-0 z-10 flex items-center justify-between px-6 py-4 border-b rounded-t-lg"
+            style={{
+              backgroundColor: 'var(--surface)',
+              borderColor: 'var(--border)'
+            }}
+          >
             <div>
-              <h2 className="font-medium">
+              <h2 className="font-medium" style={{ color: 'var(--foreground)' }}>
                 {isMiddle ? '🎯 Middle Calculator' : isSpread ? 'Spread Calculator' : 'Totals Calculator'}
               </h2>
-              <p className="text-sm text-[#666]">
+              <p className="text-sm" style={{ color: 'var(--muted)' }}>
                 {opportunity.event.homeTeam} vs {opportunity.event.awayTeam}
               </p>
             </div>
             <button
               onClick={onClose}
-              className="p-2 text-[#666] hover:text-white hover:bg-[#222] transition-colors"
+              className="p-2 transition-colors rounded hover:bg-[var(--surface-hover)]"
+              style={{ color: 'var(--muted)' }}
             >
               <X className="w-5 h-5" />
             </button>
@@ -331,17 +350,23 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
           <div className="p-6 space-y-6">
             {/* Arb Status */}
             {!isMiddle && (
-              <div className={`p-3 rounded-lg border ${isArb ? 'bg-green-900/20 border-green-700/50' : 'bg-red-900/20 border-red-700/50'}`}>
+              <div 
+                className="p-3 rounded-lg border"
+                style={{
+                  backgroundColor: isArb ? 'color-mix(in srgb, var(--success) 10%, transparent)' : 'color-mix(in srgb, var(--danger) 10%, transparent)',
+                  borderColor: isArb ? 'color-mix(in srgb, var(--success) 30%, transparent)' : 'color-mix(in srgb, var(--danger) 30%, transparent)'
+                }}
+              >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className={`text-lg ${isArb ? 'text-green-400' : 'text-red-400'}`}>
+                    <span className="text-lg" style={{ color: isArb ? 'var(--success)' : 'var(--danger)' }}>
                       {isArb ? '✓' : '✗'}
                     </span>
-                    <span className={`font-medium ${isArb ? 'text-green-400' : 'text-red-400'}`}>
+                    <span className="font-medium" style={{ color: isArb ? 'var(--success)' : 'var(--danger)' }}>
                       {isArb ? 'Guaranteed Profit' : 'No Arbitrage'}
                     </span>
                   </div>
-                  <div className="text-sm text-zinc-400">
+                  <div className="text-sm" style={{ color: 'var(--muted)' }}>
                     Combined implied: {(impliedSum * 100).toFixed(2)}%
                   </div>
                 </div>
@@ -350,11 +375,17 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
 
             {/* Middle Warning */}
             {isMiddle && (
-              <div className="flex items-start gap-3 p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
+              <div 
+                className="flex items-start gap-3 p-4 rounded-lg border"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--warning) 10%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)'
+                }}
+              >
                 <AlertTriangle className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
                 <div>
                   <div className="font-medium text-yellow-400">Middle Opportunity</div>
-                  <div className="text-sm text-[#888]">
+                  <div className="text-sm" style={{ color: 'var(--muted)' }}>
                     NOT guaranteed. Win big if middle hits (~{opportunity.middleProbability.toFixed(0)}% chance), 
                     lose if it doesn&apos;t. EV: {opportunity.expectedValue >= 0 ? '+' : ''}${opportunity.expectedValue.toFixed(2)}
                   </div>
@@ -364,12 +395,18 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
 
             {/* Total Stake */}
             <div>
-              <label className="block text-xs text-[#666] uppercase tracking-wide mb-2">
+              <label 
+                className="block text-xs uppercase tracking-wide mb-2"
+                style={{ color: 'var(--muted)' }}
+              >
                 Total Stake (for optimal calculation)
               </label>
               <div className="flex gap-2 flex-wrap">
                 <div className="relative flex-1 min-w-[120px]">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#666]">$</span>
+                  <span 
+                    className="absolute left-3 top-1/2 -translate-y-1/2"
+                    style={{ color: 'var(--muted)' }}
+                  >$</span>
                   <input
                     type="number"
                     value={totalStake}
@@ -377,7 +414,12 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
                       setTotalStake(e.target.value);
                       setStakesModified(false);
                     }}
-                    className="w-full bg-[#111] border border-[#333] px-3 py-2 pl-7 font-mono focus:border-white focus:outline-none"
+                    className="w-full px-3 py-2 pl-7 font-mono focus:outline-none rounded border"
+                    style={{
+                      backgroundColor: 'var(--surface-secondary)',
+                      borderColor: 'var(--border)',
+                      color: 'var(--foreground)'
+                    }}
                   />
                 </div>
                 {[50, 100, 250, 500].map(amount => (
@@ -387,11 +429,12 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
                       setTotalStake(amount.toString());
                       setStakesModified(false);
                     }}
-                    className={`px-3 py-2 text-sm border transition-colors ${
-                      parseFloat(totalStake) === amount
-                        ? 'bg-white text-black border-white'
-                        : 'border-[#333] text-[#888] hover:border-[#555]'
-                    }`}
+                    className="px-3 py-2 text-sm border transition-colors rounded"
+                    style={{
+                      backgroundColor: parseFloat(totalStake) === amount ? 'var(--foreground)' : 'transparent',
+                      borderColor: parseFloat(totalStake) === amount ? 'var(--foreground)' : 'var(--border)',
+                      color: parseFloat(totalStake) === amount ? 'var(--background)' : 'var(--muted)'
+                    }}
                   >
                     ${amount}
                   </button>
@@ -401,8 +444,14 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
 
             {/* Modified Warning */}
             {(oddsModified || stakesModified) && (
-              <div className="flex items-center justify-between p-3 bg-blue-900/20 border border-blue-700/50 rounded-lg">
-                <div className="flex items-center gap-2 text-sm text-blue-300">
+              <div 
+                className="flex items-center justify-between p-3 rounded-lg border"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--info) 10%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--info) 30%, transparent)'
+                }}
+              >
+                <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--info)' }}>
                   <span>✏️</span>
                   <span>
                     {oddsModified && stakesModified 
@@ -416,14 +465,22 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
                   {stakesModified && (
                     <button
                       onClick={handleRecalculateOptimal}
-                      className="text-xs px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+                      className="text-xs px-2 py-1 rounded transition-colors"
+                      style={{
+                        backgroundColor: 'var(--success)',
+                        color: 'white'
+                      }}
                     >
                       Recalculate Optimal
                     </button>
                   )}
                   <button
                     onClick={resetAll}
-                    className="text-xs px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-white rounded transition-colors"
+                    className="text-xs px-2 py-1 rounded transition-colors"
+                    style={{
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)'
+                    }}
                   >
                     Reset All
                   </button>
@@ -434,32 +491,39 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
             {/* Stakes Breakdown */}
             <div className="space-y-4">
               {/* Bet 1 */}
-              <div className="bg-[#111] border border-[#222] p-4 rounded-lg">
+              <div 
+                className="p-4 rounded-lg border"
+                style={{
+                  backgroundColor: 'var(--surface-secondary)',
+                  borderColor: 'var(--border)'
+                }}
+              >
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <div className="font-medium text-white">{label1}</div>
+                    <div className="font-medium" style={{ color: 'var(--foreground)' }}>{label1}</div>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-sm text-[#666]">{bookmaker1}</span>
+                      <span className="text-sm" style={{ color: 'var(--muted)' }}>{bookmaker1}</span>
                       <RiskBadge bookmaker={bookmaker1} />
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-500">Odds:</span>
+                      <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Odds:</span>
                       <input
                         type="text"
                         inputMode="decimal"
                         value={odds1String}
                         onChange={(e) => handleOdds1Change(e.target.value)}
-                        className={`w-20 text-right text-lg font-bold bg-zinc-700 border rounded px-2 py-1 focus:outline-none focus:border-blue-500 ${
-                          Math.abs(odds1 - originalOdds1) > 0.001
-                            ? 'border-blue-500 text-blue-400' 
-                            : 'border-zinc-600 text-blue-400'
-                        }`}
+                        className="w-20 text-right text-lg font-bold rounded px-2 py-1 focus:outline-none border"
+                        style={{
+                          backgroundColor: 'var(--surface)',
+                          borderColor: Math.abs(odds1 - originalOdds1) > 0.001 ? 'var(--info)' : 'var(--border)',
+                          color: 'var(--info)'
+                        }}
                       />
                     </div>
                     {Math.abs(odds1 - originalOdds1) > 0.001 && (
-                      <div className="text-xs text-zinc-500 mt-1">
+                      <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
                         Was {originalOdds1.toFixed(2)}
                       </div>
                     )}
@@ -467,53 +531,61 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-zinc-400">$</span>
+                    <span style={{ color: 'var(--muted)' }}>$</span>
                     <input
                       type="text"
                       inputMode="decimal"
                       value={stake1String}
                       onChange={(e) => handleStake1Change(e.target.value)}
-                      className={`w-28 text-xl font-bold bg-zinc-700 border rounded px-2 py-1 focus:outline-none focus:border-green-500 ${
-                        stakesModified
-                          ? 'border-green-500 text-white' 
-                          : 'border-zinc-600 text-white'
-                      }`}
+                      className="w-28 text-xl font-bold rounded px-2 py-1 focus:outline-none border"
+                      style={{
+                        backgroundColor: 'var(--surface)',
+                        borderColor: stakesModified ? 'var(--success)' : 'var(--border)',
+                        color: 'var(--foreground)'
+                      }}
                     />
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-[#666]">Returns</div>
-                    <div className="font-mono text-white">${return1.toFixed(2)}</div>
+                    <div className="text-xs" style={{ color: 'var(--muted)' }}>Returns</div>
+                    <div className="font-mono" style={{ color: 'var(--foreground)' }}>${return1.toFixed(2)}</div>
                   </div>
                 </div>
               </div>
 
               {/* Bet 2 */}
-              <div className="bg-[#111] border border-[#222] p-4 rounded-lg">
+              <div 
+                className="p-4 rounded-lg border"
+                style={{
+                  backgroundColor: 'var(--surface-secondary)',
+                  borderColor: 'var(--border)'
+                }}
+              >
                 <div className="flex items-center justify-between mb-3">
                   <div>
-                    <div className="font-medium text-white">{label2}</div>
+                    <div className="font-medium" style={{ color: 'var(--foreground)' }}>{label2}</div>
                     <div className="flex items-center gap-2 mt-1">
-                      <span className="text-sm text-[#666]">{bookmaker2}</span>
+                      <span className="text-sm" style={{ color: 'var(--muted)' }}>{bookmaker2}</span>
                       <RiskBadge bookmaker={bookmaker2} />
                     </div>
                   </div>
                   <div className="text-right">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-zinc-500">Odds:</span>
+                      <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Odds:</span>
                       <input
                         type="text"
                         inputMode="decimal"
                         value={odds2String}
                         onChange={(e) => handleOdds2Change(e.target.value)}
-                        className={`w-20 text-right text-lg font-bold bg-zinc-700 border rounded px-2 py-1 focus:outline-none focus:border-blue-500 ${
-                          Math.abs(odds2 - originalOdds2) > 0.001
-                            ? 'border-blue-500 text-blue-400' 
-                            : 'border-zinc-600 text-blue-400'
-                        }`}
+                        className="w-20 text-right text-lg font-bold rounded px-2 py-1 focus:outline-none border"
+                        style={{
+                          backgroundColor: 'var(--surface)',
+                          borderColor: Math.abs(odds2 - originalOdds2) > 0.001 ? 'var(--info)' : 'var(--border)',
+                          color: 'var(--info)'
+                        }}
                       />
                     </div>
                     {Math.abs(odds2 - originalOdds2) > 0.001 && (
-                      <div className="text-xs text-zinc-500 mt-1">
+                      <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
                         Was {originalOdds2.toFixed(2)}
                       </div>
                     )}
@@ -521,22 +593,23 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className="text-zinc-400">$</span>
+                    <span style={{ color: 'var(--muted)' }}>$</span>
                     <input
                       type="text"
                       inputMode="decimal"
                       value={stake2String}
                       onChange={(e) => handleStake2Change(e.target.value)}
-                      className={`w-28 text-xl font-bold bg-zinc-700 border rounded px-2 py-1 focus:outline-none focus:border-green-500 ${
-                        stakesModified
-                          ? 'border-green-500 text-white' 
-                          : 'border-zinc-600 text-white'
-                      }`}
+                      className="w-28 text-xl font-bold rounded px-2 py-1 focus:outline-none border"
+                      style={{
+                        backgroundColor: 'var(--surface)',
+                        borderColor: stakesModified ? 'var(--success)' : 'var(--border)',
+                        color: 'var(--foreground)'
+                      }}
                     />
                   </div>
                   <div className="text-right">
-                    <div className="text-xs text-[#666]">Returns</div>
-                    <div className="font-mono text-white">${return2.toFixed(2)}</div>
+                    <div className="text-xs" style={{ color: 'var(--muted)' }}>Returns</div>
+                    <div className="font-mono" style={{ color: 'var(--foreground)' }}>${return2.toFixed(2)}</div>
                   </div>
                 </div>
               </div>
@@ -544,28 +617,38 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
 
             {/* Profit Variance Warning */}
             {!isMiddle && stakesDeviation && stakesModified && (
-              <div className="p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
-                <h4 className="text-yellow-400 font-medium mb-2">⚠️ Unbalanced Stakes</h4>
-                <p className="text-sm text-yellow-300/80 mb-2">
+              <div 
+                className="p-4 rounded-lg border"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--warning) 10%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)'
+                }}
+              >
+                <h4 className="font-medium mb-2 text-yellow-400">⚠️ Unbalanced Stakes</h4>
+                <p className="text-sm mb-2" style={{ color: 'var(--muted)' }}>
                   Your stakes create different profits depending on outcome:
                 </p>
                 <div className="space-y-1 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-zinc-400">If {label1} wins:</span>
-                    <span className={profit1 >= 0 ? 'text-green-400' : 'text-red-400'}>
+                    <span style={{ color: 'var(--muted)' }}>If {label1} wins:</span>
+                    <span style={{ color: profit1 >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                       {profit1 >= 0 ? '+' : ''}${profit1.toFixed(2)}
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-zinc-400">If {label2} wins:</span>
-                    <span className={profit2 >= 0 ? 'text-green-400' : 'text-red-400'}>
+                    <span style={{ color: 'var(--muted)' }}>If {label2} wins:</span>
+                    <span style={{ color: profit2 >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                       {profit2 >= 0 ? '+' : ''}${profit2.toFixed(2)}
                     </span>
                   </div>
                 </div>
                 <button
                   onClick={handleRecalculateOptimal}
-                  className="mt-3 w-full py-2 bg-yellow-600 hover:bg-yellow-700 text-black text-sm font-medium rounded transition-colors"
+                  className="mt-3 w-full py-2 text-sm font-medium rounded transition-colors"
+                  style={{
+                    backgroundColor: 'var(--warning)',
+                    color: 'black'
+                  }}
                 >
                   Recalculate Optimal Stakes
                 </button>
@@ -575,43 +658,67 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
             {/* Results */}
             {isMiddle ? (
               <div className="grid grid-cols-2 gap-4">
-                <div className="bg-[#0a1a0a] border border-[#1a3a1a] p-4 text-center rounded-lg">
-                  <div className="text-xs text-[#4a8a4a] uppercase tracking-wide mb-1">If Middle Hits</div>
+                <div 
+                  className="p-4 text-center rounded-lg border"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--success) 10%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--success) 30%, transparent)'
+                  }}
+                >
+                  <div className="text-xs uppercase tracking-wide mb-1" style={{ color: 'var(--success)' }}>If Middle Hits</div>
                   <div className="font-mono text-2xl text-green-400">
                     +${middleProfit.toFixed(2)}
                   </div>
-                  <div className="text-xs text-[#4a8a4a] mt-1">
+                  <div className="text-xs mt-1" style={{ color: 'var(--success)' }}>
                     ~{opportunity.middleProbability.toFixed(0)}% chance
                   </div>
                 </div>
-                <div className="bg-[#1a0a0a] border border-[#3a1a1a] p-4 text-center rounded-lg">
-                  <div className="text-xs text-[#8a4a4a] uppercase tracking-wide mb-1">If Middle Misses</div>
+                <div 
+                  className="p-4 text-center rounded-lg border"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, var(--danger) 10%, transparent)',
+                    borderColor: 'color-mix(in srgb, var(--danger) 30%, transparent)'
+                  }}
+                >
+                  <div className="text-xs uppercase tracking-wide mb-1" style={{ color: 'var(--danger)' }}>If Middle Misses</div>
                   <div className="font-mono text-2xl text-red-400">
                     ${middleLoss.toFixed(2)}
                   </div>
-                  <div className="text-xs text-[#8a4a4a] mt-1">
+                  <div className="text-xs mt-1" style={{ color: 'var(--danger)' }}>
                     ~{(100 - opportunity.middleProbability).toFixed(0)}% chance
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="bg-zinc-800/50 border border-zinc-700 p-4 rounded-lg">
+              <div 
+                className="p-4 rounded-lg border"
+                style={{
+                  backgroundColor: 'var(--background)',
+                  borderColor: 'var(--border)'
+                }}
+              >
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div>
-                    <div className="text-xs text-zinc-500 uppercase mb-1">Total Staked</div>
-                    <div className="text-lg font-bold text-white">
+                    <div className="text-xs uppercase mb-1" style={{ color: 'var(--muted-foreground)' }}>Total Staked</div>
+                    <div className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>
                       ${total.toFixed(2)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-zinc-500 uppercase mb-1">Guaranteed Profit</div>
-                    <div className={`text-lg font-bold ${guaranteedProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    <div className="text-xs uppercase mb-1" style={{ color: 'var(--muted-foreground)' }}>Guaranteed Profit</div>
+                    <div 
+                      className="text-lg font-bold"
+                      style={{ color: guaranteedProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}
+                    >
                       {guaranteedProfit >= 0 ? '+' : ''}${guaranteedProfit.toFixed(2)}
                     </div>
                   </div>
                   <div>
-                    <div className="text-xs text-zinc-500 uppercase mb-1">ROI</div>
-                    <div className={`text-lg font-bold ${profitPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                    <div className="text-xs uppercase mb-1" style={{ color: 'var(--muted-foreground)' }}>ROI</div>
+                    <div 
+                      className="text-lg font-bold"
+                      style={{ color: profitPercent >= 0 ? 'var(--success)' : 'var(--danger)' }}
+                    >
                       {profitPercent >= 0 ? '+' : ''}{profitPercent.toFixed(2)}%
                     </div>
                   </div>
@@ -621,12 +728,18 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
 
             {/* Middle Zone Info */}
             {isMiddle && (
-              <div className="bg-[#111] border border-[#333] p-4 rounded-lg">
-                <div className="text-xs text-[#666] uppercase tracking-wide mb-2">Middle Zone</div>
+              <div 
+                className="p-4 rounded-lg border"
+                style={{
+                  backgroundColor: 'var(--surface-secondary)',
+                  borderColor: 'var(--border)'
+                }}
+              >
+                <div className="text-xs uppercase tracking-wide mb-2" style={{ color: 'var(--muted)' }}>Middle Zone</div>
                 <div className="text-yellow-400 font-medium">
                   {opportunity.middleRange.description}
                 </div>
-                <div className="text-sm text-[#888] mt-2">
+                <div className="text-sm mt-2" style={{ color: 'var(--muted)' }}>
                   If the final margin lands in this range, both bets win!
                 </div>
               </div>
@@ -636,7 +749,11 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
             <div className="flex gap-3">
               <button
                 onClick={handleCopy}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border border-[#333] text-[#888] hover:bg-[#111] transition-colors"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 border transition-colors rounded"
+                style={{
+                  borderColor: 'var(--border)',
+                  color: 'var(--muted)'
+                }}
               >
                 {copied ? (
                   <>
@@ -654,11 +771,12 @@ Guaranteed Profit: $${guaranteedProfit.toFixed(2)} (${profitPercent.toFixed(2)}%
                 <button
                   onClick={handleLogBet}
                   disabled={betLogged}
-                  className={`flex-1 px-4 py-2.5 font-medium transition-colors ${
-                    betLogged
-                      ? 'bg-[#222] text-[#666] cursor-not-allowed'
-                      : 'bg-white text-black hover:bg-[#eee]'
-                  }`}
+                  className="flex-1 px-4 py-2.5 font-medium transition-colors rounded"
+                  style={{
+                    backgroundColor: betLogged ? 'var(--surface-secondary)' : 'var(--foreground)',
+                    color: betLogged ? 'var(--muted)' : 'var(--background)',
+                    cursor: betLogged ? 'not-allowed' : 'pointer'
+                  }}
                 >
                   {betLogged ? 'Bet Logged ✓' : 'Log Bet'}
                 </button>

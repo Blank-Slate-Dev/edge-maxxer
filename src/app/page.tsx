@@ -139,27 +139,30 @@ export default function LandingPage() {
       >
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center">
-              {theme === 'dark' ? (
-                <Image
-                  src="/logo_thin_dark_version.png"
-                  alt="Edge Maxxer"
-                  width={260}
-                  height={62}
-                  priority
-                  className="h-12 w-auto"
-                />
-              ) : (
-                <Image
-                  src="/logo_thin_light_version.png"
-                  alt="Edge Maxxer"
-                  width={260}
-                  height={62}
-                  priority
-                  className="h-12 w-auto"
-                />
-              )}
-            </Link>
+            {/* Logo wrapper - matches Header.tsx structure */}
+            <div className="flex items-center gap-6">
+              <Link href="/" className="flex items-center">
+                {theme === 'dark' ? (
+                  <Image
+                    src="/logo_thin_dark_version.png"
+                    alt="Edge Maxxer"
+                    width={300}
+                    height={72}
+                    priority
+                    className="h-16 w-auto"
+                  />
+                ) : (
+                  <Image
+                    src="/logo_thin_light_version.png"
+                    alt="Edge Maxxer"
+                    width={300}
+                    height={72}
+                    priority
+                    className="h-16 w-auto"
+                  />
+                )}
+              </Link>
+            </div>
 
             <div className="hidden md:flex items-center gap-8">
               <a 
@@ -231,11 +234,11 @@ export default function LandingPage() {
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-28 pb-16 px-6 relative overflow-hidden">
+      <section className="pt-28 pb-16 relative overflow-hidden">
         {/* Grid pattern background */}
         <div className="absolute inset-0 hero-grid-pattern" />
         
-        <div className="max-w-7xl mx-auto relative">
+        <div className="max-w-7xl mx-auto px-6 relative">
           <div className="grid lg:grid-cols-2 gap-12 lg:gap-8 items-start">
             {/* Left: Text Content */}
             <div className="max-w-xl lg:max-w-lg">

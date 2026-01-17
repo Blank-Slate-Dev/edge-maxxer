@@ -53,39 +53,60 @@ export function ArbFilters({
     (filters.profitableOnly ? 1 : 0);
 
   return (
-    <div className="border border-[#222] bg-[#0a0a0a]">
+    <div 
+      className="border rounded-lg"
+      style={{
+        borderColor: 'var(--border)',
+        backgroundColor: 'var(--surface)'
+      }}
+    >
       {/* Header row with toggle and expand */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#222]">
+      <div 
+        className="flex items-center justify-between px-4 py-3 border-b"
+        style={{ borderColor: 'var(--border)' }}
+      >
         {/* Profitable Only Toggle - Always visible */}
         <button
           onClick={() => updateFilter('profitableOnly', !filters.profitableOnly)}
-          className={`flex items-center gap-2 px-3 py-1.5 text-sm font-medium border transition-colors ${
-            filters.profitableOnly
-              ? 'bg-green-600 text-white border-green-600'
-              : 'border-[#333] text-[#888] hover:border-[#555]'
-          }`}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border transition-colors rounded"
+          style={{
+            backgroundColor: filters.profitableOnly ? 'var(--success)' : 'transparent',
+            borderColor: filters.profitableOnly ? 'var(--success)' : 'var(--border)',
+            color: filters.profitableOnly ? 'white' : 'var(--muted)'
+          }}
         >
-          <span className={`w-2 h-2 rounded-full ${filters.profitableOnly ? 'bg-white' : 'bg-[#555]'}`} />
+          <span 
+            className="w-2 h-2 rounded-full"
+            style={{ 
+              backgroundColor: filters.profitableOnly ? 'white' : 'var(--muted-foreground)' 
+            }} 
+          />
           Profitable Only
         </button>
 
         {/* Expand Filters Button */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex items-center gap-3 text-left hover:bg-[#111] px-3 py-1.5 transition-colors"
+          className="flex items-center gap-3 text-left hover:bg-[var(--surface-hover)] px-3 py-1.5 transition-colors rounded"
         >
           <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-[#888]">More Filters</span>
+            <span className="text-sm font-medium" style={{ color: 'var(--muted)' }}>More Filters</span>
             {activeFilterCount > 0 && (
-              <span className="text-xs px-2 py-0.5 bg-white text-black font-medium">
+              <span 
+                className="text-xs px-2 py-0.5 font-medium rounded"
+                style={{
+                  backgroundColor: 'var(--foreground)',
+                  color: 'var(--background)'
+                }}
+              >
                 {activeFilterCount}
               </span>
             )}
           </div>
           {isExpanded ? (
-            <ChevronUp className="w-4 h-4 text-[#666]" />
+            <ChevronUp className="w-4 h-4" style={{ color: 'var(--muted)' }} />
           ) : (
-            <ChevronDown className="w-4 h-4 text-[#666]" />
+            <ChevronDown className="w-4 h-4" style={{ color: 'var(--muted)' }} />
           )}
         </button>
       </div>
@@ -99,16 +120,23 @@ export function ArbFilters({
                 type="checkbox"
                 checked={filters.showNearArbs}
                 onChange={e => updateFilter('showNearArbs', e.target.checked)}
-                className="w-4 h-4 bg-[#111] border border-[#333] rounded"
+                className="w-4 h-4 rounded"
+                style={{
+                  backgroundColor: 'var(--surface-secondary)',
+                  borderColor: 'var(--border)'
+                }}
               />
-              <span className="text-sm text-[#888]">Show Near-Arbs</span>
+              <span className="text-sm" style={{ color: 'var(--muted)' }}>Show Near-Arbs</span>
             </label>
           </div>
 
           {/* Profit & Time Range */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-xs text-[#666] uppercase tracking-wide mb-2">
+              <label 
+                className="block text-xs uppercase tracking-wide mb-2"
+                style={{ color: 'var(--muted)' }}
+              >
                 Min Profit: {filters.minProfit >= 0 ? '+' : ''}{filters.minProfit.toFixed(1)}%
               </label>
               <input
@@ -120,13 +148,16 @@ export function ArbFilters({
                 onChange={e => updateFilter('minProfit', parseFloat(e.target.value))}
                 className="w-full"
               />
-              <div className="flex justify-between text-xs text-[#555] mt-1">
+              <div className="flex justify-between text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
                 <span>-5% (near-arbs)</span>
                 <span>+5% (profitable)</span>
               </div>
             </div>
             <div>
-              <label className="block text-xs text-[#666] uppercase tracking-wide mb-2">
+              <label 
+                className="block text-xs uppercase tracking-wide mb-2"
+                style={{ color: 'var(--muted)' }}
+              >
                 Time Range: {filters.maxHoursUntilStart}h
               </label>
               <input
@@ -138,7 +169,7 @@ export function ArbFilters({
                 onChange={e => updateFilter('maxHoursUntilStart', parseInt(e.target.value))}
                 className="w-full"
               />
-              <div className="flex justify-between text-xs text-[#555] mt-1">
+              <div className="flex justify-between text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
                 <span>1 hour</span>
                 <span>1 week</span>
               </div>
@@ -147,7 +178,10 @@ export function ArbFilters({
 
           {/* Mode Selection */}
           <div>
-            <label className="block text-xs text-[#666] uppercase tracking-wide mb-2">
+            <label 
+              className="block text-xs uppercase tracking-wide mb-2"
+              style={{ color: 'var(--muted)' }}
+            >
               Mode
             </label>
             <div className="flex gap-2">
@@ -159,11 +193,12 @@ export function ArbFilters({
                 <button
                   key={option.value}
                   onClick={() => updateFilter('mode', option.value as FilterType['mode'])}
-                  className={`px-3 py-1.5 text-sm border transition-colors ${
-                    filters.mode === option.value
-                      ? 'bg-white text-black border-white'
-                      : 'border-[#333] text-[#888] hover:border-[#555]'
-                  }`}
+                  className="px-3 py-1.5 text-sm border transition-colors rounded"
+                  style={{
+                    backgroundColor: filters.mode === option.value ? 'var(--foreground)' : 'transparent',
+                    borderColor: filters.mode === option.value ? 'var(--foreground)' : 'var(--border)',
+                    color: filters.mode === option.value ? 'var(--background)' : 'var(--muted)'
+                  }}
                 >
                   {option.label}
                 </button>
@@ -175,13 +210,17 @@ export function ArbFilters({
           {availableBookmakers.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs text-[#666] uppercase tracking-wide">
+                <label 
+                  className="text-xs uppercase tracking-wide"
+                  style={{ color: 'var(--muted)' }}
+                >
                   Bookmakers ({availableBookmakers.length})
                 </label>
                 {filters.bookmakers.length > 0 && (
                   <button
                     onClick={() => updateFilter('bookmakers', [])}
-                    className="text-xs text-[#666] hover:text-white"
+                    className="text-xs hover:opacity-80 transition-opacity"
+                    style={{ color: 'var(--muted)' }}
                   >
                     Clear
                   </button>
@@ -192,11 +231,12 @@ export function ArbFilters({
                   <button
                     key={bookmaker}
                     onClick={() => toggleBookmaker(bookmaker)}
-                    className={`px-2 py-1 text-xs border transition-colors ${
-                      filters.bookmakers.includes(bookmaker)
-                        ? 'bg-white text-black border-white'
-                        : 'border-[#333] text-[#888] hover:border-[#555]'
-                    }`}
+                    className="px-2 py-1 text-xs border transition-colors rounded"
+                    style={{
+                      backgroundColor: filters.bookmakers.includes(bookmaker) ? 'var(--foreground)' : 'transparent',
+                      borderColor: filters.bookmakers.includes(bookmaker) ? 'var(--foreground)' : 'var(--border)',
+                      color: filters.bookmakers.includes(bookmaker) ? 'var(--background)' : 'var(--muted)'
+                    }}
                   >
                     {bookmaker}
                   </button>
@@ -209,13 +249,17 @@ export function ArbFilters({
           {availableSports.length > 0 && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="text-xs text-[#666] uppercase tracking-wide">
+                <label 
+                  className="text-xs uppercase tracking-wide"
+                  style={{ color: 'var(--muted)' }}
+                >
                   Sports ({availableSports.length})
                 </label>
                 {filters.sports.length > 0 && (
                   <button
                     onClick={() => updateFilter('sports', [])}
-                    className="text-xs text-[#666] hover:text-white"
+                    className="text-xs hover:opacity-80 transition-opacity"
+                    style={{ color: 'var(--muted)' }}
                   >
                     Clear
                   </button>
@@ -226,11 +270,12 @@ export function ArbFilters({
                   <button
                     key={sport.key}
                     onClick={() => toggleSport(sport.key)}
-                    className={`px-2 py-1 text-xs border transition-colors ${
-                      filters.sports.includes(sport.key)
-                        ? 'bg-white text-black border-white'
-                        : 'border-[#333] text-[#888] hover:border-[#555]'
-                    }`}
+                    className="px-2 py-1 text-xs border transition-colors rounded"
+                    style={{
+                      backgroundColor: filters.sports.includes(sport.key) ? 'var(--foreground)' : 'transparent',
+                      borderColor: filters.sports.includes(sport.key) ? 'var(--foreground)' : 'var(--border)',
+                      color: filters.sports.includes(sport.key) ? 'var(--background)' : 'var(--muted)'
+                    }}
                   >
                     {sport.title}
                   </button>

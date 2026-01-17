@@ -3,6 +3,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { X } from 'lucide-react';
 import { 
   naturalizeArbStakes,
   naturalize3WayArbStakes,
@@ -26,7 +27,13 @@ function RiskBadge({ bookmaker }: { bookmaker: string }) {
   
   if (!profile) {
     return (
-      <span className="text-xs px-1.5 py-0.5 rounded bg-zinc-700 text-zinc-300">
+      <span 
+        className="text-xs px-1.5 py-0.5 rounded"
+        style={{
+          backgroundColor: 'var(--border)',
+          color: 'var(--muted)'
+        }}
+      >
         Unknown
       </span>
     );
@@ -307,329 +314,439 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      
-      {/* Modal */}
-      <div className="relative bg-zinc-900 rounded-xl border border-zinc-700 w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
-        {/* Header */}
-        <div className="sticky top-0 bg-zinc-900 border-b border-zinc-700 px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-white">Stake Calculator</h2>
-            <p className="text-sm text-zinc-400">{eventName}</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-zinc-800 rounded-lg transition-colors"
+    <div 
+      className="fixed inset-0 z-50 bg-black/80 overflow-y-auto"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="min-h-full flex items-start justify-center p-4 py-8">
+        <div 
+          className="w-full max-w-xl border relative rounded-lg"
+          style={{
+            backgroundColor: 'var(--background)',
+            borderColor: 'var(--border)'
+          }}
+        >
+          {/* Header */}
+          <div 
+            className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between border-b rounded-t-lg"
+            style={{
+              backgroundColor: 'var(--background)',
+              borderColor: 'var(--border)'
+            }}
           >
-            <svg className="w-5 h-5 text-zinc-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="p-6 space-y-6">
-          {/* Arb Status Indicator */}
-          <div className={`p-3 rounded-lg border ${isArb ? 'bg-green-900/20 border-green-700/50' : 'bg-red-900/20 border-red-700/50'}`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className={`text-lg ${isArb ? 'text-green-400' : 'text-red-400'}`}>
-                  {isArb ? '✓' : '✗'}
-                </span>
-                <span className={`font-medium ${isArb ? 'text-green-400' : 'text-red-400'}`}>
-                  {isArb ? 'Arbitrage Opportunity' : 'No Arbitrage'}
-                </span>
-              </div>
-              <div className="text-sm text-zinc-400">
-                Combined implied: {(totalImplied * 100).toFixed(2)}%
-              </div>
-            </div>
-          </div>
-
-          {/* Stealth Mode Toggle */}
-          <div className="flex items-center justify-between p-4 bg-zinc-800 rounded-lg border border-zinc-700">
             <div>
-              <div className="flex items-center gap-2">
-                <span className="text-white font-medium">🥷 Stealth Mode</span>
-                <span className={`text-xs px-2 py-0.5 rounded ${stealthMode ? 'bg-green-500/20 text-green-400' : 'bg-zinc-600 text-zinc-400'}`}>
-                  {stealthMode ? 'ON' : 'OFF'}
-                </span>
-              </div>
-              <p className="text-sm text-zinc-400 mt-1">
-                Rounds stakes to look natural and avoid detection
-              </p>
+              <h2 className="text-lg font-semibold" style={{ color: 'var(--foreground)' }}>Stake Calculator</h2>
+              <p className="text-sm" style={{ color: 'var(--muted)' }}>{eventName}</p>
             </div>
             <button
-              onClick={() => {
-                setStealthMode(!stealthMode);
-                setStakesModified(false);
-              }}
-              className={`relative w-12 h-6 rounded-full transition-colors ${
-                stealthMode ? 'bg-green-500' : 'bg-zinc-600'
-              }`}
+              onClick={onClose}
+              className="p-2 rounded-lg transition-colors hover:bg-[var(--surface)]"
+              style={{ color: 'var(--muted)' }}
             >
-              <span 
-                className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                  stealthMode ? 'left-7' : 'left-1'
-                }`}
-              />
+              <X className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Total Stake Input */}
-          <div>
-            <label className="block text-sm text-zinc-400 mb-2">Total Stake (for optimal calculation)</label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400">$</span>
-              <input
-                type="number"
-                value={totalStake}
-                onChange={(e) => {
-                  setTotalStake(e.target.value);
-                  setStakesModified(false);
-                }}
-                className="w-full bg-zinc-800 border border-zinc-700 rounded-lg pl-8 pr-4 py-3 text-white text-lg font-medium focus:outline-none focus:border-blue-500"
-                placeholder="100"
-                min="0"
-                step="10"
-              />
-            </div>
-            <div className="flex gap-2 mt-2">
-              {[50, 100, 250, 500, 1000].map((amount) => (
-                <button
-                  key={amount}
-                  onClick={() => {
-                    setTotalStake(amount.toString());
-                    setStakesModified(false);
-                  }}
-                  className="px-3 py-1 text-sm bg-zinc-800 hover:bg-zinc-700 rounded border border-zinc-700 text-zinc-300 transition-colors"
-                >
-                  ${amount}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Modified Warning */}
-          {(oddsModified || stakesModified) && (
-            <div className="flex items-center justify-between p-3 bg-blue-900/20 border border-blue-700/50 rounded-lg">
-              <div className="flex items-center gap-2 text-sm text-blue-300">
-                <span>✏️</span>
-                <span>
-                  {oddsModified && stakesModified 
-                    ? 'Odds and stakes modified' 
-                    : oddsModified 
-                      ? 'Odds modified from original' 
-                      : 'Stakes manually adjusted'}
-                </span>
+          {/* Content */}
+          <div className="p-6 space-y-6">
+            {/* Arb Status Indicator */}
+            <div 
+              className="p-3 rounded-lg border"
+              style={{
+                backgroundColor: isArb ? 'color-mix(in srgb, var(--success) 10%, transparent)' : 'color-mix(in srgb, var(--danger) 10%, transparent)',
+                borderColor: isArb ? 'color-mix(in srgb, var(--success) 30%, transparent)' : 'color-mix(in srgb, var(--danger) 30%, transparent)'
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg" style={{ color: isArb ? 'var(--success)' : 'var(--danger)' }}>
+                    {isArb ? '✓' : '✗'}
+                  </span>
+                  <span className="font-medium" style={{ color: isArb ? 'var(--success)' : 'var(--danger)' }}>
+                    {isArb ? 'Arbitrage Opportunity' : 'No Arbitrage'}
+                  </span>
+                </div>
+                <div className="text-sm" style={{ color: 'var(--muted)' }}>
+                  Combined implied: {(totalImplied * 100).toFixed(2)}%
+                </div>
               </div>
-              <div className="flex gap-2">
-                {stakesModified && (
-                  <button
-                    onClick={handleRecalculateOptimal}
-                    className="text-xs px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded transition-colors"
+            </div>
+
+            {/* Stealth Mode Toggle */}
+            <div 
+              className="flex items-center justify-between p-4 rounded-lg border"
+              style={{
+                backgroundColor: 'var(--surface)',
+                borderColor: 'var(--border)'
+              }}
+            >
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium" style={{ color: 'var(--foreground)' }}>🥷 Stealth Mode</span>
+                  <span 
+                    className="text-xs px-2 py-0.5 rounded"
+                    style={{
+                      backgroundColor: stealthMode ? 'color-mix(in srgb, var(--success) 20%, transparent)' : 'var(--surface-secondary)',
+                      color: stealthMode ? 'var(--success)' : 'var(--muted)'
+                    }}
                   >
-                    Recalculate Optimal
-                  </button>
-                )}
-                <button
-                  onClick={resetAll}
-                  className="text-xs px-2 py-1 bg-zinc-700 hover:bg-zinc-600 text-white rounded transition-colors"
-                >
-                  Reset All
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* Stakes Breakdown */}
-          <div className="space-y-3">
-            <h3 className="text-sm text-zinc-400">Individual Stakes</h3>
-            
-            {outcomes.map((outcome, index) => {
-              const originalOdds = getOutcomesFromArb(arb)[index].odds;
-              const currentOdds = oddsToUse[index];
-              const isOddsChanged = Math.abs(currentOdds - originalOdds) > 0.001;
-              
-              const currentStake = stakesToUse[index];
-              const optimalStake = optimalStakes[index] || 0;
-              const isStakeChanged = stakesModified && Math.abs(currentStake - optimalStake) > 0.01;
-              
-              return (
-                <div 
-                  key={index}
-                  className="p-4 bg-zinc-800 rounded-lg border border-zinc-700"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <div className="text-white font-medium">{outcome.name}</div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-zinc-400">{outcome.bookmaker}</span>
-                        <RiskBadge bookmaker={outcome.bookmaker} />
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-zinc-500">Odds:</span>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={customOddsStrings[index] || ''}
-                          onChange={(e) => handleOddsChange(index, e.target.value)}
-                          className={`w-20 text-right text-lg font-bold bg-zinc-700 border rounded px-2 py-1 focus:outline-none focus:border-blue-500 ${
-                            isOddsChanged
-                              ? 'border-blue-500 text-blue-400' 
-                              : 'border-zinc-600 text-blue-400'
-                          }`}
-                        />
-                      </div>
-                      <div className="text-xs text-zinc-500 mt-1">
-                        {((1 / currentOdds) * 100).toFixed(1)}% implied
-                        {isOddsChanged && (
-                          <span className="text-zinc-600 ml-1">
-                            (was {originalOdds.toFixed(2)})
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-end justify-between">
-                    <div className="space-y-1">
-                      <div className="text-xs text-zinc-500">Stake:</div>
-                      <div className="flex items-center gap-1">
-                        <span className="text-zinc-400">$</span>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={customStakeStrings[index] || ''}
-                          onChange={(e) => handleStakeChange(index, e.target.value)}
-                          className={`w-28 text-xl font-bold bg-zinc-700 border rounded px-2 py-1 focus:outline-none focus:border-green-500 ${
-                            isStakeChanged
-                              ? 'border-green-500 text-white' 
-                              : 'border-zinc-600 text-white'
-                          }`}
-                        />
-                      </div>
-                      {isStakeChanged && (
-                        <div className="text-xs text-zinc-500">
-                          Optimal: ${optimalStake.toFixed(2)}
-                        </div>
-                      )}
-                    </div>
-                    
-                    <div className="text-right">
-                      <div className="text-xs text-zinc-500">Returns</div>
-                      <div className="text-white font-medium">
-                        ${getReturn(index).toFixed(2)}
-                      </div>
-                      <div className={`text-sm font-medium ${getProfit(index) >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                        {getProfit(index) >= 0 ? '+' : ''}${getProfit(index).toFixed(2)}
-                      </div>
-                    </div>
-                  </div>
+                    {stealthMode ? 'ON' : 'OFF'}
+                  </span>
                 </div>
-              );
-            })}
-          </div>
-
-          {/* Summary */}
-          <div className="p-4 bg-zinc-800/50 rounded-lg border border-zinc-700">
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div>
-                <div className="text-xs text-zinc-500 uppercase mb-1">Total Staked</div>
-                <div className="text-lg font-bold text-white">
-                  ${totalStaked.toFixed(2)}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-zinc-500 uppercase mb-1">Guaranteed Profit</div>
-                <div className={`text-lg font-bold ${minProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {minProfit >= 0 ? '+' : ''}${minProfit.toFixed(2)}
-                </div>
-                {profitVariance > 0.01 && (
-                  <div className="text-xs text-yellow-400">
-                    ⚠️ Varies by ${profitVariance.toFixed(2)}
-                  </div>
-                )}
-              </div>
-              <div>
-                <div className="text-xs text-zinc-500 uppercase mb-1">ROI</div>
-                <div className={`text-lg font-bold ${profitPercent >= 0 ? 'text-green-400' : 'text-red-400'}`}>
-                  {profitPercent >= 0 ? '+' : ''}{profitPercent.toFixed(2)}%
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Profit Breakdown per Outcome */}
-          {profitVariance > 0.01 && (
-            <div className="p-4 bg-yellow-900/20 border border-yellow-700/50 rounded-lg">
-              <h4 className="text-yellow-400 font-medium mb-2">⚠️ Unbalanced Stakes</h4>
-              <p className="text-sm text-yellow-300/80 mb-2">
-                Your custom stakes create different profits depending on which outcome wins:
-              </p>
-              <div className="space-y-1">
-                {outcomes.map((outcome, i) => (
-                  <div key={i} className="flex justify-between text-sm">
-                    <span className="text-zinc-400">If {outcome.name} wins:</span>
-                    <span className={getProfit(i) >= 0 ? 'text-green-400' : 'text-red-400'}>
-                      {getProfit(i) >= 0 ? '+' : ''}${getProfit(i).toFixed(2)}
-                    </span>
-                  </div>
-                ))}
+                <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
+                  Rounds stakes to look natural and avoid detection
+                </p>
               </div>
               <button
-                onClick={handleRecalculateOptimal}
-                className="mt-3 w-full py-2 bg-yellow-600 hover:bg-yellow-700 text-white text-sm font-medium rounded transition-colors"
+                onClick={() => {
+                  setStealthMode(!stealthMode);
+                  setStakesModified(false);
+                }}
+                className="relative w-12 h-6 rounded-full transition-colors"
+                style={{
+                  backgroundColor: stealthMode ? 'var(--success)' : 'var(--border)'
+                }}
               >
-                Recalculate Optimal Stakes
+                <span 
+                  className="absolute top-1 w-4 h-4 bg-white rounded-full transition-transform"
+                  style={{
+                    left: stealthMode ? '1.75rem' : '0.25rem'
+                  }}
+                />
               </button>
             </div>
-          )}
 
-          {/* Stealth Tips */}
-          {stealthMode && !stakesModified && (
-            <div className="p-4 bg-zinc-800/50 border border-zinc-700 rounded-lg">
-              <h4 className="text-zinc-400 font-medium mb-2">🥷 Stealth Tips</h4>
-              <ul className="text-sm text-zinc-500 space-y-1">
-                {outcomes.map((outcome, i) => {
-                  const profile = getBookmakerProfile(outcome.bookmaker);
-                  if (profile?.riskLevel === 'extreme' || profile?.riskLevel === 'high') {
-                    return (
-                      <li key={i}>
-                        • <strong className="text-zinc-400">{outcome.bookmaker}</strong>: {profile.recommendations[0]}
-                      </li>
-                    );
-                  }
-                  return null;
-                }).filter(Boolean)}
-                <li>• Place bets 1-2 hours before event starts</li>
-                <li>• Consider a mug bet after this arb</li>
-              </ul>
+            {/* Total Stake Input */}
+            <div>
+              <label className="block text-sm mb-2" style={{ color: 'var(--muted)' }}>Total Stake (for optimal calculation)</label>
+              <div className="relative">
+                <span 
+                  className="absolute left-3 top-1/2 -translate-y-1/2"
+                  style={{ color: 'var(--muted)' }}
+                >$</span>
+                <input
+                  type="number"
+                  value={totalStake}
+                  onChange={(e) => {
+                    setTotalStake(e.target.value);
+                    setStakesModified(false);
+                  }}
+                  className="w-full pl-8 pr-4 py-3 text-lg font-medium focus:outline-none rounded-lg border"
+                  style={{
+                    backgroundColor: 'var(--surface)',
+                    borderColor: 'var(--border)',
+                    color: 'var(--foreground)'
+                  }}
+                  placeholder="100"
+                  min="0"
+                  step="10"
+                />
+              </div>
+              <div className="flex gap-2 mt-2">
+                {[50, 100, 250, 500, 1000].map((amount) => (
+                  <button
+                    key={amount}
+                    onClick={() => {
+                      setTotalStake(amount.toString());
+                      setStakesModified(false);
+                    }}
+                    className="px-3 py-1 text-sm border rounded transition-colors hover:bg-[var(--surface-hover)]"
+                    style={{
+                      backgroundColor: 'var(--surface)',
+                      borderColor: 'var(--border)',
+                      color: 'var(--muted)'
+                    }}
+                  >
+                    ${amount}
+                  </button>
+                ))}
+              </div>
             </div>
-          )}
-        </div>
 
-        {/* Footer */}
-        <div className="sticky bottom-0 bg-zinc-900 border-t border-zinc-700 px-6 py-4 flex gap-3">
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-lg transition-colors border border-zinc-700"
+            {/* Modified Warning */}
+            {(oddsModified || stakesModified) && (
+              <div 
+                className="flex items-center justify-between p-3 rounded-lg border"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--info) 10%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--info) 30%, transparent)'
+                }}
+              >
+                <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--info)' }}>
+                  <span>✏️</span>
+                  <span>
+                    {oddsModified && stakesModified 
+                      ? 'Odds and stakes modified' 
+                      : oddsModified 
+                        ? 'Odds modified from original' 
+                        : 'Stakes manually adjusted'}
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  {stakesModified && (
+                    <button
+                      onClick={handleRecalculateOptimal}
+                      className="text-xs px-2 py-1 rounded transition-colors"
+                      style={{
+                        backgroundColor: 'var(--success)',
+                        color: 'white'
+                      }}
+                    >
+                      Recalculate Optimal
+                    </button>
+                  )}
+                  <button
+                    onClick={resetAll}
+                    className="text-xs px-2 py-1 rounded transition-colors"
+                    style={{
+                      backgroundColor: 'var(--surface)',
+                      color: 'var(--foreground)'
+                    }}
+                  >
+                    Reset All
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Stakes Breakdown */}
+            <div className="space-y-3">
+              <h3 className="text-sm" style={{ color: 'var(--muted)' }}>Individual Stakes</h3>
+              
+              {outcomes.map((outcome, index) => {
+                const originalOdds = getOutcomesFromArb(arb)[index].odds;
+                const currentOdds = oddsToUse[index];
+                const isOddsChanged = Math.abs(currentOdds - originalOdds) > 0.001;
+                
+                const currentStake = stakesToUse[index];
+                const optimalStake = optimalStakes[index] || 0;
+                const isStakeChanged = stakesModified && Math.abs(currentStake - optimalStake) > 0.01;
+                
+                return (
+                  <div 
+                    key={index}
+                    className="p-4 rounded-lg border"
+                    style={{
+                      backgroundColor: 'var(--surface)',
+                      borderColor: 'var(--border)'
+                    }}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <div className="font-medium" style={{ color: 'var(--foreground)' }}>{outcome.name}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm" style={{ color: 'var(--muted)' }}>{outcome.bookmaker}</span>
+                          <RiskBadge bookmaker={outcome.bookmaker} />
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Odds:</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={customOddsStrings[index] || ''}
+                            onChange={(e) => handleOddsChange(index, e.target.value)}
+                            className="w-20 text-right text-lg font-bold rounded px-2 py-1 focus:outline-none border"
+                            style={{
+                              backgroundColor: 'var(--surface-secondary)',
+                              borderColor: isOddsChanged ? 'var(--info)' : 'var(--border)',
+                              color: 'var(--info)'
+                            }}
+                          />
+                        </div>
+                        <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
+                          {((1 / currentOdds) * 100).toFixed(1)}% implied
+                          {isOddsChanged && (
+                            <span className="ml-1" style={{ color: 'var(--muted)' }}>
+                              (was {originalOdds.toFixed(2)})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-end justify-between">
+                      <div className="space-y-1">
+                        <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Stake:</div>
+                        <div className="flex items-center gap-1">
+                          <span style={{ color: 'var(--muted)' }}>$</span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={customStakeStrings[index] || ''}
+                            onChange={(e) => handleStakeChange(index, e.target.value)}
+                            className="w-28 text-xl font-bold rounded px-2 py-1 focus:outline-none border"
+                            style={{
+                              backgroundColor: 'var(--surface-secondary)',
+                              borderColor: isStakeChanged ? 'var(--success)' : 'var(--border)',
+                              color: 'var(--foreground)'
+                            }}
+                          />
+                        </div>
+                        {isStakeChanged && (
+                          <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                            Optimal: ${optimalStake.toFixed(2)}
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="text-right">
+                        <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Returns</div>
+                        <div className="font-medium" style={{ color: 'var(--foreground)' }}>
+                          ${getReturn(index).toFixed(2)}
+                        </div>
+                        <div 
+                          className="text-sm font-medium"
+                          style={{ color: getProfit(index) >= 0 ? 'var(--success)' : 'var(--danger)' }}
+                        >
+                          {getProfit(index) >= 0 ? '+' : ''}${getProfit(index).toFixed(2)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Summary */}
+            <div 
+              className="p-4 rounded-lg border"
+              style={{
+                backgroundColor: 'var(--surface)',
+                borderColor: 'var(--border)'
+              }}
+            >
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <div className="text-xs uppercase mb-1" style={{ color: 'var(--muted-foreground)' }}>Total Staked</div>
+                  <div className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>
+                    ${totalStaked.toFixed(2)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase mb-1" style={{ color: 'var(--muted-foreground)' }}>Guaranteed Profit</div>
+                  <div 
+                    className="text-lg font-bold"
+                    style={{ color: minProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}
+                  >
+                    {minProfit >= 0 ? '+' : ''}${minProfit.toFixed(2)}
+                  </div>
+                  {profitVariance > 0.01 && (
+                    <div className="text-xs text-yellow-400">
+                      ⚠️ Varies by ${profitVariance.toFixed(2)}
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <div className="text-xs uppercase mb-1" style={{ color: 'var(--muted-foreground)' }}>ROI</div>
+                  <div 
+                    className="text-lg font-bold"
+                    style={{ color: profitPercent >= 0 ? 'var(--success)' : 'var(--danger)' }}
+                  >
+                    {profitPercent >= 0 ? '+' : ''}{profitPercent.toFixed(2)}%
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Profit Breakdown per Outcome */}
+            {profitVariance > 0.01 && (
+              <div 
+                className="p-4 rounded-lg border"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--warning) 10%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)'
+                }}
+              >
+                <h4 className="font-medium mb-2 text-yellow-400">⚠️ Unbalanced Stakes</h4>
+                <p className="text-sm mb-2" style={{ color: 'var(--muted)' }}>
+                  Your custom stakes create different profits depending on which outcome wins:
+                </p>
+                <div className="space-y-1">
+                  {outcomes.map((outcome, i) => (
+                    <div key={i} className="flex justify-between text-sm">
+                      <span style={{ color: 'var(--muted)' }}>If {outcome.name} wins:</span>
+                      <span style={{ color: getProfit(i) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                        {getProfit(i) >= 0 ? '+' : ''}${getProfit(i).toFixed(2)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  onClick={handleRecalculateOptimal}
+                  className="mt-3 w-full py-2 text-sm font-medium rounded transition-colors"
+                  style={{
+                    backgroundColor: 'var(--warning)',
+                    color: 'black'
+                  }}
+                >
+                  Recalculate Optimal Stakes
+                </button>
+              </div>
+            )}
+
+            {/* Stealth Tips */}
+            {stealthMode && !stakesModified && (
+              <div 
+                className="p-4 rounded-lg border"
+                style={{
+                  backgroundColor: 'var(--surface)',
+                  borderColor: 'var(--border)'
+                }}
+              >
+                <h4 className="font-medium mb-2" style={{ color: 'var(--muted)' }}>🥷 Stealth Tips</h4>
+                <ul className="text-sm space-y-1" style={{ color: 'var(--muted-foreground)' }}>
+                  {outcomes.map((outcome, i) => {
+                    const profile = getBookmakerProfile(outcome.bookmaker);
+                    if (profile?.riskLevel === 'extreme' || profile?.riskLevel === 'high') {
+                      return (
+                        <li key={i}>
+                          • <strong style={{ color: 'var(--muted)' }}>{outcome.bookmaker}</strong>: {profile.recommendations[0]}
+                        </li>
+                      );
+                    }
+                    return null;
+                  }).filter(Boolean)}
+                  <li>• Place bets 1-2 hours before event starts</li>
+                  <li>• Consider a mug bet after this arb</li>
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div 
+            className="sticky bottom-0 px-6 py-4 flex gap-3 border-t rounded-b-lg"
+            style={{
+              backgroundColor: 'var(--background)',
+              borderColor: 'var(--border)'
+            }}
           >
-            Cancel
-          </button>
-          <button
-            onClick={handleLogBet}
-            className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
-          >
-            Log Bet
-          </button>
+            <button
+              onClick={onClose}
+              className="flex-1 py-3 font-medium rounded-lg transition-colors border hover:bg-[var(--surface)]"
+              style={{
+                backgroundColor: 'transparent',
+                borderColor: 'var(--border)',
+                color: 'var(--foreground)'
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleLogBet}
+              className="flex-1 py-3 font-medium rounded-lg transition-colors"
+              style={{
+                backgroundColor: 'var(--info)',
+                color: 'white'
+              }}
+            >
+              Log Bet
+            </button>
+          </div>
         </div>
       </div>
     </div>

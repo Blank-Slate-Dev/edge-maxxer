@@ -66,9 +66,15 @@ function getTimeUntil(date: Date): string {
 export function ArbTable({ opportunities, onSelectArb, globalMode = false }: ArbTableProps) {
   if (opportunities.length === 0) {
     return (
-      <div className="border border-[#222] bg-[#0a0a0a] p-12 text-center">
-        <p className="text-[#888] mb-2">No arbitrage opportunities found</p>
-        <p className="text-xs text-[#555]">
+      <div 
+        className="border p-12 text-center rounded-lg"
+        style={{
+          borderColor: 'var(--border)',
+          backgroundColor: 'var(--surface)'
+        }}
+      >
+        <p style={{ color: 'var(--muted)' }} className="mb-2">No arbitrage opportunities found</p>
+        <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
           Click Scan to search for opportunities, or adjust filters
         </p>
       </div>
@@ -76,26 +82,32 @@ export function ArbTable({ opportunities, onSelectArb, globalMode = false }: Arb
   }
 
   return (
-    <div className="border border-[#222] bg-[#0a0a0a] overflow-x-auto">
+    <div 
+      className="border overflow-x-auto rounded-lg"
+      style={{
+        borderColor: 'var(--border)',
+        backgroundColor: 'var(--surface)'
+      }}
+    >
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-b border-[#222]">
-            <th className="text-left px-4 py-3 text-xs text-[#666] uppercase tracking-wide font-medium">
+          <tr style={{ borderBottom: '1px solid var(--border)' }}>
+            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
               Type
             </th>
-            <th className="text-left px-4 py-3 text-xs text-[#666] uppercase tracking-wide font-medium">
+            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
               Event
             </th>
-            <th className="text-left px-4 py-3 text-xs text-[#666] uppercase tracking-wide font-medium">
+            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
               Time (AEST)
             </th>
-            <th className="text-left px-4 py-3 text-xs text-[#666] uppercase tracking-wide font-medium">
+            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
               Bets Required
             </th>
-            <th className="text-right px-4 py-3 text-xs text-[#666] uppercase tracking-wide font-medium">
+            <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
               Profit
             </th>
-            <th className="text-right px-4 py-3 text-xs text-[#666] uppercase tracking-wide font-medium">
+            <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
               Action
             </th>
           </tr>
@@ -116,25 +128,28 @@ function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: 
   const timeUntil = getTimeUntil(eventDate);
 
   return (
-    <tr className="border-b border-[#222] hover:bg-[#111] transition-colors">
+    <tr 
+      className="hover:bg-[var(--background)] transition-colors"
+      style={{ borderBottom: '1px solid var(--border)' }}
+    >
       <td className="px-4 py-3">
         <TypeBadge type={opp.type} />
         {opp.mode === 'book-vs-betfair' && (
-          <span className="ml-1 text-xs px-1.5 py-0.5 bg-purple-900/50 text-purple-400">
+          <span className="ml-1 text-xs px-1.5 py-0.5 bg-purple-900/50 text-purple-400 rounded">
             BF
           </span>
         )}
       </td>
       <td className="px-4 py-3">
-        <div className="font-medium">{opp.event.homeTeam}</div>
-        <div className="text-[#666]">vs {opp.event.awayTeam}</div>
-        <div className="text-xs text-[#555] mt-1">{opp.event.sportTitle}</div>
+        <div className="font-medium" style={{ color: 'var(--foreground)' }}>{opp.event.homeTeam}</div>
+        <div style={{ color: 'var(--muted)' }}>vs {opp.event.awayTeam}</div>
+        <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>{opp.event.sportTitle}</div>
       </td>
       <td className="px-4 py-3">
-        <div className={`${soon ? 'text-yellow-500' : 'text-[#888]'}`}>
+        <div className={soon ? 'text-yellow-500' : ''} style={soon ? {} : { color: 'var(--muted)' }}>
           {formatEventTime(eventDate)}
         </div>
-        <div className={`text-xs mt-0.5 ${soon ? 'text-yellow-500' : 'text-[#555]'}`}>
+        <div className={`text-xs mt-0.5 ${soon ? 'text-yellow-500' : ''}`} style={soon ? {} : { color: 'var(--muted-foreground)' }}>
           {timeUntil === 'Started' ? 'In progress' : `Starts in ${timeUntil}`}
         </div>
       </td>
@@ -173,24 +188,29 @@ function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: 
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-purple-400">Lay</span>
-                <span className="font-mono text-white">{opp.layOutcome.odds.toFixed(2)}</span>
+                <span className="font-mono" style={{ color: 'var(--foreground)' }}>{opp.layOutcome.odds.toFixed(2)}</span>
               </div>
-              <div className="text-xs text-[#555]">Betfair Exchange</div>
+              <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Betfair Exchange</div>
             </div>
           </div>
         )}
       </td>
       <td className="px-4 py-3 text-right">
-        <span className={`font-mono font-medium ${
-          opp.profitPercentage >= 0 ? 'text-white' : 'text-[#666]'
-        }`}>
+        <span 
+          className="font-mono font-medium"
+          style={{ color: opp.profitPercentage >= 0 ? 'var(--foreground)' : 'var(--muted)' }}
+        >
           {opp.profitPercentage >= 0 ? '+' : ''}{opp.profitPercentage.toFixed(2)}%
         </span>
       </td>
       <td className="px-4 py-3 text-right">
         <button
           onClick={() => onSelect(opp)}
-          className="px-3 py-1 text-xs border border-[#333] text-[#888] hover:bg-white hover:text-black hover:border-white transition-colors"
+          className="px-3 py-1 text-xs font-medium rounded transition-colors"
+          style={{
+            backgroundColor: 'var(--foreground)',
+            color: 'var(--background)'
+          }}
         >
           Calculate
         </button>
@@ -203,10 +223,10 @@ function BetLine({ name, odds, bookmaker, showRegion }: { name: string; odds: nu
   return (
     <div>
       <div className="flex items-center gap-2">
-        <span className="text-white font-medium">{name}</span>
-        <span className="font-mono text-white">{odds.toFixed(2)}</span>
+        <span className="font-medium" style={{ color: 'var(--foreground)' }}>{name}</span>
+        <span className="font-mono" style={{ color: 'var(--foreground)' }}>{odds.toFixed(2)}</span>
       </div>
-      <div className="flex items-center gap-1 text-xs text-[#555]">
+      <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
         <span>{getBookmakerName(bookmaker)}</span>
         {showRegion && <RegionBadge bookmaker={bookmaker} />}
       </div>
@@ -217,13 +237,25 @@ function BetLine({ name, odds, bookmaker, showRegion }: { name: string; odds: nu
 function TypeBadge({ type }: { type: string }) {
   if (type === 'arb') {
     return (
-      <span className="inline-block px-2 py-0.5 text-xs font-medium bg-white text-black">
+      <span 
+        className="inline-block px-2 py-0.5 text-xs font-medium rounded"
+        style={{
+          backgroundColor: 'var(--foreground)',
+          color: 'var(--background)'
+        }}
+      >
         ARB
       </span>
     );
   }
   return (
-    <span className="inline-block px-2 py-0.5 text-xs font-medium bg-[#333] text-[#888]">
+    <span 
+      className="inline-block px-2 py-0.5 text-xs font-medium rounded"
+      style={{
+        backgroundColor: 'var(--surface-secondary)',
+        color: 'var(--muted)'
+      }}
+    >
       NEAR
     </span>
   );

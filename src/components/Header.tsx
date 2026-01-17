@@ -59,7 +59,7 @@ export function Header({
         <div className="flex items-center justify-between">
           {/* Logo & Brand */}
           <div className="flex items-center gap-6">
-            <Link href="/dashboard" className="flex items-center gap-3">
+            <Link href="/dashboard" className="flex items-center">
               {theme === 'dark' ? (
                 <Image
                   src="/logo_thin_dark_version.png"

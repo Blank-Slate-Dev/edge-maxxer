@@ -12,7 +12,7 @@
   --surface: #232321;
   --surface-hover: #2a2a28;
   --surface-secondary: #1a1a18;
-  --accent: #ffffff;
+  --accent: #f0efeb;
   --accent-foreground: #1c1c1a;
   --success: #22c55e;
   --success-muted: #166534;
@@ -79,6 +79,11 @@
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  scrollbar-gutter: stable;
+  overflow-y: scroll; /* Always reserve space for scrollbar to prevent layout shift */
 }
 
 body {

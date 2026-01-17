@@ -17,6 +17,19 @@ export const metadata: Metadata = {
   },
 };
 
+// Inline script to prevent flash of wrong theme
+// This runs before React hydrates, applying the correct theme immediately
+const themeScript = `
+  (function() {
+    try {
+      var theme = localStorage.getItem('edge-maxxer-theme');
+      if (theme === 'light') {
+        document.documentElement.classList.add('light');
+      }
+    } catch (e) {}
+  })();
+`;
+
 export default function RootLayout({
   children,
 }: {
@@ -24,6 +37,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{ __html: themeScript }}
+        />
+      </head>
       <body className="antialiased">
         <AuthProvider>
           <ThemeProvider>

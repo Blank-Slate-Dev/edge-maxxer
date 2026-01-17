@@ -43,7 +43,7 @@ function isEventSoon(dateString: string): boolean {
 // Get mode badge
 function ModeBadge({ mode }: { mode: PlacedBet['mode'] }) {
   const styles: Record<string, { bg: string; text: string; label: string }> = {
-    'book-vs-book': { bg: 'bg-[#222]', text: 'text-[#888]', label: 'H2H' },
+    'book-vs-book': { bg: 'bg-[var(--surface-secondary)]', text: 'text-[var(--muted)]', label: 'H2H' },
     'book-vs-betfair': { bg: 'bg-purple-900/50', text: 'text-purple-400', label: 'Betfair' },
     'value-bet': { bg: 'bg-blue-900/50', text: 'text-blue-400', label: 'Value' },
     'spread': { bg: 'bg-orange-900/50', text: 'text-orange-400', label: 'Spread' },
@@ -53,7 +53,7 @@ function ModeBadge({ mode }: { mode: PlacedBet['mode'] }) {
   const style = styles[mode] || styles['book-vs-book'];
   
   return (
-    <span className={`text-xs px-1.5 py-0.5 ${style.bg} ${style.text}`}>
+    <span className={`text-xs px-1.5 py-0.5 rounded ${style.bg} ${style.text}`}>
       {style.label}
     </span>
   );
@@ -66,10 +66,16 @@ export function BetTracker({ bets, onUpdateBet, onDeleteBet, onClearAll }: BetTr
 
   if (bets.length === 0) {
     return (
-      <div className="border border-[#222] bg-[#0a0a0a]">
+      <div 
+        className="border rounded-lg"
+        style={{
+          borderColor: 'var(--border)',
+          backgroundColor: 'var(--surface)'
+        }}
+      >
         <div className="px-6 py-8 text-center">
-          <p className="text-[#666] mb-2">No bets logged yet</p>
-          <p className="text-xs text-[#444]">
+          <p style={{ color: 'var(--muted)' }} className="mb-2">No bets logged yet</p>
+          <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
             Use the calculator to log your bets and track performance
           </p>
         </div>
@@ -78,29 +84,48 @@ export function BetTracker({ bets, onUpdateBet, onDeleteBet, onClearAll }: BetTr
   }
 
   return (
-    <div className="border border-[#222] bg-[#0a0a0a]">
+    <div 
+      className="border rounded-lg"
+      style={{
+        borderColor: 'var(--border)',
+        backgroundColor: 'var(--surface)'
+      }}
+    >
       {/* Header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-[#111] transition-colors border-b border-[#222]"
+        className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-[var(--surface-hover)] transition-colors border-b"
+        style={{ borderColor: 'var(--border)' }}
       >
         <div className="flex items-center gap-3">
-          <span className="font-medium">Bet History</span>
-          <span className="text-xs px-2 py-0.5 bg-[#222] text-[#888]">
+          <span className="font-medium" style={{ color: 'var(--foreground)' }}>Bet History</span>
+          <span 
+            className="text-xs px-2 py-0.5 rounded"
+            style={{
+              backgroundColor: 'var(--surface-secondary)',
+              color: 'var(--muted)'
+            }}
+          >
             {bets.length}
           </span>
         </div>
         {isExpanded ? (
-          <ChevronUp className="w-4 h-4 text-[#666]" />
+          <ChevronUp className="w-4 h-4" style={{ color: 'var(--muted)' }} />
         ) : (
-          <ChevronDown className="w-4 h-4 text-[#666]" />
+          <ChevronDown className="w-4 h-4" style={{ color: 'var(--muted)' }} />
         )}
       </button>
 
       {isExpanded && (
         <>
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-[#222] border-b border-[#222]">
+          <div 
+            className="grid grid-cols-2 md:grid-cols-4 gap-px border-b"
+            style={{ 
+              backgroundColor: 'var(--border)',
+              borderColor: 'var(--border)'
+            }}
+          >
             <StatCard
               icon={<Target className="w-4 h-4" />}
               label="Total Bets"
@@ -128,7 +153,10 @@ export function BetTracker({ bets, onUpdateBet, onDeleteBet, onClearAll }: BetTr
           </div>
 
           {/* Bet List */}
-          <div className="divide-y divide-[#222] max-h-96 overflow-y-auto">
+          <div 
+            className="divide-y max-h-96 overflow-y-auto"
+            style={{ borderColor: 'var(--border)' }}
+          >
             {bets.map(bet => (
               <BetRow
                 key={bet.id}
@@ -140,22 +168,33 @@ export function BetTracker({ bets, onUpdateBet, onDeleteBet, onClearAll }: BetTr
           </div>
 
           {/* Footer Actions */}
-          <div className="px-6 py-3 border-t border-[#222] flex justify-end">
+          <div 
+            className="px-6 py-3 border-t flex justify-end"
+            style={{ borderColor: 'var(--border)' }}
+          >
             {showConfirmClear ? (
               <div className="flex items-center gap-3">
-                <span className="text-xs text-[#888]">Clear all bets?</span>
+                <span className="text-xs" style={{ color: 'var(--muted)' }}>Clear all bets?</span>
                 <button
                   onClick={() => {
                     onClearAll();
                     setShowConfirmClear(false);
                   }}
-                  className="text-xs px-3 py-1 bg-white text-black hover:bg-[#eee] transition-colors"
+                  className="text-xs px-3 py-1 transition-colors rounded"
+                  style={{
+                    backgroundColor: 'var(--foreground)',
+                    color: 'var(--background)'
+                  }}
                 >
                   Yes, clear
                 </button>
                 <button
                   onClick={() => setShowConfirmClear(false)}
-                  className="text-xs px-3 py-1 border border-[#333] text-[#888] hover:border-[#555] transition-colors"
+                  className="text-xs px-3 py-1 border transition-colors rounded"
+                  style={{
+                    borderColor: 'var(--border)',
+                    color: 'var(--muted)'
+                  }}
                 >
                   Cancel
                 </button>
@@ -163,7 +202,8 @@ export function BetTracker({ bets, onUpdateBet, onDeleteBet, onClearAll }: BetTr
             ) : (
               <button
                 onClick={() => setShowConfirmClear(true)}
-                className="text-xs text-[#666] hover:text-white transition-colors"
+                className="text-xs transition-colors"
+                style={{ color: 'var(--muted)' }}
               >
                 Clear all
               </button>
@@ -189,14 +229,21 @@ function StatCard({
   negative?: boolean;
 }) {
   return (
-    <div className="bg-[#0a0a0a] px-4 py-3">
-      <div className="flex items-center gap-2 text-[#666] mb-1">
+    <div className="px-4 py-3" style={{ backgroundColor: 'var(--surface)' }}>
+      <div className="flex items-center gap-2 mb-1" style={{ color: 'var(--muted)' }}>
         {icon}
         <span className="text-xs uppercase tracking-wide">{label}</span>
       </div>
-      <div className={`text-lg font-mono font-medium ${
-        highlight ? 'text-white' : negative ? 'text-[#888]' : 'text-[#888]'
-      }`}>
+      <div 
+        className="text-lg font-mono font-medium"
+        style={{ 
+          color: highlight 
+            ? 'var(--success)' 
+            : negative 
+              ? 'var(--danger)' 
+              : 'var(--muted)' 
+        }}
+      >
         {value}
       </div>
     </div>
@@ -429,17 +476,26 @@ function BetRow({
   };
 
   return (
-    <div className="px-6 py-4 hover:bg-[#111] transition-colors">
+    <div 
+      className="px-6 py-4 hover:bg-[var(--surface-hover)] transition-colors"
+      style={{ borderColor: 'var(--border)' }}
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           {/* Event Title */}
           <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="font-medium truncate">
+            <span className="font-medium truncate" style={{ color: 'var(--foreground)' }}>
               {bet.event.homeTeam} vs {bet.event.awayTeam}
             </span>
             <ModeBadge mode={bet.mode} />
             {is3Way && (
-              <span className="text-xs px-1.5 py-0.5 bg-[#222] text-[#888]">
+              <span 
+                className="text-xs px-1.5 py-0.5 rounded"
+                style={{
+                  backgroundColor: 'var(--surface-secondary)',
+                  color: 'var(--muted)'
+                }}
+              >
                 3-way
               </span>
             )}
@@ -447,19 +503,16 @@ function BetRow({
           
           {/* Event Time */}
           <div className="flex items-center gap-3 mb-2 text-xs flex-wrap">
-            <div className={`flex items-center gap-1 ${
-              eventPast 
-                ? 'text-[#666]' 
-                : eventSoon 
-                  ? 'text-yellow-500' 
-                  : 'text-[#888]'
-            }`}>
+            <div 
+              className={`flex items-center gap-1 ${eventSoon ? 'text-yellow-500' : ''}`}
+              style={!eventPast && !eventSoon ? { color: 'var(--muted)' } : eventPast ? { color: 'var(--muted)' } : {}}
+            >
               <Clock className="w-3 h-3" />
               <span>{formatEventTime(bet.event.commenceTime)}</span>
-              {eventPast && <span className="text-[#555]">(finished)</span>}
+              {eventPast && <span style={{ color: 'var(--muted-foreground)' }}>(finished)</span>}
               {eventSoon && <span className="text-yellow-500">(soon!)</span>}
             </div>
-            <div className="flex items-center gap-1 text-[#555]">
+            <div className="flex items-center gap-1" style={{ color: 'var(--muted-foreground)' }}>
               <Calendar className="w-3 h-3" />
               <span>Placed {format(new Date(bet.createdAt), 'MMM d, h:mm a')}</span>
             </div>
@@ -515,11 +568,11 @@ function BetRow({
                   bookmaker={bet.backBet.bookmaker}
                   prefix="Back"
                 />
-                <div className="flex justify-between text-[#666]">
+                <div className="flex justify-between" style={{ color: 'var(--muted)' }}>
                   <span>
                     Lay ${bet.layBet.stake.toFixed(2)} @ {bet.layBet.odds} (liability: ${bet.layBet.liability.toFixed(2)})
                   </span>
-                  <span className="text-[#888]">
+                  <span style={{ color: 'var(--muted)' }}>
                     Return: ${(bet.layBet.stake + bet.layBet.liability).toFixed(2)}
                   </span>
                 </div>
@@ -535,8 +588,11 @@ function BetRow({
           </div>
 
           {/* Summary Line */}
-          <div className="flex items-center gap-4 text-xs pt-1 border-t border-[#1a1a1a] flex-wrap">
-            <span className="text-[#555]">
+          <div 
+            className="flex items-center gap-4 text-xs pt-1 border-t flex-wrap"
+            style={{ borderColor: 'var(--border-light)' }}
+          >
+            <span style={{ color: 'var(--muted-foreground)' }}>
               Total: ${totalStake.toFixed(2)}
             </span>
             {isValueBet ? (
@@ -564,7 +620,12 @@ function BetRow({
           <select
             value={getCurrentOutcomeId()}
             onChange={e => handleOutcomeSelect(e.target.value)}
-            className="bg-[#111] border border-[#333] text-xs px-2 py-1 focus:outline-none focus:border-white max-w-[160px]"
+            className="text-xs px-2 py-1 focus:outline-none max-w-[160px] rounded"
+            style={{
+              backgroundColor: 'var(--surface-secondary)',
+              borderColor: 'var(--border)',
+              color: 'var(--foreground)'
+            }}
           >
             <option value="pending">Pending</option>
             <optgroup label="Select Outcome">
@@ -580,7 +641,7 @@ function BetRow({
           {/* Actual Profit Display / Edit */}
           <div className="w-24 text-right">
             {bet.status === 'pending' ? (
-              <div className="text-xs text-[#666]">
+              <div className="text-xs" style={{ color: 'var(--muted)' }}>
                 Exp: ${bet.expectedProfit.toFixed(2)}
               </div>
             ) : isEditingProfit || getCurrentOutcomeId() === 'manual' ? (
@@ -589,7 +650,12 @@ function BetRow({
                   type="number"
                   value={manualProfit}
                   onChange={e => setManualProfit(e.target.value)}
-                  className="w-16 bg-[#111] border border-[#333] text-xs px-2 py-1 font-mono focus:outline-none focus:border-white"
+                  className="w-16 text-xs px-2 py-1 font-mono focus:outline-none rounded"
+                  style={{
+                    backgroundColor: 'var(--surface-secondary)',
+                    borderColor: 'var(--border)',
+                    color: 'var(--foreground)'
+                  }}
                   placeholder="0.00"
                   autoFocus
                   onBlur={handleManualProfitSave}
@@ -602,7 +668,7 @@ function BetRow({
                   setManualProfit(bet.actualProfit?.toString() || '');
                   setIsEditingProfit(true);
                 }}
-                className="text-xs font-mono hover:text-white transition-colors"
+                className="text-xs font-mono transition-colors"
                 title="Click to edit manually"
               >
                 {bet.actualProfit !== undefined ? (
@@ -610,7 +676,7 @@ function BetRow({
                     {bet.actualProfit >= 0 ? '+' : ''}${bet.actualProfit.toFixed(2)}
                   </span>
                 ) : (
-                  <span className="text-[#666]">Set profit</span>
+                  <span style={{ color: 'var(--muted)' }}>Set profit</span>
                 )}
               </button>
             )}
@@ -619,7 +685,8 @@ function BetRow({
           {/* Delete */}
           <button
             onClick={onDelete}
-            className="p-1 text-[#666] hover:text-white transition-colors"
+            className="p-1 transition-colors"
+            style={{ color: 'var(--muted)' }}
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -648,14 +715,14 @@ function BetLine({
   const returnAmount = stake * odds;
   
   return (
-    <div className="flex justify-between text-[#666]">
+    <div className="flex justify-between" style={{ color: 'var(--muted)' }}>
       <span>
-        {prefix && <span className="text-[#888]">{prefix} </span>}
+        {prefix && <span style={{ color: 'var(--muted)' }}>{prefix} </span>}
         ${stake.toFixed(2)} on {outcome}
-        {point !== undefined && <span className="text-[#888]"> ({point > 0 ? '+' : ''}{point})</span>}
+        {point !== undefined && <span style={{ color: 'var(--muted)' }}> ({point > 0 ? '+' : ''}{point})</span>}
         {' '}@ {odds.toFixed(2)} ({bookmaker})
       </span>
-      <span className="text-[#888] ml-4 whitespace-nowrap">
+      <span className="ml-4 whitespace-nowrap" style={{ color: 'var(--muted)' }}>
         Return: ${returnAmount.toFixed(2)}
       </span>
     </div>
