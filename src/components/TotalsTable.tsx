@@ -3,6 +3,7 @@
 
 import type { TotalsArb, MiddleOpportunity } from '@/lib/types';
 import { getBookmakerName, getBookmakerRegion } from '@/lib/config';
+import { buildBookmakerSearchUrl } from '@/lib/bookmakerLinks';
 
 interface TotalsTableProps {
   totals: TotalsArb[];
@@ -177,6 +178,20 @@ function TotalsRow({ total, onSelect, globalMode }: { total: TotalsArb; onSelect
   const soon = isEventSoon(eventDate);
   const timeUntil = getTimeUntil(eventDate);
 
+  const overHref = buildBookmakerSearchUrl(total.over.bookmaker, {
+    home_team: total.event.homeTeam,
+    away_team: total.event.awayTeam,
+    sport_title: total.event.sportTitle,
+    commence_time: String(total.event.commenceTime),
+  }) ?? undefined;
+
+  const underHref = buildBookmakerSearchUrl(total.under.bookmaker, {
+    home_team: total.event.homeTeam,
+    away_team: total.event.awayTeam,
+    sport_title: total.event.sportTitle,
+    commence_time: String(total.event.commenceTime),
+  }) ?? undefined;
+
   return (
     <tr 
       className="hover:bg-[var(--background)] transition-colors"
@@ -211,7 +226,16 @@ function TotalsRow({ total, onSelect, globalMode }: { total: TotalsArb; onSelect
               <span style={{ color: 'var(--muted)' }}>@ {total.over.odds.toFixed(2)}</span>
             </div>
             <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              <span>{getBookmakerName(total.over.bookmaker)}</span>
+              <a
+                href={overHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:underline"
+                style={{ color: 'var(--muted-foreground)' }}
+                title="Open bookmaker search"
+              >
+                {getBookmakerName(total.over.bookmaker)}
+              </a>
               {globalMode && <RegionBadge bookmaker={total.over.bookmaker} />}
             </div>
           </div>
@@ -222,7 +246,16 @@ function TotalsRow({ total, onSelect, globalMode }: { total: TotalsArb; onSelect
               <span style={{ color: 'var(--muted)' }}>@ {total.under.odds.toFixed(2)}</span>
             </div>
             <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              <span>{getBookmakerName(total.under.bookmaker)}</span>
+              <a
+                href={underHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:underline"
+                style={{ color: 'var(--muted-foreground)' }}
+                title="Open bookmaker search"
+              >
+                {getBookmakerName(total.under.bookmaker)}
+              </a>
               {globalMode && <RegionBadge bookmaker={total.under.bookmaker} />}
             </div>
           </div>

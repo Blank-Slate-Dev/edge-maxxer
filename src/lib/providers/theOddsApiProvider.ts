@@ -2,6 +2,7 @@
 import type { SportEvent, BookmakerOdds } from '../types';
 import type { OddsProvider, ProviderResult, Sport, TheOddsApiEvent } from './types';
 import { theOddsApiResponseSchema, theOddsApiSportsResponseSchema } from './types';
+import { getCache } from '../cache';
 
 // Priority sports - these have the most arb opportunities and should be fetched first
 const PRIORITY_SPORTS = [
@@ -21,8 +22,22 @@ const PRIORITY_SPORTS = [
   'aussierules_afl', 'rugbyleague_nrl',
 ];
 
-// Number of sports to fetch in parallel
-const PARALLEL_BATCH_SIZE = 6;
+// ============================================================================
+// PERFORMANCE TUNING CONSTANTS
+// ============================================================================
+
+// Higher concurrency for faster scans - retry logic handles any 429s
+const PARALLEL_BATCH_SIZE = 10;
+
+// Retry configuration for 429 errors - this is our safety net
+const RETRY_CONFIG = {
+  MAX_RETRIES: 2,
+  BASE_DELAY_MS: 800,
+  MAX_DELAY_MS: 3000,
+};
+
+// Only stop if critically low on quota
+const MIN_REMAINING_REQUESTS = 10;
 
 export class TheOddsApiProvider implements OddsProvider {
   name = 'The Odds API';
@@ -44,12 +59,23 @@ export class TheOddsApiProvider implements OddsProvider {
       return [];
     }
 
+    // Check server-side memory cache first
+    const cache = getCache();
+    const cachedSports = cache.getSports();
+    if (cachedSports) {
+      console.log(`[TheOddsApiProvider] Using cached sports list (${cachedSports.length} sports)`);
+      return cachedSports;
+    }
+
     const url = `${this.baseUrl}/sports/?apiKey=${this.apiKey}`;
     
     try {
+      console.log('[TheOddsApiProvider] Fetching sports list from API...');
+      const startTime = Date.now();
+      
       const response = await fetch(url, {
         headers: { 'Content-Type': 'application/json' },
-        next: { revalidate: 3600 },
+        cache: 'no-store',
       });
 
       if (!response.ok) {
@@ -59,7 +85,7 @@ export class TheOddsApiProvider implements OddsProvider {
       const data = await response.json();
       const parsed = theOddsApiSportsResponseSchema.parse(data);
       
-      return parsed
+      const sports = parsed
         .filter(s => s.active)
         .map(s => ({
           key: s.key,
@@ -68,6 +94,12 @@ export class TheOddsApiProvider implements OddsProvider {
           active: s.active,
           hasOutrights: s.has_outrights,
         }));
+
+      // Cache the sports list (1 hour TTL)
+      cache.setSports(sports);
+      
+      console.log(`[TheOddsApiProvider] Fetched ${sports.length} sports in ${Date.now() - startTime}ms`);
+      return sports;
     } catch (error) {
       console.error('[TheOddsApiProvider] Failed to fetch sports:', error);
       return [];
@@ -101,10 +133,15 @@ export class TheOddsApiProvider implements OddsProvider {
   }
 
   /**
-   * Fetch odds for given sports - PARALLEL VERSION
-   * @param sports - Array of sport keys to fetch
-   * @param markets - Array of market types (e.g., ['h2h', 'spreads'])
-   * @param regions - Comma-separated API region string (e.g., 'au,uk,us,eu')
+   * Helper to add delay
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Fetch odds for given sports - FAST PARALLEL VERSION
+   * Uses higher concurrency with retry safety net for any 429s
    */
   async fetchOdds(
     sports: string[], 
@@ -123,41 +160,49 @@ export class TheOddsApiProvider implements OddsProvider {
     let remainingRequests: number | undefined;
     let usedRequests: number | undefined;
     const errors: string[] = [];
+    const rateLimitedSports: string[] = [];
 
     const marketsStr = markets.join(',');
-
-    // Sort sports by priority so we get high-arb sports first
     const sortedSports = this.sortByPriority(sports);
 
-    console.log(`[TheOddsApiProvider] Fetching ${sortedSports.length} sports (parallel batches of ${PARALLEL_BATCH_SIZE})`);
-    console.log(`[TheOddsApiProvider] Regions: ${regions}, Markets: ${marketsStr}`);
-    console.log(`[TheOddsApiProvider] Priority sports first: ${sortedSports.slice(0, 5).join(', ')}...`);
+    const scanStartTime = Date.now();
+    console.log(`[TheOddsApiProvider] Starting scan of ${sortedSports.length} sports`);
+    console.log(`[TheOddsApiProvider] Regions: ${regions}, Markets: ${marketsStr}, Concurrency: ${PARALLEL_BATCH_SIZE}`);
 
-    // Process sports in parallel batches
+    // Process in batches with NO delays between batches
     for (let i = 0; i < sortedSports.length; i += PARALLEL_BATCH_SIZE) {
-      // Check if we're low on API calls
-      if (remainingRequests !== undefined && remainingRequests < 10) {
-        console.log(`[TheOddsApiProvider] Low on API calls (${remainingRequests} left), stopping`);
+      // Check if critically low on quota
+      if (remainingRequests !== undefined && remainingRequests < MIN_REMAINING_REQUESTS) {
+        console.log(`[TheOddsApiProvider] ⚠️ Low API calls (${remainingRequests}), stopping`);
         break;
       }
 
       const batch = sortedSports.slice(i, i + PARALLEL_BATCH_SIZE);
-      
-      console.log(`[TheOddsApiProvider] Batch ${Math.floor(i / PARALLEL_BATCH_SIZE) + 1}: ${batch.join(', ')}`);
+      const batchNum = Math.floor(i / PARALLEL_BATCH_SIZE) + 1;
+      const batchStart = Date.now();
 
-      // Fetch all sports in this batch in parallel
+      // Fire all requests in parallel (no stagger)
       const results = await Promise.allSettled(
-        batch.map(sport => this.fetchSportOdds(sport, regions, marketsStr))
+        batch.map(sport => this.fetchSportOddsWithRetry(sport, regions, marketsStr))
       );
 
       // Process results
+      let batchEvents = 0;
+      let batchRateLimited = 0;
+
       for (let j = 0; j < results.length; j++) {
         const result = results[j];
         const sport = batch[j];
 
         if (result.status === 'fulfilled') {
-          allEvents.push(...result.value.events);
-          // Update remaining requests from the latest response
+          if (result.value.rateLimited) {
+            batchRateLimited++;
+            rateLimitedSports.push(sport);
+          } else {
+            allEvents.push(...result.value.events);
+            batchEvents += result.value.events.length;
+          }
+          
           if (result.value.remainingRequests !== undefined) {
             remainingRequests = result.value.remainingRequests;
           }
@@ -166,16 +211,55 @@ export class TheOddsApiProvider implements OddsProvider {
           }
         } else {
           const msg = result.reason instanceof Error ? result.reason.message : String(result.reason);
-          // 404 is expected for sports without odds - don't log as error
           if (!msg.includes('404')) {
-            console.error(`[TheOddsApiProvider] Error fetching ${sport}:`, msg);
-            errors.push(`${sport}: ${msg}`);
+            if (msg.includes('429')) {
+              batchRateLimited++;
+              rateLimitedSports.push(sport);
+            } else {
+              errors.push(`${sport}: ${msg}`);
+            }
           }
+        }
+      }
+
+      const batchDuration = Date.now() - batchStart;
+      if (batchRateLimited > 0) {
+        console.log(`[TheOddsApiProvider] Batch ${batchNum}: ${batchEvents} events, ${batchRateLimited} retrying (${batchDuration}ms)`);
+      } else {
+        console.log(`[TheOddsApiProvider] Batch ${batchNum}: ${batchEvents} events in ${batchDuration}ms (${remainingRequests ?? '?'} remaining)`);
+      }
+    }
+
+    // Final retry pass for rate-limited sports (smaller batches, with delay)
+    if (rateLimitedSports.length > 0 && rateLimitedSports.length <= 20) {
+      console.log(`[TheOddsApiProvider] Final retry for ${rateLimitedSports.length} sports...`);
+      await this.delay(1000);
+      
+      // Retry in batches of 4 with small delays
+      for (let r = 0; r < rateLimitedSports.length; r += 4) {
+        const retryBatch = rateLimitedSports.slice(r, r + 4);
+        
+        const retryResults = await Promise.allSettled(
+          retryBatch.map(sport => this.fetchSportOdds(sport, regions, marketsStr))
+        );
+        
+        for (const result of retryResults) {
+          if (result.status === 'fulfilled' && !result.value.rateLimited) {
+            allEvents.push(...result.value.events);
+            if (result.value.remainingRequests !== undefined) {
+              remainingRequests = result.value.remainingRequests;
+            }
+          }
+        }
+        
+        if (r + 4 < rateLimitedSports.length) {
+          await this.delay(400);
         }
       }
     }
 
-    console.log(`[TheOddsApiProvider] Complete: ${allEvents.length} events from ${sortedSports.length} sports`);
+    const totalDuration = Date.now() - scanStartTime;
+    console.log(`[TheOddsApiProvider] ✅ Scan complete: ${allEvents.length} events in ${totalDuration}ms`);
     if (remainingRequests !== undefined) {
       console.log(`[TheOddsApiProvider] API calls remaining: ${remainingRequests}`);
     }
@@ -192,7 +276,7 @@ export class TheOddsApiProvider implements OddsProvider {
   }
 
   /**
-   * Fetch odds for priority sports only - for faster initial results
+   * Fetch odds for priority sports only
    */
   async fetchPriorityOdds(
     markets: string[] = ['h2h'],
@@ -201,10 +285,47 @@ export class TheOddsApiProvider implements OddsProvider {
     return this.fetchOdds(PRIORITY_SPORTS, markets, regions);
   }
 
+  /**
+   * Fetch sport odds with automatic retry on 429
+   */
+  private async fetchSportOddsWithRetry(
+    sport: string, 
+    regions: string, 
+    markets: string,
+    retryCount: number = 0
+  ): Promise<{
+    events: SportEvent[];
+    remainingRequests?: number;
+    usedRequests?: number;
+    rateLimited?: boolean;
+  }> {
+    try {
+      return await this.fetchSportOdds(sport, regions, markets);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      
+      if (msg.includes('429') && retryCount < RETRY_CONFIG.MAX_RETRIES) {
+        const delayMs = Math.min(
+          RETRY_CONFIG.BASE_DELAY_MS * Math.pow(2, retryCount),
+          RETRY_CONFIG.MAX_DELAY_MS
+        );
+        await this.delay(delayMs);
+        return this.fetchSportOddsWithRetry(sport, regions, markets, retryCount + 1);
+      }
+      
+      if (msg.includes('429')) {
+        return { events: [], rateLimited: true };
+      }
+      
+      throw error;
+    }
+  }
+
   private async fetchSportOdds(sport: string, regions: string, markets: string): Promise<{
     events: SportEvent[];
     remainingRequests?: number;
     usedRequests?: number;
+    rateLimited?: boolean;
   }> {
     const params = new URLSearchParams({
       apiKey: this.apiKey,
@@ -234,17 +355,7 @@ export class TheOddsApiProvider implements OddsProvider {
 
     const events = parsed.map(e => this.transformEvent(e));
 
-    if (events.length > 0) {
-      console.log(`[TheOddsApiProvider] ${sport}: ${events.length} events, ${this.countBookmakers(events)} bookmakers`);
-    }
-
     return { events, remainingRequests, usedRequests };
-  }
-
-  private countBookmakers(events: SportEvent[]): number {
-    const bookmakers = new Set<string>();
-    events.forEach(e => e.bookmakers.forEach(b => bookmakers.add(b.bookmaker.key)));
-    return bookmakers.size;
   }
 
   private transformEvent(raw: TheOddsApiEvent): SportEvent {

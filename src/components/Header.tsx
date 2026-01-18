@@ -1,7 +1,7 @@
 // src/components/Header.tsx
 'use client';
 
-import { RefreshCw, Sun, Moon, LogOut, Settings, Key, Eye, EyeOff, Check, Loader2, ExternalLink } from 'lucide-react';
+import { RefreshCw, Sun, Moon, LogOut, Settings, Key, Eye, EyeOff, Check, Loader2, ExternalLink, Zap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSession, signOut } from 'next-auth/react';
@@ -15,6 +15,7 @@ interface HeaderProps {
   isUsingMockData: boolean;
   remainingRequests?: number;
   onRefresh: () => void;
+  onQuickScan?: () => void;
 }
 
 export function Header({
@@ -23,6 +24,7 @@ export function Header({
   isUsingMockData,
   remainingRequests,
   onRefresh,
+  onQuickScan,
 }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
   const { data: session } = useSession();
@@ -333,7 +335,25 @@ export function Header({
               </div>
             )}
 
-            {/* Scan Button */}
+            {/* Quick Scan Button */}
+            {onQuickScan && (
+              <button
+                onClick={onQuickScan}
+                disabled={isLoading}
+                className="flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-lg transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed border"
+                style={{
+                  backgroundColor: 'transparent',
+                  borderColor: '#7ac875',
+                  color: '#7ac875'
+                }}
+                title="Quick scan: NBA, NFL, NHL, MLB, EPL, Tennis, AFL, NRL"
+              >
+                <Zap className={`w-4 h-4 ${isLoading ? 'animate-pulse' : ''}`} />
+                <span className="hidden sm:inline">Quick Scan</span>
+              </button>
+            )}
+
+            {/* Full Scan Button */}
             <button
               onClick={onRefresh}
               disabled={isLoading}
@@ -344,7 +364,7 @@ export function Header({
               }}
             >
               <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-              <span className="hidden sm:inline">{isLoading ? 'Scanning...' : 'Scan'}</span>
+              <span className="hidden sm:inline">{isLoading ? 'Scanning...' : 'Full Scan'}</span>
             </button>
           </div>
         </div>

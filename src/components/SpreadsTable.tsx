@@ -3,6 +3,7 @@
 
 import type { SpreadArb, MiddleOpportunity } from '@/lib/types';
 import { getBookmakerName, getBookmakerRegion } from '@/lib/config';
+import { buildBookmakerSearchUrl } from '@/lib/bookmakerLinks';
 
 interface SpreadsTableProps {
   spreads: SpreadArb[];
@@ -209,6 +210,7 @@ function SpreadRow({ spread, onSelect, globalMode }: { spread: SpreadArb; onSele
             bookmaker={spread.favorite.bookmaker}
             point={spread.favorite.point}
             showRegion={globalMode}
+            event={spread.event}
           />
           <BetLine 
             name={spread.underdog.name} 
@@ -216,6 +218,7 @@ function SpreadRow({ spread, onSelect, globalMode }: { spread: SpreadArb; onSele
             bookmaker={spread.underdog.bookmaker}
             point={spread.underdog.point}
             showRegion={globalMode}
+            event={spread.event}
           />
         </div>
       </td>
@@ -311,7 +314,28 @@ function MiddleRow({ middle, onSelect, globalMode }: { middle: MiddleOpportunity
   );
 }
 
-function BetLine({ name, odds, bookmaker, point, showRegion }: { name: string; odds: number; bookmaker: string; point: number; showRegion?: boolean }) {
+function BetLine({
+  name,
+  odds,
+  bookmaker,
+  point,
+  showRegion,
+  event,
+}: {
+  name: string;
+  odds: number;
+  bookmaker: string;
+  point: number;
+  showRegion?: boolean;
+  event: { homeTeam: string; awayTeam: string; sportTitle?: string; sportKey?: string; commenceTime?: any };
+}) {
+  const href = buildBookmakerSearchUrl(bookmaker, {
+    home_team: event.homeTeam,
+    away_team: event.awayTeam,
+    sport_title: event.sportTitle || event.sportKey,
+    commence_time: event.commenceTime ? String(event.commenceTime) : undefined,
+  }) ?? undefined;
+
   return (
     <div>
       <div className="flex items-center gap-2">
@@ -319,7 +343,16 @@ function BetLine({ name, odds, bookmaker, point, showRegion }: { name: string; o
         <span style={{ color: 'var(--muted)' }}>@ {odds.toFixed(2)}</span>
       </div>
       <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-        <span>{name} ({getBookmakerName(bookmaker)})</span>
+        <span>{name}</span>
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline decoration-dotted underline-offset-2 hover:opacity-80"
+          title="Open bookmaker search in new tab"
+        >
+          ({getBookmakerName(bookmaker)})
+        </a>
         {showRegion && <RegionBadge bookmaker={bookmaker} />}
       </div>
     </div>

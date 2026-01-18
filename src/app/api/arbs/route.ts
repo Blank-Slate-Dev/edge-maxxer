@@ -9,6 +9,11 @@ import { getUserApiKey } from '@/lib/getUserApiKey';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+  Pragma: 'no-cache',
+};
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -22,18 +27,26 @@ export async function GET(request: Request) {
     // Defaults to 'au' for backwards compatibility
     const regions = searchParams.get('regions') || 'au';
     const isMultiRegion = regions.includes(',') || regions !== 'au';
+    
+    // Get sports filter (comma-separated sport keys for Quick Scan)
+    const sportsFilter = searchParams.get('sports');
+    const requestedSports = sportsFilter ? sportsFilter.split(',').map(s => s.trim()) : null;
+    const isQuickScan = requestedSports !== null && requestedSports.length > 0;
 
     const cache = getCache();
 
-    // Check cache first (only for single AU region)
-    if (!forceRefresh && !isMultiRegion) {
+    // Check cache first (only for single AU region with no sports filter)
+    if (!forceRefresh && !isMultiRegion && !isQuickScan) {
       const cached = cache.getArbs();
       if (cached) {
-        return NextResponse.json({
-          ...cached,
-          cached: true,
-          regions,
-        });
+        return NextResponse.json(
+          {
+            ...cached,
+            cached: true,
+            regions,
+          },
+          { headers: NO_STORE_HEADERS }
+        );
       }
     }
 
@@ -42,7 +55,8 @@ export async function GET(request: Request) {
     
     // If no API key, return helpful message
     if (!userApiKey) {
-      return NextResponse.json({
+      return NextResponse.json(
+        {
         opportunities: [],
         valueBets: [],
         stats: {
@@ -59,21 +73,33 @@ export async function GET(request: Request) {
         cached: false,
         regions,
         noApiKey: true,
-        message: 'No API key configured. Go to Settings to add your Odds API key.',
-      });
+          message: 'No API key configured. Go to Settings to add your Odds API key.',
+        },
+        { headers: NO_STORE_HEADERS }
+      );
     }
 
     // Create provider with user's key
     const provider = createOddsApiProvider(userApiKey);
 
-    console.log(`[API /arbs] Using provider: ${provider.name}, regions: ${regions}`);
+    console.log(`[API /arbs] Using provider: ${provider.name}, regions: ${regions}${isQuickScan ? ', Quick Scan mode' : ''}`);
 
     // Fetch ALL available sports
     console.log('[API /arbs] Fetching available sports list...');
     const allSports = await provider.getSupportedSports();
-    const sportsToFetch = allSports
+    
+    // Filter to sports with h2h markets (no outrights)
+    let sportsToFetch = allSports
       .filter(s => !s.hasOutrights)
       .map(s => s.key);
+    
+    // Apply sports filter if Quick Scan is active
+    if (isQuickScan) {
+      const availableSportsSet = new Set(sportsToFetch);
+      sportsToFetch = requestedSports.filter(sport => availableSportsSet.has(sport));
+      console.log(`[API /arbs] Quick Scan: filtered to ${sportsToFetch.length} of ${requestedSports.length} requested sports`);
+    }
+    
     console.log(`[API /arbs] Found ${sportsToFetch.length} sports with h2h markets`);
 
     // Fetch odds - pass regions string
@@ -91,8 +117,8 @@ export async function GET(request: Request) {
     });
     console.log(`[API /arbs] Bookmakers found:`, Object.fromEntries(bookmakerCount));
 
-    // Update odds cache (only in single AU mode)
-    if (!isMultiRegion) {
+    // Update odds cache (only in single AU mode with full scan)
+    if (!isMultiRegion && !isQuickScan) {
       cache.setOdds({
         events: oddsResult.events,
         source: oddsResult.meta.source,
@@ -140,8 +166,8 @@ export async function GET(request: Request) {
       remainingApiRequests: oddsResult.meta.remainingRequests,
     };
 
-    // Cache the response (only in single AU mode)
-    if (!isMultiRegion) {
+    // Cache the response (only in single AU mode with full scan)
+    if (!isMultiRegion && !isQuickScan) {
       cache.setArbs({
         opportunities: arbs,
         valueBets,
@@ -149,12 +175,12 @@ export async function GET(request: Request) {
       });
     }
 
-    return NextResponse.json(response);
+    return NextResponse.json(response, { headers: NO_STORE_HEADERS });
   } catch (error) {
     console.error('[API /arbs] Error:', error);
     return NextResponse.json(
       { error: 'Failed to compute opportunities', details: String(error) },
-      { status: 500 }
+      { status: 500, headers: NO_STORE_HEADERS }
     );
   }
 }

@@ -3,6 +3,7 @@
 
 import type { ArbOpportunity } from '@/lib/types';
 import { getBookmakerName, getBookmakerRegion } from '@/lib/config';
+import { buildBookmakerSearchUrl } from '@/lib/bookmakerLinks';
 
 interface ArbTableProps {
   opportunities: ArbOpportunity[];
@@ -161,12 +162,14 @@ function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: 
               odds={opp.outcome1.odds} 
               bookmaker={opp.outcome1.bookmaker}
               showRegion={globalMode}
+              event={opp.event}
             />
             <BetLine 
               name={opp.outcome2.name} 
               odds={opp.outcome2.odds} 
               bookmaker={opp.outcome2.bookmaker}
               showRegion={globalMode}
+              event={opp.event}
             />
             {opp.outcome3 && (
               <BetLine 
@@ -174,6 +177,7 @@ function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: 
                 odds={opp.outcome3.odds} 
                 bookmaker={opp.outcome3.bookmaker}
                 showRegion={globalMode}
+                event={opp.event}
               />
             )}
           </div>
@@ -184,6 +188,7 @@ function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: 
               odds={opp.backOutcome.odds} 
               bookmaker={opp.backOutcome.bookmaker}
               showRegion={globalMode}
+              event={opp.event}
             />
             <div>
               <div className="flex items-center gap-2">
@@ -219,7 +224,26 @@ function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: 
   );
 }
 
-function BetLine({ name, odds, bookmaker, showRegion }: { name: string; odds: number; bookmaker: string; showRegion?: boolean }) {
+function BetLine({
+  name,
+  odds,
+  bookmaker,
+  showRegion,
+  event,
+}: {
+  name: string;
+  odds: number;
+  bookmaker: string;
+  showRegion?: boolean;
+  event: { homeTeam: string; awayTeam: string; sportTitle?: string; sportKey?: string; commenceTime?: any };
+}) {
+  const href = buildBookmakerSearchUrl(bookmaker, {
+    home_team: event.homeTeam,
+    away_team: event.awayTeam,
+    sport_title: event.sportTitle || event.sportKey,
+    commence_time: event.commenceTime ? new Date(event.commenceTime).toISOString() : undefined,
+  }) ?? undefined;
+
   return (
     <div>
       <div className="flex items-center gap-2">
@@ -227,7 +251,15 @@ function BetLine({ name, odds, bookmaker, showRegion }: { name: string; odds: nu
         <span className="font-mono" style={{ color: 'var(--foreground)' }}>{odds.toFixed(2)}</span>
       </div>
       <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-        <span>{getBookmakerName(bookmaker)}</span>
+        <a
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="hover:underline"
+          title="Open bookmaker search for this event"
+        >
+          {getBookmakerName(bookmaker)}
+        </a>
         {showRegion && <RegionBadge bookmaker={bookmaker} />}
       </div>
     </div>

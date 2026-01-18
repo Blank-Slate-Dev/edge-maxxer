@@ -26,13 +26,16 @@ export async function GET() {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       oddsApiKey: user.oddsApiKey || '',
       plan: user.plan,
       subscriptionStatus: user.subscriptionStatus,
       subscriptionEndsAt: user.subscriptionEndsAt,
       region: user.region || 'AU',
     });
+    // Small private cache to reduce repeated polling in dev / multi-component usage.
+    res.headers.set('Cache-Control', 'private, max-age=10');
+    return res;
   } catch (error) {
     console.error('Settings GET error:', error);
     return NextResponse.json({ error: 'Failed to fetch settings' }, { status: 500 });

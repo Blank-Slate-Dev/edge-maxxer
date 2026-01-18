@@ -6,10 +6,9 @@ import { Globe, Loader2 } from 'lucide-react';
 import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal } from '@/components';
 import { useBets } from '@/hooks/useBets';
 import { useAccounts } from '@/hooks/useAccounts';
-import type { ArbOpportunity, ValueBet, ArbFilters as FilterType, ScanStats, SpreadArb, TotalsArb, MiddleOpportunity, LineStats, BookVsBookArb } from '@/lib/types';
+import type { ArbOpportunity, ValueBet, ArbFilters as FilterType, ScanStats, SpreadArb, TotalsArb, MiddleOpportunity, LineStats } from '@/lib/types';
 import type { PlacedBet } from '@/lib/bets';
 import { config, getApiRegionsForUserRegions, countBookmakersForRegions, type UserRegion } from '@/lib/config';
-import { format } from 'date-fns';
 
 interface Sport {
   key: string;
@@ -57,6 +56,36 @@ const DEFAULT_FILTERS: FilterType = {
   showValueBets: true,
   profitableOnly: false,
 };
+
+// High-liquidity sports most likely to have arbitrage opportunities
+const QUICK_SCAN_SPORTS = [
+  // US Major Leagues
+  'basketball_nba',
+  'basketball_ncaab',
+  'americanfootball_nfl',
+  'americanfootball_ncaaf',
+  'icehockey_nhl',
+  'baseball_mlb',
+  // Top Soccer Leagues
+  'soccer_epl',
+  'soccer_spain_la_liga',
+  'soccer_italy_serie_a',
+  'soccer_germany_bundesliga',
+  'soccer_uefa_champs_league',
+  'soccer_usa_mls',
+  // Tennis
+  'tennis_atp_australian_open',
+  'tennis_atp_french_open', 
+  'tennis_atp_us_open',
+  'tennis_atp_wimbledon',
+  'tennis_wta_australian_open',
+  'tennis_wta_french_open',
+  'tennis_wta_us_open',
+  'tennis_wta_wimbledon',
+  // Australian Sports
+  'aussierules_afl',
+  'rugbyleague_nrl',
+];
 
 type Tab = 'opportunities' | 'spreads' | 'totals' | 'value-bets' | 'history' | 'accounts';
 
@@ -137,8 +166,13 @@ export default function DashboardPage() {
   const [filters, setFilters] = useState<FilterType>(DEFAULT_FILTERS);
   const [sports, setSports] = useState<Sport[]>([]);
   const [bookmakers, setBookmakers] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [scanProgress, setScanProgress] = useState<string>('');
+  
+  // Split loading states for progressive rendering
+  const [isLoadingArbs, setIsLoadingArbs] = useState(false);
+  const [isLoadingLines, setIsLoadingLines] = useState(false);
+  const [arbsProgress, setArbsProgress] = useState<string>('');
+  const [linesProgress, setLinesProgress] = useState<string>('');
+  
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isUsingMockData, setIsUsingMockData] = useState(false);
   const [remainingRequests, setRemainingRequests] = useState<number | undefined>();
@@ -146,7 +180,9 @@ export default function DashboardPage() {
   const [selectedValueBet, setSelectedValueBet] = useState<ValueBet | null>(null);
   const [selectedLineOpp, setSelectedLineOpp] = useState<SpreadArb | TotalsArb | MiddleOpportunity | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [hasFetched, setHasFetched] = useState(false);
+  const [linesError, setLinesError] = useState<string | null>(null);
+  const [hasFetchedArbs, setHasFetchedArbs] = useState(false);
+  const [hasFetchedLines, setHasFetchedLines] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('opportunities');
   const [showMiddles, setShowMiddles] = useState(true);
   
@@ -164,6 +200,9 @@ export default function DashboardPage() {
     addTransaction, 
     deleteTransaction 
   } = useAccounts();
+
+  // Derived loading state - show overlay only when arbs are loading
+  const hasFetched = hasFetchedArbs;
 
   // Load user's default region from settings
   useEffect(() => {
@@ -221,21 +260,28 @@ export default function DashboardPage() {
     }
   }, []);
 
-  const fetchArbs = useCallback(async () => {
-    setIsLoading(true);
+  // Sequential fetch - H2H completes first, then lines starts
+  const fetchArbs = useCallback(async (quickScan: boolean = false) => {
+    // Reset states
     setError(null);
-    setScanProgress('Initializing scan...');
+    setLinesError(null);
+    
+    // Start H2H loading (lines will start after H2H completes)
+    setIsLoadingArbs(true);
+    setIsLoadingLines(false);
+    setArbsProgress(quickScan ? 'Quick scan initializing...' : 'Initializing scan...');
+    setLinesProgress('');
 
     try {
       if (sports.length === 0) {
-        setScanProgress('Fetching available sports...');
+        setArbsProgress('Fetching available sports...');
         await fetchSports();
       }
 
       // Get API regions string from selected user regions
       const apiRegions = getApiRegionsForUserRegions(selectedRegions);
 
-      // Fetch H2H arbs
+      // Build params
       const params = new URLSearchParams({
         minProfit: filters.minProfit.toString(),
         maxHours: filters.maxHoursUntilStart.toString(),
@@ -245,27 +291,24 @@ export default function DashboardPage() {
         regions: apiRegions,
       });
       
-      if (filters.sports.length > 0) {
-        params.set('sports', filters.sports.join(','));
+      // Use quick scan sports or user-selected sports
+      const sportsToScan = quickScan ? QUICK_SCAN_SPORTS : filters.sports;
+      if (sportsToScan.length > 0) {
+        params.set('sports', sportsToScan.join(','));
       }
 
-      setScanProgress(`Scanning ${selectedRegions.join(', ')} bookmakers for odds...`);
+      // ============ PHASE 1: H2H FETCH ============
+      const scanType = quickScan ? 'Quick scanning' : 'Scanning';
+      const sportCount = quickScan ? `${QUICK_SCAN_SPORTS.length} priority sports` : 'all sports';
+      setArbsProgress(`${scanType} ${selectedRegions.join(', ')} - ${sportCount}...`);
 
-      const [arbsRes, linesRes] = await Promise.all([
-        fetch(`/api/arbs?${params}`),
-        fetch(`/api/lines?${params}&middles=${showMiddles}`),
-      ]);
-
-      setScanProgress('Analyzing opportunities...');
-
+      const arbsRes = await fetch(`/api/arbs?${params}`);
+      setArbsProgress('Processing H2H results...');
       const arbsData: ArbsResponse = await arbsRes.json();
-      const linesData: LinesResponse = await linesRes.json();
 
       if (!arbsRes.ok) {
         throw new Error(arbsData.error || 'Failed to fetch arbs');
       }
-
-      setScanProgress('Processing results...');
 
       // Parse H2H opportunities
       const parsed = arbsData.opportunities.map(opp => ({
@@ -286,59 +329,98 @@ export default function DashboardPage() {
         lastUpdated: new Date(vb.lastUpdated),
       }));
 
-      // Parse line opportunities
-      const parsedSpreads = (linesData.spreadArbs || []).map(s => ({
-        ...s,
-        event: {
-          ...s.event,
-          commenceTime: new Date(s.event.commenceTime),
-        },
-        lastUpdated: new Date(s.lastUpdated),
-      }));
-
-      const parsedTotals = (linesData.totalsArbs || []).map(t => ({
-        ...t,
-        event: {
-          ...t.event,
-          commenceTime: new Date(t.event.commenceTime),
-        },
-        lastUpdated: new Date(t.lastUpdated),
-      }));
-
-      const parsedMiddles = (linesData.middles || []).map(m => ({
-        ...m,
-        event: {
-          ...m.event,
-          commenceTime: new Date(m.event.commenceTime),
-        },
-        lastUpdated: new Date(m.lastUpdated),
-      }));
-
+      // Update H2H state immediately - user sees results now
       setOpportunities(parsed);
       setValueBets(parsedValueBets);
-      setSpreadArbs(parsedSpreads);
-      setTotalsArbs(parsedTotals);
-      setMiddles(parsedMiddles);
       setStats(arbsData.stats);
-      setLineStats(linesData.stats);
       setLastUpdated(arbsData.lastUpdated ? new Date(arbsData.lastUpdated) : new Date());
       setIsUsingMockData(arbsData.isUsingMockData || false);
       setRemainingRequests(arbsData.remainingApiRequests);
-      setHasFetched(true);
+      setHasFetchedArbs(true);
+      setIsLoadingArbs(false);
+      setArbsProgress('');
 
-      // Collect unique bookmakers from all opportunities
+      // Collect unique bookmakers from opportunities
       const uniqueBookmakers = new Set<string>();
       parsed.forEach(opp => {
         getBookmakersFromArb(opp).forEach(bm => uniqueBookmakers.add(bm));
       });
       setBookmakers(Array.from(uniqueBookmakers));
 
+      console.log(`[Dashboard] H2H complete: ${parsed.length} opportunities`);
+
+      // ============ PHASE 2: LINES FETCH (starts after H2H is displayed) ============
+      setIsLoadingLines(true);
+      setLinesProgress('Scanning spreads & totals...');
+
+      // Fire lines fetch - don't await, let it complete in background
+      fetch(`/api/lines?${params}&middles=${showMiddles}`)
+        .then(async (linesRes) => {
+          setLinesProgress('Processing spreads & totals...');
+          const linesData: LinesResponse = await linesRes.json();
+
+          if (!linesRes.ok) {
+            throw new Error(linesData.error || 'Failed to fetch lines');
+          }
+
+          // Parse line opportunities
+          const parsedSpreads = (linesData.spreadArbs || []).map(s => ({
+            ...s,
+            event: {
+              ...s.event,
+              commenceTime: new Date(s.event.commenceTime),
+            },
+            lastUpdated: new Date(s.lastUpdated),
+          }));
+
+          const parsedTotals = (linesData.totalsArbs || []).map(t => ({
+            ...t,
+            event: {
+              ...t.event,
+              commenceTime: new Date(t.event.commenceTime),
+            },
+            lastUpdated: new Date(t.lastUpdated),
+          }));
+
+          const parsedMiddles = (linesData.middles || []).map(m => ({
+            ...m,
+            event: {
+              ...m.event,
+              commenceTime: new Date(m.event.commenceTime),
+            },
+            lastUpdated: new Date(m.lastUpdated),
+          }));
+
+          // Update lines state
+          setSpreadArbs(parsedSpreads);
+          setTotalsArbs(parsedTotals);
+          setMiddles(parsedMiddles);
+          setLineStats(linesData.stats);
+          setHasFetchedLines(true);
+
+          // Update remaining requests
+          if (linesData.remainingApiRequests !== undefined) {
+            setRemainingRequests(prev => 
+              prev === undefined ? linesData.remainingApiRequests : Math.min(prev, linesData.remainingApiRequests!)
+            );
+          }
+
+          console.log(`[Dashboard] Lines complete: ${parsedSpreads.length} spreads, ${parsedTotals.length} totals, ${parsedMiddles.length} middles`);
+        })
+        .catch(err => {
+          console.error('Failed to fetch lines:', err);
+          setLinesError(err instanceof Error ? err.message : 'Failed to scan lines');
+        })
+        .finally(() => {
+          setIsLoadingLines(false);
+          setLinesProgress('');
+        });
+
     } catch (err) {
       console.error('Failed to fetch arbs:', err);
-      setError(err instanceof Error ? err.message : 'Failed to scan');
-    } finally {
-      setIsLoading(false);
-      setScanProgress('');
+      setError(err instanceof Error ? err.message : 'Failed to scan H2H');
+      setIsLoadingArbs(false);
+      setArbsProgress('');
     }
   }, [filters, sports, fetchSports, showMiddles, selectedRegions]);
 
@@ -382,6 +464,13 @@ export default function DashboardPage() {
   // Calculate bookmaker count for selected regions
   const selectedBookmakerCount = countBookmakersForRegions(selectedRegions);
 
+  // Determine scan progress message
+  const getScanProgress = () => {
+    if (arbsProgress) return arbsProgress;
+    if (linesProgress && isLoadingLines) return linesProgress;
+    return 'Please wait...';
+  };
+
   return (
     <div 
       className="min-h-screen transition-colors"
@@ -389,14 +478,15 @@ export default function DashboardPage() {
     >
       <Header
         lastUpdated={lastUpdated}
-        isLoading={isLoading}
+        isLoading={isLoadingArbs || isLoadingLines}
         isUsingMockData={isUsingMockData}
         remainingRequests={remainingRequests}
-        onRefresh={fetchArbs}
+        onRefresh={() => fetchArbs(false)}
+        onQuickScan={() => fetchArbs(true)}
       />
 
-      {/* Scanning Overlay */}
-      {isLoading && (
+      {/* Scanning Overlay - only show when arbs are loading (first phase) */}
+      {isLoadingArbs && (
         <div 
           className="fixed inset-0 z-40 flex items-center justify-center"
           style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
@@ -454,7 +544,7 @@ export default function DashboardPage() {
                 style={{ color: 'var(--muted)' }}
               >
                 <Loader2 className="w-3 h-3 animate-spin" />
-                {scanProgress || 'Please wait...'}
+                {getScanProgress()}
               </p>
             </div>
 
@@ -521,7 +611,7 @@ export default function DashboardPage() {
         )}
 
         {/* Initial State */}
-        {!hasFetched && !isLoading && activeTab === 'opportunities' && (
+        {!hasFetched && !isLoadingArbs && activeTab === 'opportunities' && (
           <div 
             className="border p-12 text-center rounded-lg"
             style={{
@@ -568,6 +658,20 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Lines Error (separate, less prominent) */}
+        {linesError && !error && (
+          <div 
+            className="border px-4 py-3 text-sm rounded-lg"
+            style={{
+              borderColor: 'var(--warning)',
+              backgroundColor: 'color-mix(in srgb, var(--warning) 10%, transparent)',
+              color: 'var(--warning)'
+            }}
+          >
+            Lines scan issue: {linesError}
+          </div>
+        )}
+
         {/* Stats Grid */}
         {hasFetched && stats && (
           <div 
@@ -584,18 +688,21 @@ export default function DashboardPage() {
             />
             <StatBox 
               label="Spread Arbs" 
-              value={filteredSpreads.filter(s => s.type === 'arb').length}
-              highlight={filteredSpreads.filter(s => s.type === 'arb').length > 0}
+              value={isLoadingLines ? '...' : filteredSpreads.filter(s => s.type === 'arb').length}
+              highlight={!isLoadingLines && filteredSpreads.filter(s => s.type === 'arb').length > 0}
+              loading={isLoadingLines}
             />
             <StatBox 
               label="Totals Arbs" 
-              value={filteredTotals.filter(t => t.type === 'arb').length}
-              highlight={filteredTotals.filter(t => t.type === 'arb').length > 0}
+              value={isLoadingLines ? '...' : filteredTotals.filter(t => t.type === 'arb').length}
+              highlight={!isLoadingLines && filteredTotals.filter(t => t.type === 'arb').length > 0}
+              loading={isLoadingLines}
             />
             <StatBox 
               label="Middles" 
-              value={middles.length}
+              value={isLoadingLines ? '...' : middles.length}
               subtitle="EV plays"
+              loading={isLoadingLines}
             />
             <StatBox 
               label="Value Bets" 
@@ -620,14 +727,16 @@ export default function DashboardPage() {
           <TabButton 
             active={activeTab === 'spreads'} 
             onClick={() => setActiveTab('spreads')}
-            count={filteredSpreads.length + spreadMiddles.length}
+            count={isLoadingLines ? undefined : filteredSpreads.length + spreadMiddles.length}
+            loading={isLoadingLines}
           >
             Spreads
           </TabButton>
           <TabButton 
             active={activeTab === 'totals'} 
             onClick={() => setActiveTab('totals')}
-            count={filteredTotals.length + totalsMiddles.length}
+            count={isLoadingLines ? undefined : filteredTotals.length + totalsMiddles.length}
+            loading={isLoadingLines}
           >
             Totals
           </TabButton>
@@ -689,25 +798,33 @@ export default function DashboardPage() {
         )}
 
         {hasFetched && activeTab === 'spreads' && (
-          <SpreadsTable
-            spreads={filteredSpreads}
-            middles={spreadMiddles}
-            onSelectSpread={(s) => setSelectedLineOpp(s)}
-            onSelectMiddle={(m) => setSelectedLineOpp(m)}
-            showMiddles={showMiddles}
-            globalMode={selectedRegions.length > 1}
-          />
+          isLoadingLines ? (
+            <LoadingPlaceholder message="Loading spreads & middles..." />
+          ) : (
+            <SpreadsTable
+              spreads={filteredSpreads}
+              middles={spreadMiddles}
+              onSelectSpread={(s) => setSelectedLineOpp(s)}
+              onSelectMiddle={(m) => setSelectedLineOpp(m)}
+              showMiddles={showMiddles}
+              globalMode={selectedRegions.length > 1}
+            />
+          )
         )}
 
         {hasFetched && activeTab === 'totals' && (
-          <TotalsTable
-            totals={filteredTotals}
-            middles={totalsMiddles}
-            onSelectTotals={(t) => setSelectedLineOpp(t)}
-            onSelectMiddle={(m) => setSelectedLineOpp(m)}
-            showMiddles={showMiddles}
-            globalMode={selectedRegions.length > 1}
-          />
+          isLoadingLines ? (
+            <LoadingPlaceholder message="Loading totals & middles..." />
+          ) : (
+            <TotalsTable
+              totals={filteredTotals}
+              middles={totalsMiddles}
+              onSelectTotals={(t) => setSelectedLineOpp(t)}
+              onSelectMiddle={(m) => setSelectedLineOpp(m)}
+              showMiddles={showMiddles}
+              globalMode={selectedRegions.length > 1}
+            />
+          )
         )}
 
         {hasFetched && activeTab === 'value-bets' && (
@@ -756,16 +873,34 @@ export default function DashboardPage() {
   );
 }
 
+// Loading placeholder for tabs that are still loading
+function LoadingPlaceholder({ message }: { message: string }) {
+  return (
+    <div 
+      className="border p-12 text-center rounded-lg"
+      style={{
+        borderColor: 'var(--border)',
+        backgroundColor: 'var(--surface)'
+      }}
+    >
+      <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: 'var(--muted)' }} />
+      <p style={{ color: 'var(--muted)' }}>{message}</p>
+    </div>
+  );
+}
+
 function StatBox({ 
   label, 
   value, 
   subtitle,
-  highlight 
+  highlight,
+  loading 
 }: { 
   label: string; 
   value: number | string; 
   subtitle?: string;
   highlight?: boolean;
+  loading?: boolean;
 }) {
   return (
     <div className="px-4 py-3" style={{ backgroundColor: 'var(--background)' }}>
@@ -776,10 +911,14 @@ function StatBox({
         {label}
       </div>
       <div 
-        className="text-2xl font-mono"
+        className="text-2xl font-mono flex items-center gap-2"
         style={{ color: highlight ? 'var(--foreground)' : 'var(--muted)' }}
       >
-        {value}
+        {loading ? (
+          <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'var(--muted)' }} />
+        ) : (
+          value
+        )}
       </div>
       {subtitle && (
         <div className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
@@ -794,12 +933,14 @@ function TabButton({
   children, 
   active, 
   onClick,
-  count 
+  count,
+  loading 
 }: { 
   children: React.ReactNode; 
   active: boolean; 
   onClick: () => void;
   count?: number;
+  loading?: boolean;
 }) {
   return (
     <button
@@ -811,7 +952,9 @@ function TabButton({
       }}
     >
       {children}
-      {count !== undefined && count > 0 && (
+      {loading ? (
+        <Loader2 className="inline-block ml-2 w-3 h-3 animate-spin" style={{ color: 'var(--muted)' }} />
+      ) : count !== undefined && count > 0 && (
         <span 
           className="ml-2 text-xs px-1.5 py-0.5 rounded"
           style={{

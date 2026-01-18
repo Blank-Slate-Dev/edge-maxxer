@@ -8,6 +8,11 @@ import { getUserApiKey } from '@/lib/getUserApiKey';
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
+const NO_STORE_HEADERS = {
+  'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
+  Pragma: 'no-cache',
+};
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -19,39 +24,49 @@ export async function GET(request: Request) {
     // Get regions parameter (comma-separated API regions like 'au,uk,us,eu')
     // Defaults to 'au' for backwards compatibility
     const regions = searchParams.get('regions') || 'au';
+    
+    // Get sports filter (comma-separated sport keys for Quick Scan)
+    const sportsFilter = searchParams.get('sports');
+    const requestedSports = sportsFilter ? sportsFilter.split(',').map(s => s.trim()) : null;
+    const isQuickScan = requestedSports !== null && requestedSports.length > 0;
 
     // Get user's API key from database
     const userApiKey = await getUserApiKey();
     
     // If no API key, return helpful message
     if (!userApiKey) {
-      return NextResponse.json({
-        spreadArbs: [],
-        totalsArbs: [],
-        middles: [],
-        stats: {
-          totalEvents: 0,
-          spreadArbsFound: 0,
-          totalsArbsFound: 0,
-          middlesFound: 0,
-          nearArbsFound: 0,
+      return NextResponse.json(
+        {
+          spreadArbs: [],
+          totalsArbs: [],
+          middles: [],
+          stats: {
+            totalEvents: 0,
+            spreadArbsFound: 0,
+            totalsArbsFound: 0,
+            middlesFound: 0,
+            nearArbsFound: 0,
+          },
+          lastUpdated: new Date().toISOString(),
+          isUsingMockData: false,
+          regions,
+          noApiKey: true,
+          message: 'No API key configured. Go to Settings to add your Odds API key.',
         },
-        lastUpdated: new Date().toISOString(),
-        isUsingMockData: false,
-        regions,
-        noApiKey: true,
-        message: 'No API key configured. Go to Settings to add your Odds API key.',
-      });
+        { headers: NO_STORE_HEADERS }
+      );
     }
 
     // Create provider with user's key
     const provider = createOddsApiProvider(userApiKey);
 
-    console.log(`[API /lines] Using provider: ${provider.name}, regions: ${regions}`);
+    console.log(`[API /lines] Using provider: ${provider.name}, regions: ${regions}${isQuickScan ? ', Quick Scan mode' : ''}`);
 
     // Get sports list - focus on sports that have spreads/totals
     const allSports = await provider.getSupportedSports();
-    const sportsToFetch = allSports
+    
+    // Filter to sports that typically have spreads/totals markets
+    let sportsToFetch = allSports
       .filter(s => !s.hasOutrights)
       .filter(s => {
         const key = s.key.toLowerCase();
@@ -63,6 +78,14 @@ export async function GET(request: Request) {
                key.includes('rugby');
       })
       .map(s => s.key);
+    
+    // Apply sports filter if Quick Scan is active
+    if (isQuickScan) {
+      const availableSportsSet = new Set(sportsToFetch);
+      sportsToFetch = requestedSports.filter(sport => availableSportsSet.has(sport));
+      console.log(`[API /lines] Quick Scan: filtered to ${sportsToFetch.length} of ${requestedSports.length} requested sports (that have spreads/totals)`);
+    }
+    
     console.log(`[API /lines] Found ${sportsToFetch.length} sports with spreads/totals`);
 
     // Determine which markets to fetch
@@ -110,21 +133,24 @@ export async function GET(request: Request) {
         })
       : [];
 
-    return NextResponse.json({
-      spreadArbs: filteredSpreads,
-      totalsArbs: filteredTotals,
-      middles: filteredMiddles,
-      stats,
-      lastUpdated: new Date().toISOString(),
-      isUsingMockData: false,
-      regions,
-      remainingApiRequests: oddsResult.meta.remainingRequests,
-    });
+    return NextResponse.json(
+      {
+        spreadArbs: filteredSpreads,
+        totalsArbs: filteredTotals,
+        middles: filteredMiddles,
+        stats,
+        lastUpdated: new Date().toISOString(),
+        isUsingMockData: false,
+        regions,
+        remainingApiRequests: oddsResult.meta.remainingRequests,
+      },
+      { headers: NO_STORE_HEADERS }
+    );
   } catch (error) {
     console.error('[API /lines] Error:', error);
     return NextResponse.json(
       { error: 'Failed to compute line opportunities', details: String(error) },
-      { status: 500 }
+      { status: 500, headers: NO_STORE_HEADERS }
     );
   }
 }
