@@ -28,7 +28,7 @@ function RiskBadge({ bookmaker }: { bookmaker: string }) {
   if (!profile) {
     return (
       <span 
-        className="text-xs px-1.5 py-0.5 rounded"
+        className="text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded"
         style={{
           backgroundColor: 'var(--border)',
           color: 'var(--muted)'
@@ -41,7 +41,7 @@ function RiskBadge({ bookmaker }: { bookmaker: string }) {
   
   return (
     <span 
-      className="text-xs px-1.5 py-0.5 rounded font-medium"
+      className="text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded font-medium"
       style={{ 
         backgroundColor: getRiskColor(profile.riskLevel) + '30',
         color: getRiskColor(profile.riskLevel)
@@ -216,11 +216,6 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
     if (!isNaN(parsed) && Math.abs(parsed - originalOdds) > 0.001) {
       setOddsModified(true);
     }
-    
-    // Auto-recalculate stakes when odds change (unless manually locked)
-    if (!stakesModified) {
-      // Will trigger via useEffect
-    }
   };
 
   const handleStakeChange = (index: number, value: string) => {
@@ -235,12 +230,10 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
     setCustomOddsStrings(outcomes.map(o => o.odds.toFixed(2)));
     setOddsModified(false);
     setStakesModified(false);
-    // Stakes will auto-recalculate via useEffect
   };
 
   const handleRecalculateOptimal = () => {
     setStakesModified(false);
-    // This will trigger useEffect to recalculate
   };
 
   // Calculate what optimal stakes would be (for comparison)
@@ -271,7 +264,6 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
       status: 'pending',
     };
 
-    // Add stakes based on mode - use custom values
     if (arb.mode === 'book-vs-book') {
       bet.bet1 = {
         bookmaker: outcomes[0].bookmaker,
@@ -285,7 +277,6 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
         odds: oddsToUse[1],
         stake: stakesToUse[1] || 0,
       };
-      // 3-way market
       if (outcomes[2]) {
         bet.bet3 = {
           bookmaker: outcomes[2].bookmaker,
@@ -295,7 +286,6 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
         };
       }
     } else {
-      // book-vs-betfair
       bet.backBet = {
         bookmaker: outcomes[0].bookmaker,
         outcome: outcomes[0].name,
@@ -320,7 +310,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="min-h-full flex items-start justify-center p-4 py-8">
+      <div className="min-h-full flex items-start justify-center p-2 sm:p-4 py-4 sm:py-8">
         <div 
           className="w-full max-w-xl border relative rounded-lg"
           style={{
@@ -330,19 +320,19 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
         >
           {/* Header */}
           <div 
-            className="sticky top-0 z-10 px-6 py-4 flex items-center justify-between border-b rounded-t-lg"
+            className="sticky top-0 z-10 px-3 sm:px-6 py-3 sm:py-4 flex items-center justify-between border-b rounded-t-lg"
             style={{
               backgroundColor: 'var(--background)',
               borderColor: 'var(--border)'
             }}
           >
-            <div>
-              <h2 className="text-lg font-semibold" style={{ color: 'var(--foreground)' }}>Stake Calculator</h2>
-              <p className="text-sm" style={{ color: 'var(--muted)' }}>{eventName}</p>
+            <div className="min-w-0 flex-1 mr-2">
+              <h2 className="text-base sm:text-lg font-semibold truncate" style={{ color: 'var(--foreground)' }}>Stake Calculator</h2>
+              <p className="text-xs sm:text-sm truncate" style={{ color: 'var(--muted)' }}>{eventName}</p>
             </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-lg transition-colors hover:bg-[var(--surface)]"
+              className="p-1.5 sm:p-2 rounded-lg transition-colors hover:bg-[var(--surface)] shrink-0"
               style={{ color: 'var(--muted)' }}
             >
               <X className="w-5 h-5" />
@@ -350,43 +340,43 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
           </div>
 
           {/* Content */}
-          <div className="p-6 space-y-6">
+          <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
             {/* Arb Status Indicator */}
             <div 
-              className="p-3 rounded-lg border"
+              className="p-2 sm:p-3 rounded-lg border"
               style={{
                 backgroundColor: isArb ? 'color-mix(in srgb, var(--success) 10%, transparent)' : 'color-mix(in srgb, var(--danger) 10%, transparent)',
                 borderColor: isArb ? 'color-mix(in srgb, var(--success) 30%, transparent)' : 'color-mix(in srgb, var(--danger) 30%, transparent)'
               }}
             >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-lg" style={{ color: isArb ? 'var(--success)' : 'var(--danger)' }}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <span className="text-base sm:text-lg" style={{ color: isArb ? 'var(--success)' : 'var(--danger)' }}>
                     {isArb ? '✓' : '✗'}
                   </span>
-                  <span className="font-medium" style={{ color: isArb ? 'var(--success)' : 'var(--danger)' }}>
-                    {isArb ? 'Arbitrage Opportunity' : 'No Arbitrage'}
+                  <span className="font-medium text-sm sm:text-base" style={{ color: isArb ? 'var(--success)' : 'var(--danger)' }}>
+                    {isArb ? 'Arbitrage' : 'No Arb'}
                   </span>
                 </div>
-                <div className="text-sm" style={{ color: 'var(--muted)' }}>
-                  Combined implied: {(totalImplied * 100).toFixed(2)}%
+                <div className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
+                  {(totalImplied * 100).toFixed(2)}% implied
                 </div>
               </div>
             </div>
 
             {/* Stealth Mode Toggle */}
             <div 
-              className="flex items-center justify-between p-4 rounded-lg border"
+              className="flex items-center justify-between gap-3 p-3 sm:p-4 rounded-lg border"
               style={{
                 backgroundColor: 'var(--surface)',
                 borderColor: 'var(--border)'
               }}
             >
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium" style={{ color: 'var(--foreground)' }}>🥷 Stealth Mode</span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-medium text-sm sm:text-base" style={{ color: 'var(--foreground)' }}>🥷 Stealth Mode</span>
                   <span 
-                    className="text-xs px-2 py-0.5 rounded"
+                    className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded"
                     style={{
                       backgroundColor: stealthMode ? 'color-mix(in srgb, var(--success) 20%, transparent)' : 'var(--surface-secondary)',
                       color: stealthMode ? 'var(--success)' : 'var(--muted)'
@@ -395,8 +385,8 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                     {stealthMode ? 'ON' : 'OFF'}
                   </span>
                 </div>
-                <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
-                  Rounds stakes to look natural and avoid detection
+                <p className="text-xs sm:text-sm mt-1" style={{ color: 'var(--muted)' }}>
+                  Rounds stakes to look natural
                 </p>
               </div>
               <button
@@ -404,7 +394,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                   setStealthMode(!stealthMode);
                   setStakesModified(false);
                 }}
-                className="relative w-12 h-6 rounded-full transition-colors"
+                className="relative w-11 sm:w-12 h-6 rounded-full transition-colors shrink-0"
                 style={{
                   backgroundColor: stealthMode ? 'var(--success)' : 'var(--border)'
                 }}
@@ -412,7 +402,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                 <span 
                   className="absolute top-1 w-4 h-4 bg-white rounded-full transition-transform"
                   style={{
-                    left: stealthMode ? '1.75rem' : '0.25rem'
+                    left: stealthMode ? '1.5rem' : '0.25rem'
                   }}
                 />
               </button>
@@ -420,7 +410,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
 
             {/* Total Stake Input */}
             <div>
-              <label className="block text-sm mb-2" style={{ color: 'var(--muted)' }}>Total Stake (for optimal calculation)</label>
+              <label className="block text-xs sm:text-sm mb-1.5 sm:mb-2" style={{ color: 'var(--muted)' }}>Total Stake</label>
               <div className="relative">
                 <span 
                   className="absolute left-3 top-1/2 -translate-y-1/2"
@@ -433,7 +423,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                     setTotalStake(e.target.value);
                     setStakesModified(false);
                   }}
-                  className="w-full pl-8 pr-4 py-3 text-lg font-medium focus:outline-none rounded-lg border"
+                  className="w-full pl-7 sm:pl-8 pr-3 sm:pr-4 py-2.5 sm:py-3 text-base sm:text-lg font-medium focus:outline-none rounded-lg border"
                   style={{
                     backgroundColor: 'var(--surface)',
                     borderColor: 'var(--border)',
@@ -444,7 +434,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                   step="10"
                 />
               </div>
-              <div className="flex gap-2 mt-2">
+              <div className="flex flex-wrap gap-1.5 sm:gap-2 mt-2">
                 {[50, 100, 250, 500, 1000].map((amount) => (
                   <button
                     key={amount}
@@ -452,7 +442,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                       setTotalStake(amount.toString());
                       setStakesModified(false);
                     }}
-                    className="px-3 py-1 text-sm border rounded transition-colors hover:bg-[var(--surface-hover)]"
+                    className="px-2 sm:px-3 py-1 text-xs sm:text-sm border rounded transition-colors hover:bg-[var(--surface-hover)]"
                     style={{
                       backgroundColor: 'var(--surface)',
                       borderColor: 'var(--border)',
@@ -468,20 +458,20 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
             {/* Modified Warning */}
             {(oddsModified || stakesModified) && (
               <div 
-                className="flex items-center justify-between p-3 rounded-lg border"
+                className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 sm:p-3 rounded-lg border"
                 style={{
                   backgroundColor: 'color-mix(in srgb, var(--info) 10%, transparent)',
                   borderColor: 'color-mix(in srgb, var(--info) 30%, transparent)'
                 }}
               >
-                <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--info)' }}>
+                <div className="flex items-center gap-2 text-xs sm:text-sm" style={{ color: 'var(--info)' }}>
                   <span>✏️</span>
                   <span>
                     {oddsModified && stakesModified 
-                      ? 'Odds and stakes modified' 
+                      ? 'Odds & stakes modified' 
                       : oddsModified 
-                        ? 'Odds modified from original' 
-                        : 'Stakes manually adjusted'}
+                        ? 'Odds modified' 
+                        : 'Stakes adjusted'}
                   </span>
                 </div>
                 <div className="flex gap-2">
@@ -494,7 +484,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                         color: 'white'
                       }}
                     >
-                      Recalculate Optimal
+                      Recalculate
                     </button>
                   )}
                   <button
@@ -505,15 +495,15 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                       color: 'var(--foreground)'
                     }}
                   >
-                    Reset All
+                    Reset
                   </button>
                 </div>
               </div>
             )}
 
             {/* Stakes Breakdown */}
-            <div className="space-y-3">
-              <h3 className="text-sm" style={{ color: 'var(--muted)' }}>Individual Stakes</h3>
+            <div className="space-y-2 sm:space-y-3">
+              <h3 className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>Individual Stakes</h3>
               
               {outcomes.map((outcome, index) => {
                 const originalOdds = getOutcomesFromArb(arb)[index].odds;
@@ -527,29 +517,30 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                 return (
                   <div 
                     key={index}
-                    className="p-4 rounded-lg border"
+                    className="p-3 sm:p-4 rounded-lg border"
                     style={{
                       backgroundColor: 'var(--surface)',
                       borderColor: 'var(--border)'
                     }}
                   >
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <div className="font-medium" style={{ color: 'var(--foreground)' }}>{outcome.name}</div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm" style={{ color: 'var(--muted)' }}>{outcome.bookmaker}</span>
+                    {/* Outcome Header */}
+                    <div className="flex items-start justify-between gap-2 mb-2 sm:mb-3">
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm sm:text-base truncate" style={{ color: 'var(--foreground)' }}>{outcome.name}</div>
+                        <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                          <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>{outcome.bookmaker}</span>
                           <RiskBadge bookmaker={outcome.bookmaker} />
                         </div>
                       </div>
-                      <div className="text-right">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Odds:</span>
+                      <div className="text-right shrink-0">
+                        <div className="flex items-center gap-1 sm:gap-2">
+                          <span className="text-[10px] sm:text-xs hidden sm:inline" style={{ color: 'var(--muted-foreground)' }}>Odds:</span>
                           <input
                             type="text"
                             inputMode="decimal"
                             value={customOddsStrings[index] || ''}
                             onChange={(e) => handleOddsChange(index, e.target.value)}
-                            className="w-20 text-right text-lg font-bold rounded px-2 py-1 focus:outline-none border"
+                            className="w-16 sm:w-20 text-right text-base sm:text-lg font-bold rounded px-1.5 sm:px-2 py-0.5 sm:py-1 focus:outline-none border"
                             style={{
                               backgroundColor: 'var(--surface-secondary)',
                               borderColor: isOddsChanged ? 'var(--info)' : 'var(--border)',
@@ -557,28 +548,24 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                             }}
                           />
                         </div>
-                        <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
-                          {((1 / currentOdds) * 100).toFixed(1)}% implied
-                          {isOddsChanged && (
-                            <span className="ml-1" style={{ color: 'var(--muted)' }}>
-                              (was {originalOdds.toFixed(2)})
-                            </span>
-                          )}
+                        <div className="text-[10px] sm:text-xs mt-0.5 sm:mt-1" style={{ color: 'var(--muted-foreground)' }}>
+                          {((1 / currentOdds) * 100).toFixed(1)}%
                         </div>
                       </div>
                     </div>
 
-                    <div className="flex items-end justify-between">
-                      <div className="space-y-1">
-                        <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Stake:</div>
-                        <div className="flex items-center gap-1">
+                    {/* Stake and Returns */}
+                    <div className="flex items-end justify-between gap-2">
+                      <div className="space-y-0.5 sm:space-y-1">
+                        <div className="text-[10px] sm:text-xs" style={{ color: 'var(--muted-foreground)' }}>Stake:</div>
+                        <div className="flex items-center gap-0.5 sm:gap-1">
                           <span style={{ color: 'var(--muted)' }}>$</span>
                           <input
                             type="text"
                             inputMode="decimal"
                             value={customStakeStrings[index] || ''}
                             onChange={(e) => handleStakeChange(index, e.target.value)}
-                            className="w-28 text-xl font-bold rounded px-2 py-1 focus:outline-none border"
+                            className="w-20 sm:w-28 text-lg sm:text-xl font-bold rounded px-1.5 sm:px-2 py-0.5 sm:py-1 focus:outline-none border"
                             style={{
                               backgroundColor: 'var(--surface-secondary)',
                               borderColor: isStakeChanged ? 'var(--success)' : 'var(--border)',
@@ -587,19 +574,19 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                           />
                         </div>
                         {isStakeChanged && (
-                          <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                          <div className="text-[10px] sm:text-xs" style={{ color: 'var(--muted-foreground)' }}>
                             Optimal: ${optimalStake.toFixed(2)}
                           </div>
                         )}
                       </div>
                       
                       <div className="text-right">
-                        <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Returns</div>
-                        <div className="font-medium" style={{ color: 'var(--foreground)' }}>
+                        <div className="text-[10px] sm:text-xs" style={{ color: 'var(--muted-foreground)' }}>Returns</div>
+                        <div className="font-medium text-sm sm:text-base" style={{ color: 'var(--foreground)' }}>
                           ${getReturn(index).toFixed(2)}
                         </div>
                         <div 
-                          className="text-sm font-medium"
+                          className="text-xs sm:text-sm font-medium"
                           style={{ color: getProfit(index) >= 0 ? 'var(--success)' : 'var(--danger)' }}
                         >
                           {getProfit(index) >= 0 ? '+' : ''}${getProfit(index).toFixed(2)}
@@ -613,37 +600,37 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
 
             {/* Summary */}
             <div 
-              className="p-4 rounded-lg border"
+              className="p-3 sm:p-4 rounded-lg border"
               style={{
                 backgroundColor: 'var(--surface)',
                 borderColor: 'var(--border)'
               }}
             >
-              <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="grid grid-cols-3 gap-2 sm:gap-4 text-center">
                 <div>
-                  <div className="text-xs uppercase mb-1" style={{ color: 'var(--muted-foreground)' }}>Total Staked</div>
-                  <div className="text-lg font-bold" style={{ color: 'var(--foreground)' }}>
+                  <div className="text-[10px] sm:text-xs uppercase mb-0.5 sm:mb-1" style={{ color: 'var(--muted-foreground)' }}>Staked</div>
+                  <div className="text-base sm:text-lg font-bold" style={{ color: 'var(--foreground)' }}>
                     ${totalStaked.toFixed(2)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase mb-1" style={{ color: 'var(--muted-foreground)' }}>Guaranteed Profit</div>
+                  <div className="text-[10px] sm:text-xs uppercase mb-0.5 sm:mb-1" style={{ color: 'var(--muted-foreground)' }}>Profit</div>
                   <div 
-                    className="text-lg font-bold"
+                    className="text-base sm:text-lg font-bold"
                     style={{ color: minProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}
                   >
                     {minProfit >= 0 ? '+' : ''}${minProfit.toFixed(2)}
                   </div>
                   {profitVariance > 0.01 && (
-                    <div className="text-xs text-yellow-400">
-                      ⚠️ Varies by ${profitVariance.toFixed(2)}
+                    <div className="text-[10px] sm:text-xs text-yellow-400">
+                      ±${(profitVariance / 2).toFixed(2)}
                     </div>
                   )}
                 </div>
                 <div>
-                  <div className="text-xs uppercase mb-1" style={{ color: 'var(--muted-foreground)' }}>ROI</div>
+                  <div className="text-[10px] sm:text-xs uppercase mb-0.5 sm:mb-1" style={{ color: 'var(--muted-foreground)' }}>ROI</div>
                   <div 
-                    className="text-lg font-bold"
+                    className="text-base sm:text-lg font-bold"
                     style={{ color: profitPercent >= 0 ? 'var(--success)' : 'var(--danger)' }}
                   >
                     {profitPercent >= 0 ? '+' : ''}{profitPercent.toFixed(2)}%
@@ -655,21 +642,21 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
             {/* Profit Breakdown per Outcome */}
             {profitVariance > 0.01 && (
               <div 
-                className="p-4 rounded-lg border"
+                className="p-3 sm:p-4 rounded-lg border"
                 style={{
                   backgroundColor: 'color-mix(in srgb, var(--warning) 10%, transparent)',
                   borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)'
                 }}
               >
-                <h4 className="font-medium mb-2 text-yellow-400">⚠️ Unbalanced Stakes</h4>
-                <p className="text-sm mb-2" style={{ color: 'var(--muted)' }}>
-                  Your custom stakes create different profits depending on which outcome wins:
+                <h4 className="font-medium mb-1.5 sm:mb-2 text-sm sm:text-base text-yellow-400">⚠️ Unbalanced Stakes</h4>
+                <p className="text-xs sm:text-sm mb-2" style={{ color: 'var(--muted)' }}>
+                  Different profits per outcome:
                 </p>
                 <div className="space-y-1">
                   {outcomes.map((outcome, i) => (
-                    <div key={i} className="flex justify-between text-sm">
-                      <span style={{ color: 'var(--muted)' }}>If {outcome.name} wins:</span>
-                      <span style={{ color: getProfit(i) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                    <div key={i} className="flex justify-between text-xs sm:text-sm">
+                      <span className="truncate mr-2" style={{ color: 'var(--muted)' }}>{outcome.name}:</span>
+                      <span className="shrink-0" style={{ color: getProfit(i) >= 0 ? 'var(--success)' : 'var(--danger)' }}>
                         {getProfit(i) >= 0 ? '+' : ''}${getProfit(i).toFixed(2)}
                       </span>
                     </div>
@@ -677,7 +664,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                 </div>
                 <button
                   onClick={handleRecalculateOptimal}
-                  className="mt-3 w-full py-2 text-sm font-medium rounded transition-colors"
+                  className="mt-2 sm:mt-3 w-full py-1.5 sm:py-2 text-xs sm:text-sm font-medium rounded transition-colors"
                   style={{
                     backgroundColor: 'var(--warning)',
                     color: 'black'
@@ -691,14 +678,14 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
             {/* Stealth Tips */}
             {stealthMode && !stakesModified && (
               <div 
-                className="p-4 rounded-lg border"
+                className="p-3 sm:p-4 rounded-lg border"
                 style={{
                   backgroundColor: 'var(--surface)',
                   borderColor: 'var(--border)'
                 }}
               >
-                <h4 className="font-medium mb-2" style={{ color: 'var(--muted)' }}>🥷 Stealth Tips</h4>
-                <ul className="text-sm space-y-1" style={{ color: 'var(--muted-foreground)' }}>
+                <h4 className="font-medium mb-1.5 sm:mb-2 text-sm" style={{ color: 'var(--muted)' }}>🥷 Stealth Tips</h4>
+                <ul className="text-xs sm:text-sm space-y-1" style={{ color: 'var(--muted-foreground)' }}>
                   {outcomes.map((outcome, i) => {
                     const profile = getBookmakerProfile(outcome.bookmaker);
                     if (profile?.riskLevel === 'extreme' || profile?.riskLevel === 'high') {
@@ -710,8 +697,8 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                     }
                     return null;
                   }).filter(Boolean)}
-                  <li>• Place bets 1-2 hours before event starts</li>
-                  <li>• Consider a mug bet after this arb</li>
+                  <li>• Place bets 1-2 hours before event</li>
+                  <li>• Consider a mug bet after</li>
                 </ul>
               </div>
             )}
@@ -719,7 +706,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
 
           {/* Footer */}
           <div 
-            className="sticky bottom-0 px-6 py-4 flex gap-3 border-t rounded-b-lg"
+            className="sticky bottom-0 px-3 sm:px-6 py-3 sm:py-4 flex gap-2 sm:gap-3 border-t rounded-b-lg"
             style={{
               backgroundColor: 'var(--background)',
               borderColor: 'var(--border)'
@@ -727,7 +714,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
           >
             <button
               onClick={onClose}
-              className="flex-1 py-3 font-medium rounded-lg transition-colors border hover:bg-[var(--surface)]"
+              className="flex-1 py-2.5 sm:py-3 text-sm font-medium rounded-lg transition-colors border hover:bg-[var(--surface)]"
               style={{
                 backgroundColor: 'transparent',
                 borderColor: 'var(--border)',
@@ -738,7 +725,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
             </button>
             <button
               onClick={handleLogBet}
-              className="flex-1 py-3 font-medium rounded-lg transition-colors"
+              className="flex-1 py-2.5 sm:py-3 text-sm font-medium rounded-lg transition-colors"
               style={{
                 backgroundColor: 'var(--info)',
                 color: 'white'

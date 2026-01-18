@@ -26,6 +26,8 @@ import {
   Check, 
   ChevronDown,
   Loader2,
+  Menu,
+  X,
 } from 'lucide-react';
 
 type AuthModalType = 'login' | 'signup' | null;
@@ -94,26 +96,22 @@ export default function LandingPage() {
   const [loadingPlan, setLoadingPlan] = useState<PlanType | null>(null);
   const [pendingPlan, setPendingPlan] = useState<PlanType | null>(null);
   const [checkoutPlan, setCheckoutPlan] = useState<PlanType | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   
   const detectedRegion = useGeoRegion();
 
   const handleSelectPlan = async (planId: PlanType) => {
-    // If not logged in, show signup modal and store the plan they wanted
     if (!session) {
       setPendingPlan(planId);
       setAuthModal('signup');
       return;
     }
-
-    // User is logged in, open embedded checkout modal
     setCheckoutPlan(planId);
   };
 
-  // Handle successful signup - proceed to checkout if they had a pending plan
   const handleAuthClose = () => {
     setAuthModal(null);
     
-    // If user just signed up and had selected a plan, open checkout modal
     if (pendingPlan && session) {
       setCheckoutPlan(pendingPlan);
       setPendingPlan(null);
@@ -122,6 +120,11 @@ export default function LandingPage() {
 
   const handleCheckoutClose = () => {
     setCheckoutPlan(null);
+  };
+
+  const scrollToSection = (id: string) => {
+    setMobileNavOpen(false);
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
   };
 
   return (
@@ -137,19 +140,18 @@ export default function LandingPage() {
           borderColor: 'var(--border)'
         }}
       >
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
-            {/* Logo wrapper - matches Header.tsx structure */}
-            <div className="flex items-center gap-6">
+            {/* Logo */}
+            <div className="flex items-center gap-4 sm:gap-6">
               <Link href="/" className="flex items-center">
-                {/* Both logos rendered, CSS controls visibility based on theme */}
                 <Image
                   src="/logo_thin_dark_version.png"
                   alt="Edge Maxxer"
                   width={300}
                   height={72}
                   priority
-                  className="h-16 w-auto logo-dark"
+                  className="h-10 sm:h-12 lg:h-16 w-auto logo-dark"
                 />
                 <Image
                   src="/logo_thin_light_version.png"
@@ -157,12 +159,13 @@ export default function LandingPage() {
                   width={300}
                   height={72}
                   priority
-                  className="h-16 w-auto logo-light"
+                  className="h-10 sm:h-12 lg:h-16 w-auto logo-light"
                 />
               </Link>
             </div>
 
-            <div className="hidden md:flex items-center gap-8">
+            {/* Desktop Nav Links */}
+            <div className="hidden md:flex items-center gap-6 lg:gap-8">
               <a 
                 href="#features" 
                 className="text-sm transition-colors hover:opacity-70"
@@ -186,7 +189,8 @@ export default function LandingPage() {
               </a>
             </div>
 
-            <div className="flex items-center gap-3">
+            {/* Right Actions */}
+            <div className="flex items-center gap-2 sm:gap-3">
               <button
                 onClick={toggleTheme}
                 className="p-2 rounded-lg transition-colors hover:bg-[var(--surface)]"
@@ -194,10 +198,11 @@ export default function LandingPage() {
               >
                 {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
+              
               {session ? (
                 <button
                   onClick={() => router.push('/dashboard')}
-                  className="px-5 py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
+                  className="px-4 sm:px-5 py-2 sm:py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
                   style={{ 
                     backgroundColor: '#14b8a6',
                     color: '#fff'
@@ -209,40 +214,115 @@ export default function LandingPage() {
                 <>
                   <button
                     onClick={() => setAuthModal('login')}
-                    className="px-4 py-2 text-sm font-medium rounded-lg transition-colors hover:bg-[var(--surface)]"
+                    className="hidden sm:block px-4 py-2 text-sm font-medium rounded-lg transition-colors hover:bg-[var(--surface)]"
                     style={{ color: 'var(--foreground)' }}
                   >
                     Login
                   </button>
                   <button
                     onClick={() => setAuthModal('signup')}
-                    className="px-5 py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
+                    className="px-4 sm:px-5 py-2 sm:py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
                     style={{ 
                       backgroundColor: '#14b8a6',
                       color: '#fff'
                     }}
                   >
-                    Join Now
+                    <span className="hidden sm:inline">Join Now</span>
+                    <span className="sm:hidden">Join</span>
                   </button>
                 </>
               )}
+
+              {/* Mobile Menu Button */}
+              <button
+                onClick={() => setMobileNavOpen(true)}
+                className="p-2 rounded-lg transition-colors hover:bg-[var(--surface)] md:hidden"
+                style={{ color: 'var(--foreground)' }}
+              >
+                <Menu className="w-5 h-5" />
+              </button>
             </div>
           </div>
         </div>
       </nav>
 
+      {/* Mobile Navigation Overlay */}
+      {mobileNavOpen && (
+        <div 
+          className="fixed inset-0 z-[60] md:hidden"
+          onClick={() => setMobileNavOpen(false)}
+        >
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+          />
+          <div 
+            className="absolute top-0 right-0 bottom-0 w-[75%] max-w-xs"
+            style={{ backgroundColor: 'var(--background)' }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div 
+              className="flex items-center justify-between px-4 py-4 border-b"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              <span className="font-medium" style={{ color: 'var(--foreground)' }}>Menu</span>
+              <button
+                onClick={() => setMobileNavOpen(false)}
+                className="p-2 rounded-lg"
+                style={{ color: 'var(--muted)' }}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="py-4">
+              <button
+                onClick={() => scrollToSection('features')}
+                className="w-full px-4 py-3 text-left text-sm transition-colors hover:bg-[var(--surface)]"
+                style={{ color: 'var(--foreground)' }}
+              >
+                How it Works
+              </button>
+              <button
+                onClick={() => scrollToSection('pricing')}
+                className="w-full px-4 py-3 text-left text-sm transition-colors hover:bg-[var(--surface)]"
+                style={{ color: 'var(--foreground)' }}
+              >
+                Pricing
+              </button>
+              <button
+                onClick={() => scrollToSection('faq')}
+                className="w-full px-4 py-3 text-left text-sm transition-colors hover:bg-[var(--surface)]"
+                style={{ color: 'var(--foreground)' }}
+              >
+                FAQ
+              </button>
+              {!session && (
+                <button
+                  onClick={() => {
+                    setMobileNavOpen(false);
+                    setAuthModal('login');
+                  }}
+                  className="w-full px-4 py-3 text-left text-sm transition-colors hover:bg-[var(--surface)]"
+                  style={{ color: 'var(--foreground)' }}
+                >
+                  Login
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Hero Section */}
-      <section className="pt-28 pb-16 relative overflow-hidden">
-        {/* Grid pattern background */}
+      <section className="pt-24 sm:pt-28 pb-12 sm:pb-16 relative overflow-hidden">
         <div className="absolute inset-0 hero-grid-pattern" />
         
-        <div className="max-w-7xl mx-auto px-6 relative">
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-8 items-start">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 relative">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-8 items-start">
             {/* Left: Text Content */}
             <div className="max-w-xl lg:max-w-lg">
               {/* Live badge */}
               <div 
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium mb-6"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] sm:text-xs font-medium mb-4 sm:mb-6"
                 style={{ 
                   backgroundColor: 'var(--surface)',
                   color: 'var(--muted)',
@@ -258,7 +338,7 @@ export default function LandingPage() {
 
               {/* Headline */}
               <h1 
-                className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-6"
+                className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-4 sm:mb-6"
                 style={{ color: 'var(--foreground)' }}
               >
                 Beat the{' '}
@@ -267,24 +347,24 @@ export default function LandingPage() {
               
               {/* Subheadline */}
               <p 
-                className="text-lg md:text-xl font-semibold mb-4"
+                className="text-base sm:text-lg md:text-xl font-semibold mb-3 sm:mb-4"
                 style={{ color: 'var(--foreground)' }}
               >
                 Stop Guessing. Start Profiting. Bet both sides—profit no matter the outcome.
               </p>
 
               <p 
-                className="text-base mb-8 leading-relaxed"
+                className="text-sm sm:text-base mb-6 sm:mb-8 leading-relaxed"
                 style={{ color: 'var(--muted)' }}
               >
                 We spent years mastering arbitrage betting. We built the tool we always needed, now we're sharing it with you. Our software scans over 80 sportsbooks for profitable discrepancies 24/7.
               </p>
 
               {/* CTA Buttons */}
-              <div className="flex flex-wrap items-center gap-4 mb-8">
+              <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
                 <button
                   onClick={() => handleSelectPlan('trial')}
-                  className="inline-flex items-center gap-2 px-6 py-3.5 rounded-lg text-sm font-medium transition-all hover:opacity-90"
+                  className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-lg text-sm font-medium transition-all hover:opacity-90"
                   style={{ 
                     backgroundColor: '#14b8a6',
                     color: '#fff'
@@ -294,7 +374,7 @@ export default function LandingPage() {
                 </button>
                 <a
                   href="#pricing"
-                  className="inline-flex items-center gap-2 px-6 py-3.5 rounded-lg text-sm font-medium border transition-colors hover:bg-[var(--surface)]"
+                  className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-lg text-sm font-medium border transition-colors hover:bg-[var(--surface)]"
                   style={{ 
                     borderColor: 'var(--border)',
                     color: 'var(--foreground)'
@@ -307,7 +387,7 @@ export default function LandingPage() {
 
               {/* Profit Counter */}
               <div 
-                className="inline-flex items-center gap-3 px-4 py-2.5 rounded-lg mb-10"
+                className="inline-flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg mb-8 sm:mb-10"
                 style={{ 
                   backgroundColor: 'var(--surface)',
                   border: '1px solid var(--border)'
@@ -317,17 +397,17 @@ export default function LandingPage() {
                   className="w-2 h-2 rounded-full animate-pulse"
                   style={{ backgroundColor: '#22c55e' }}
                 />
-                <span className="text-sm" style={{ color: 'var(--muted)' }}>
+                <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
                   Users have made
                 </span>
                 <ProfitCounter initialValue={0} refreshInterval={5000} />
-                <span className="text-sm" style={{ color: 'var(--muted)' }}>
+                <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
                   in profit
                 </span>
               </div>
 
               {/* Stats Row */}
-              <div className="flex items-center gap-8 md:gap-12 mb-6">
+              <div className="flex items-center gap-6 sm:gap-8 md:gap-12 mb-4 sm:mb-6">
                 {[
                   { value: '80+', label: 'SPORTSBOOKS' },
                   { value: '<2s', label: 'LATENCY' },
@@ -335,13 +415,13 @@ export default function LandingPage() {
                 ].map((stat, i) => (
                   <div key={i}>
                     <div 
-                      className="text-2xl md:text-3xl font-bold mb-0.5"
+                      className="text-xl sm:text-2xl md:text-3xl font-bold mb-0.5"
                       style={{ color: 'var(--foreground)' }}
                     >
                       {stat.value}
                     </div>
                     <div 
-                      className="text-[10px] tracking-wider"
+                      className="text-[9px] sm:text-[10px] tracking-wider"
                       style={{ color: 'var(--muted)' }}
                     >
                       {stat.label}
@@ -356,7 +436,7 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Right: Feed Preview - aligned with headline */}
+            {/* Right: Feed Preview */}
             <div className="relative flex justify-center lg:justify-start lg:mt-16">
               <LiveFeedPreview />
             </div>
@@ -376,79 +456,79 @@ export default function LandingPage() {
       <FeaturesShowcase />
 
       {/* Comparison */}
-      <section className="py-20 px-6 border-t" style={{ borderColor: 'var(--border)' }}>
+      <section className="py-16 sm:py-20 px-4 sm:px-6 border-t" style={{ borderColor: 'var(--border)' }}>
         <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
+          <div className="text-center mb-8 sm:mb-12">
             <h2 
-              className="text-3xl font-bold mb-4"
+              className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4"
               style={{ color: 'var(--foreground)' }}
             >
               Stop overpaying for arb software
             </h2>
-            <p style={{ color: 'var(--muted)' }}>
+            <p className="text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
               Same features, 10x lower price
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6">
+          <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
             {/* Competitors */}
             <div 
-              className="p-6 rounded-xl border"
+              className="p-4 sm:p-6 rounded-xl border"
               style={{ 
                 backgroundColor: 'var(--surface)',
                 borderColor: 'var(--border)'
               }}
             >
-              <div className="text-sm font-medium mb-4" style={{ color: 'var(--muted)' }}>
+              <div className="text-xs sm:text-sm font-medium mb-3 sm:mb-4" style={{ color: 'var(--muted)' }}>
                 Other scanners
               </div>
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm" style={{ color: 'var(--muted)' }}>Monthly cost</span>
-                  <span className="font-medium line-through" style={{ color: 'var(--foreground)' }}>$50 - $199</span>
+                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>Monthly cost</span>
+                  <span className="font-medium line-through text-sm" style={{ color: 'var(--foreground)' }}>$50 - $199</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm" style={{ color: 'var(--muted)' }}>Typical arbs</span>
-                  <span className="font-medium" style={{ color: 'var(--foreground)' }}>1-2% profit</span>
+                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>Typical arbs</span>
+                  <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>1-2% profit</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm" style={{ color: 'var(--muted)' }}>Hidden API fees</span>
-                  <span className="font-medium" style={{ color: 'var(--danger)' }}>Often yes</span>
+                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>Hidden API fees</span>
+                  <span className="font-medium text-sm" style={{ color: 'var(--danger)' }}>Often yes</span>
                 </div>
               </div>
             </div>
 
             {/* Edge Maxxer */}
             <div 
-              className="p-6 rounded-xl border-2"
+              className="p-4 sm:p-6 rounded-xl border-2"
               style={{ 
                 backgroundColor: 'var(--surface)',
                 borderColor: '#14b8a6'
               }}
             >
-              <div className="flex items-center justify-between mb-4">
-                <div className="text-sm font-medium" style={{ color: '#14b8a6' }}>
+              <div className="flex items-center justify-between mb-3 sm:mb-4">
+                <div className="text-xs sm:text-sm font-medium" style={{ color: '#14b8a6' }}>
                   Edge Maxxer
                 </div>
                 <span 
-                  className="text-xs px-2 py-0.5 rounded-full font-medium"
+                  className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-medium"
                   style={{ backgroundColor: '#14b8a6', color: '#fff' }}
                 >
                   Save 90%
                 </span>
               </div>
-              <div className="space-y-4">
+              <div className="space-y-3 sm:space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm" style={{ color: 'var(--muted)' }}>Monthly cost</span>
-                  <span className="text-xl font-semibold" style={{ color: '#22c55e' }}>$9.99</span>
+                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>Monthly cost</span>
+                  <span className="text-lg sm:text-xl font-semibold" style={{ color: '#22c55e' }}>$9.99</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm" style={{ color: 'var(--muted)' }}>Typical arbs</span>
-                  <span className="font-medium" style={{ color: 'var(--foreground)' }}>5-7% profit</span>
+                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>Typical arbs</span>
+                  <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>5-7% profit</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm" style={{ color: 'var(--muted)' }}>Hidden fees</span>
-                  <span className="font-medium" style={{ color: '#22c55e' }}>Never</span>
+                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>Hidden fees</span>
+                  <span className="font-medium text-sm" style={{ color: '#22c55e' }}>Never</span>
                 </div>
               </div>
             </div>
@@ -457,22 +537,22 @@ export default function LandingPage() {
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="py-20 px-6 border-t" style={{ borderColor: 'var(--border)' }}>
+      <section id="pricing" className="py-16 sm:py-20 px-4 sm:px-6 border-t" style={{ borderColor: 'var(--border)' }}>
         <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-12">
+          <div className="text-center mb-8 sm:mb-12">
             <h2 
-              className="text-3xl font-bold mb-4"
+              className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4"
               style={{ color: 'var(--foreground)' }}
             >
               Choose your plan
             </h2>
-            <p style={{ color: 'var(--muted)' }}>
+            <p className="text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
               All plans include every feature. No hidden fees.
             </p>
           </div>
 
-          {/* Pricing Cards - 3 side by side */}
-          <div className="grid md:grid-cols-3 gap-6 mb-12">
+          {/* Pricing Cards */}
+          <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 mb-8 sm:mb-12">
             {PRICING_PLANS.map((plan) => (
               <div
                 key={plan.id}
@@ -486,7 +566,7 @@ export default function LandingPage() {
               >
                 {plan.badge && (
                   <div 
-                    className="absolute top-4 right-4 px-2.5 py-1 rounded-full text-xs font-semibold z-10"
+                    className="absolute top-3 sm:top-4 right-3 sm:right-4 px-2 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-semibold z-10"
                     style={{ 
                       backgroundColor: plan.badgeColor || '#14b8a6',
                       color: '#fff'
@@ -498,50 +578,50 @@ export default function LandingPage() {
 
                 {plan.popular && (
                   <div 
-                    className="text-center py-2 text-xs font-medium"
+                    className="text-center py-1.5 sm:py-2 text-[10px] sm:text-xs font-medium"
                     style={{ backgroundColor: '#14b8a6', color: '#fff' }}
                   >
                     Most Popular
                   </div>
                 )}
 
-                <div className="p-6 flex flex-col flex-1">
+                <div className="p-4 sm:p-6 flex flex-col flex-1">
                   <h3 
-                    className="text-lg font-semibold mb-4"
+                    className="text-base sm:text-lg font-semibold mb-3 sm:mb-4"
                     style={{ color: 'var(--foreground)' }}
                   >
                     {plan.name}
                   </h3>
 
-                  <div className="mb-4">
+                  <div className="mb-3 sm:mb-4">
                     <div className="flex items-baseline gap-1">
                       {plan.originalPrice && (
                         <span 
-                          className="text-lg line-through"
+                          className="text-base sm:text-lg line-through"
                           style={{ color: 'var(--muted)' }}
                         >
                           ${plan.originalPrice}
                         </span>
                       )}
                       <span 
-                        className="text-4xl font-bold"
+                        className="text-3xl sm:text-4xl font-bold"
                         style={{ color: 'var(--foreground)' }}
                       >
                         ${plan.price}
                       </span>
-                      <span style={{ color: 'var(--muted)' }}>
+                      <span className="text-sm" style={{ color: 'var(--muted)' }}>
                         /{plan.period}
                       </span>
                     </div>
                     {plan.periodNote && (
-                      <p className="text-sm mt-1" style={{ color: 'var(--muted)' }}>
+                      <p className="text-xs sm:text-sm mt-1" style={{ color: 'var(--muted)' }}>
                         {plan.periodNote}
                       </p>
                     )}
                   </div>
 
                   <p 
-                    className="text-sm mb-6"
+                    className="text-xs sm:text-sm mb-4 sm:mb-6"
                     style={{ color: 'var(--muted)' }}
                   >
                     {plan.description}
@@ -551,7 +631,7 @@ export default function LandingPage() {
 
                   <button
                     onClick={() => handleSelectPlan(plan.id)}
-                    className="w-full py-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 hover:opacity-90"
+                    className="w-full py-2.5 sm:py-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 hover:opacity-90"
                     style={{ 
                       backgroundColor: plan.popular ? '#14b8a6' : 'var(--background)',
                       color: plan.popular ? '#fff' : 'var(--foreground)',
@@ -567,23 +647,23 @@ export default function LandingPage() {
 
           {/* Features list */}
           <div 
-            className="rounded-xl border p-8"
+            className="rounded-xl border p-4 sm:p-6 lg:p-8"
             style={{ 
               backgroundColor: 'var(--surface)',
               borderColor: 'var(--border)'
             }}
           >
             <h3 
-              className="text-lg font-semibold mb-6 text-center"
+              className="text-base sm:text-lg font-semibold mb-4 sm:mb-6 text-center"
               style={{ color: 'var(--foreground)' }}
             >
               All plans include
             </h3>
-            <div className="grid sm:grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
               {FEATURES.map((feature, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <Check className="w-4 h-4 shrink-0" style={{ color: '#22c55e' }} />
-                  <span className="text-sm" style={{ color: 'var(--foreground)' }}>
+                  <span className="text-xs sm:text-sm" style={{ color: 'var(--foreground)' }}>
                     {feature}
                   </span>
                 </div>
@@ -591,9 +671,8 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Trust note */}
           <p 
-            className="text-center text-sm mt-6"
+            className="text-center text-xs sm:text-sm mt-4 sm:mt-6"
             style={{ color: 'var(--muted)' }}
           >
             Cancel anytime • Instant access • Secure payment via Stripe
@@ -602,18 +681,18 @@ export default function LandingPage() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="py-20 px-6 border-t" style={{ borderColor: 'var(--border)' }}>
+      <section id="faq" className="py-16 sm:py-20 px-4 sm:px-6 border-t" style={{ borderColor: 'var(--border)' }}>
         <div className="max-w-2xl mx-auto">
-          <div className="text-center mb-12">
+          <div className="text-center mb-8 sm:mb-12">
             <h2 
-              className="text-3xl font-bold mb-4"
+              className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4"
               style={{ color: 'var(--foreground)' }}
             >
               Frequently asked questions
             </h2>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2 sm:space-y-3">
             {[
               {
                 q: 'What is sports arbitrage?',
@@ -650,19 +729,19 @@ export default function LandingPage() {
               >
                 <button
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  className="w-full flex items-center justify-between p-4 text-left"
+                  className="w-full flex items-center justify-between p-3 sm:p-4 text-left"
                 >
-                  <span className="font-medium" style={{ color: 'var(--foreground)' }}>
+                  <span className="font-medium text-sm sm:text-base pr-4" style={{ color: 'var(--foreground)' }}>
                     {faq.q}
                   </span>
                   <ChevronDown 
-                    className={`w-4 h-4 transition-transform ${openFaq === i ? 'rotate-180' : ''}`}
+                    className={`w-4 h-4 shrink-0 transition-transform ${openFaq === i ? 'rotate-180' : ''}`}
                     style={{ color: 'var(--muted)' }}
                   />
                 </button>
                 {openFaq === i && (
                   <div 
-                    className="px-4 pb-4 text-sm leading-relaxed"
+                    className="px-3 sm:px-4 pb-3 sm:pb-4 text-xs sm:text-sm leading-relaxed"
                     style={{ color: 'var(--muted)' }}
                   >
                     {faq.a}
@@ -676,22 +755,22 @@ export default function LandingPage() {
 
       {/* CTA */}
       <section 
-        className="py-20 px-6 border-t"
+        className="py-16 sm:py-20 px-4 sm:px-6 border-t"
         style={{ borderColor: 'var(--border)' }}
       >
         <div className="max-w-2xl mx-auto text-center">
           <h2 
-            className="text-3xl font-bold mb-4"
+            className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4"
             style={{ color: 'var(--foreground)' }}
           >
             Ready to find your edge?
           </h2>
-          <p className="mb-8" style={{ color: 'var(--muted)' }}>
+          <p className="mb-6 sm:mb-8 text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
             Start scanning for arbitrage opportunities today.
           </p>
           <button
             onClick={() => handleSelectPlan('trial')}
-            className="inline-flex items-center gap-2 px-6 py-3.5 rounded-lg text-sm font-medium transition-all hover:opacity-90 hover:gap-3"
+            className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-lg text-sm font-medium transition-all hover:opacity-90 hover:gap-3"
             style={{ 
               backgroundColor: '#14b8a6',
               color: '#fff'
@@ -705,34 +784,35 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer 
-        className="py-12 px-6 border-t"
+        className="py-8 sm:py-12 px-4 sm:px-6 border-t"
         style={{ borderColor: 'var(--border)' }}
       >
         <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-            {/* Both logos rendered, CSS controls visibility based on theme */}
-            <Image
-              src="/logo_thin_dark_version.png"
-              alt="Edge Maxxer"
-              width={100}
-              height={24}
-              className="h-5 w-auto opacity-50 logo-dark"
-            />
-            <Image
-              src="/logo_thin_light_version.png"
-              alt="Edge Maxxer"
-              width={100}
-              height={24}
-              className="h-5 w-auto opacity-50 logo-light"
-            />
-            <div className="flex items-center gap-6 text-sm" style={{ color: 'var(--muted)' }}>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
+            <div className="flex items-center">
+              <Image
+                src="/logo_thin_dark_version.png"
+                alt="Edge Maxxer"
+                width={100}
+                height={24}
+                className="h-4 sm:h-5 w-auto opacity-50 logo-dark"
+              />
+              <Image
+                src="/logo_thin_light_version.png"
+                alt="Edge Maxxer"
+                width={100}
+                height={24}
+                className="h-4 sm:h-5 w-auto opacity-50 logo-light"
+              />
+            </div>
+            <div className="flex items-center gap-4 sm:gap-6 text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
               <Link href="/terms" className="hover:opacity-70 transition-opacity">Terms</Link>
               <Link href="/privacy" className="hover:opacity-70 transition-opacity">Privacy</Link>
               <a href="mailto:support@edgemaxxer.com" className="hover:opacity-70 transition-opacity">Contact</a>
             </div>
           </div>
-          <div className="text-center mt-8">
-            <p className="text-xs" style={{ color: 'var(--muted)' }}>
+          <div className="text-center mt-6 sm:mt-8">
+            <p className="text-[10px] sm:text-xs" style={{ color: 'var(--muted)' }}>
               © {new Date().getFullYear()} Edge Maxxer. Gambling involves risk. Please gamble responsibly.
             </p>
           </div>
@@ -745,7 +825,6 @@ export default function LandingPage() {
         onClose={handleAuthClose}
         onSwitch={setAuthModal}
         onAuthSuccess={() => {
-          // After successful auth, if there was a pending plan, open checkout
           if (pendingPlan) {
             setTimeout(() => {
               setCheckoutPlan(pendingPlan);
@@ -761,7 +840,6 @@ export default function LandingPage() {
         detectedRegion={detectedRegion}
       />
 
-      {/* Embedded Checkout Modal */}
       <CheckoutModal
         isOpen={checkoutPlan !== null}
         onClose={handleCheckoutClose}

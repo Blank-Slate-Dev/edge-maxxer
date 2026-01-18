@@ -22,7 +22,7 @@ function RegionBadge({ bookmaker }: { bookmaker: string }) {
   };
   
   return (
-    <span className={`text-xs px-1 py-0.5 rounded ${colors[region] || colors.INT}`}>
+    <span className={`text-[10px] sm:text-xs px-1 py-0.5 rounded ${colors[region] || colors.INT}`}>
       {region}
     </span>
   );
@@ -34,6 +34,15 @@ function formatEventTime(date: Date): string {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatEventTimeShort(date: Date): string {
+  return date.toLocaleString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    weekday: 'short',
     hour: 'numeric',
     minute: '2-digit',
   });
@@ -68,13 +77,13 @@ export function ArbTable({ opportunities, onSelectArb, globalMode = false }: Arb
   if (opportunities.length === 0) {
     return (
       <div 
-        className="border p-12 text-center rounded-lg"
+        className="border p-8 sm:p-12 text-center rounded-lg"
         style={{
           borderColor: 'var(--border)',
           backgroundColor: 'var(--surface)'
         }}
       >
-        <p style={{ color: 'var(--muted)' }} className="mb-2">No arbitrage opportunities found</p>
+        <p style={{ color: 'var(--muted)' }} className="mb-2 text-sm">No arbitrage opportunities found</p>
         <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
           Click Scan to search for opportunities, or adjust filters
         </p>
@@ -83,46 +92,209 @@ export function ArbTable({ opportunities, onSelectArb, globalMode = false }: Arb
   }
 
   return (
+    <>
+      {/* Mobile Card View */}
+      <div className="md:hidden space-y-3">
+        {opportunities.map((opp, idx) => (
+          <ArbCard key={`${opp.event.id}-${idx}`} opp={opp} onSelect={onSelectArb} globalMode={globalMode} />
+        ))}
+      </div>
+
+      {/* Desktop Table View */}
+      <div 
+        className="hidden md:block border overflow-x-auto rounded-lg"
+        style={{
+          borderColor: 'var(--border)',
+          backgroundColor: 'var(--surface)'
+        }}
+      >
+        <table className="w-full text-sm">
+          <thead>
+            <tr style={{ borderBottom: '1px solid var(--border)' }}>
+              <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
+                Type
+              </th>
+              <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
+                Event
+              </th>
+              <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
+                Time (AEST)
+              </th>
+              <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
+                Bets Required
+              </th>
+              <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
+                Profit
+              </th>
+              <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
+                Action
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {opportunities.map((opp, idx) => (
+              <ArbRow key={`${opp.event.id}-${idx}`} opp={opp} onSelect={onSelectArb} globalMode={globalMode} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+// Mobile Card Component
+function ArbCard({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: (arb: ArbOpportunity) => void; globalMode: boolean }) {
+  const eventDate = new Date(opp.event.commenceTime);
+  const soon = isEventSoon(eventDate);
+  const timeUntil = getTimeUntil(eventDate);
+
+  return (
     <div 
-      className="border overflow-x-auto rounded-lg"
+      className="border rounded-lg overflow-hidden"
       style={{
         borderColor: 'var(--border)',
         backgroundColor: 'var(--surface)'
       }}
     >
-      <table className="w-full text-sm">
-        <thead>
-          <tr style={{ borderBottom: '1px solid var(--border)' }}>
-            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
-              Type
-            </th>
-            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
-              Event
-            </th>
-            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
-              Time (AEST)
-            </th>
-            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
-              Bets Required
-            </th>
-            <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
-              Profit
-            </th>
-            <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
-              Action
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {opportunities.map((opp, idx) => (
-            <ArbRow key={`${opp.event.id}-${idx}`} opp={opp} onSelect={onSelectArb} globalMode={globalMode} />
-          ))}
-        </tbody>
-      </table>
+      {/* Card Header */}
+      <div 
+        className="px-3 py-2 flex items-center justify-between"
+        style={{ borderBottom: '1px solid var(--border)' }}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <TypeBadge type={opp.type} />
+          {opp.mode === 'book-vs-betfair' && (
+            <span className="text-[10px] px-1.5 py-0.5 bg-purple-900/50 text-purple-400 rounded">
+              BF
+            </span>
+          )}
+          <span className="text-xs truncate" style={{ color: 'var(--muted-foreground)' }}>
+            {opp.event.sportTitle}
+          </span>
+        </div>
+        <span 
+          className="font-mono font-bold text-base shrink-0"
+          style={{ color: opp.profitPercentage >= 0 ? 'var(--success)' : 'var(--muted)' }}
+        >
+          {opp.profitPercentage >= 0 ? '+' : ''}{opp.profitPercentage.toFixed(2)}%
+        </span>
+      </div>
+
+      {/* Event Info */}
+      <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
+        <div className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>{opp.event.homeTeam}</div>
+        <div className="text-sm" style={{ color: 'var(--muted)' }}>vs {opp.event.awayTeam}</div>
+        <div className={`text-xs mt-1 ${soon ? 'text-yellow-500' : ''}`} style={soon ? {} : { color: 'var(--muted-foreground)' }}>
+          {formatEventTimeShort(eventDate)} • {timeUntil === 'Started' ? 'In progress' : `in ${timeUntil}`}
+        </div>
+      </div>
+
+      {/* Bets Required */}
+      <div className="px-3 py-2" style={{ backgroundColor: 'var(--surface-secondary)' }}>
+        <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: 'var(--muted-foreground)' }}>
+          Bets Required
+        </div>
+        {opp.mode === 'book-vs-book' ? (
+          <div className="space-y-2">
+            <BetLineMobile 
+              name={opp.outcome1.name} 
+              odds={opp.outcome1.odds} 
+              bookmaker={opp.outcome1.bookmaker}
+              showRegion={globalMode}
+              event={opp.event}
+            />
+            <BetLineMobile 
+              name={opp.outcome2.name} 
+              odds={opp.outcome2.odds} 
+              bookmaker={opp.outcome2.bookmaker}
+              showRegion={globalMode}
+              event={opp.event}
+            />
+            {opp.outcome3 && (
+              <BetLineMobile 
+                name={opp.outcome3.name} 
+                odds={opp.outcome3.odds} 
+                bookmaker={opp.outcome3.bookmaker}
+                showRegion={globalMode}
+                event={opp.event}
+              />
+            )}
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <BetLineMobile 
+              name={`Back ${opp.backOutcome.name}`} 
+              odds={opp.backOutcome.odds} 
+              bookmaker={opp.backOutcome.bookmaker}
+              showRegion={globalMode}
+              event={opp.event}
+            />
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-purple-400 text-xs">Lay</span>
+                <span className="text-[10px] ml-1" style={{ color: 'var(--muted-foreground)' }}>Betfair</span>
+              </div>
+              <span className="font-mono text-sm" style={{ color: 'var(--foreground)' }}>{opp.layOutcome.odds.toFixed(2)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Action Button */}
+      <div className="px-3 py-2">
+        <button
+          onClick={() => onSelect(opp)}
+          className="w-full py-2 text-sm font-medium rounded transition-colors"
+          style={{
+            backgroundColor: 'var(--foreground)',
+            color: 'var(--background)'
+          }}
+        >
+          Calculate Stakes
+        </button>
+      </div>
     </div>
   );
 }
 
+// Mobile-optimized bet line
+function BetLineMobile({
+  name,
+  odds,
+  bookmaker,
+  showRegion,
+  event,
+}: {
+  name: string;
+  odds: number;
+  bookmaker: string;
+  showRegion?: boolean;
+  event: { homeTeam: string; awayTeam: string; sportTitle?: string; sportKey?: string; commenceTime?: any };
+}) {
+  const href = buildBookmakerSearchUrl(bookmaker, {
+    home_team: event.homeTeam,
+    away_team: event.awayTeam,
+    sport_title: event.sportTitle || event.sportKey,
+    commence_time: event.commenceTime ? new Date(event.commenceTime).toISOString() : undefined,
+  }) ?? undefined;
+
+  return (
+    <div className="flex items-center justify-between">
+      <div className="min-w-0">
+        <div className="font-medium text-sm truncate" style={{ color: 'var(--foreground)' }}>{name}</div>
+        <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+          <a href={href} target="_blank" rel="noreferrer" className="hover:underline truncate">
+            {getBookmakerName(bookmaker)}
+          </a>
+          {showRegion && <RegionBadge bookmaker={bookmaker} />}
+        </div>
+      </div>
+      <span className="font-mono text-sm font-medium shrink-0 ml-2" style={{ color: 'var(--foreground)' }}>{odds.toFixed(2)}</span>
+    </div>
+  );
+}
+
+// Desktop Row Component
 function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: (arb: ArbOpportunity) => void; globalMode: boolean }) {
   const eventDate = new Date(opp.event.commenceTime);
   const soon = isEventSoon(eventDate);
@@ -224,6 +396,7 @@ function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: 
   );
 }
 
+// Desktop bet line
 function BetLine({
   name,
   odds,
@@ -270,7 +443,7 @@ function TypeBadge({ type }: { type: string }) {
   if (type === 'arb') {
     return (
       <span 
-        className="inline-block px-2 py-0.5 text-xs font-medium rounded"
+        className="inline-block px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-medium rounded"
         style={{
           backgroundColor: 'var(--foreground)',
           color: 'var(--background)'
@@ -282,7 +455,7 @@ function TypeBadge({ type }: { type: string }) {
   }
   return (
     <span 
-      className="inline-block px-2 py-0.5 text-xs font-medium rounded"
+      className="inline-block px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-medium rounded"
       style={{
         backgroundColor: 'var(--surface-secondary)',
         color: 'var(--muted)'

@@ -25,7 +25,7 @@ function RegionBadge({ bookmaker }: { bookmaker: string }) {
   };
   
   return (
-    <span className={`text-xs px-1 py-0.5 rounded ${colors[region] || colors.INT}`}>
+    <span className={`text-[10px] sm:text-xs px-1 py-0.5 rounded ${colors[region] || colors.INT}`}>
       {region}
     </span>
   );
@@ -37,6 +37,15 @@ function formatEventTime(date: Date): string {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function formatEventTimeShort(date: Date): string {
+  return date.toLocaleString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    weekday: 'short',
     hour: 'numeric',
     minute: '2-digit',
   });
@@ -69,17 +78,18 @@ function getTimeUntil(date: Date): string {
 
 export function SpreadsTable({ spreads, middles, onSelectSpread, onSelectMiddle, showMiddles, globalMode = false }: SpreadsTableProps) {
   const hasContent = spreads.length > 0 || (showMiddles && middles.length > 0);
+  const spreadMiddles = middles.filter(m => m.marketType === 'spreads');
 
   if (!hasContent) {
     return (
       <div 
-        className="border p-12 text-center rounded-lg"
+        className="border p-8 sm:p-12 text-center rounded-lg"
         style={{
           borderColor: 'var(--border)',
           backgroundColor: 'var(--surface)'
         }}
       >
-        <p style={{ color: 'var(--muted)' }} className="mb-2">No spread opportunities found</p>
+        <p style={{ color: 'var(--muted)' }} className="mb-2 text-sm">No spread opportunities found</p>
         <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
           Spreads/lines are mainly available for US sports (NBA, NFL, NHL, MLB). 
           AU coverage is limited.
@@ -89,90 +99,344 @@ export function SpreadsTable({ spreads, middles, onSelectSpread, onSelectMiddle,
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Spread Arbs */}
       {spreads.length > 0 && (
-        <div 
-          className="border overflow-x-auto rounded-lg"
-          style={{
-            borderColor: 'var(--border)',
-            backgroundColor: 'var(--surface)'
-          }}
-        >
+        <div>
+          {/* Section Header */}
           <div 
-            className="px-4 py-3 border-b"
+            className="px-3 sm:px-4 py-2 sm:py-3 rounded-t-lg border border-b-0"
             style={{ 
               borderColor: 'var(--border)',
               backgroundColor: 'var(--surface-secondary)'
             }}
           >
             <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>Spread Arbitrage</span>
-            <span className="text-xs ml-2" style={{ color: 'var(--muted)' }}>Same line across bookies</span>
+            <span className="text-xs ml-2 hidden sm:inline" style={{ color: 'var(--muted)' }}>Same line across bookies</span>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Type</th>
-                <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Event</th>
-                <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Time (AEST)</th>
-                <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Line</th>
-                <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Bets Required</th>
-                <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Profit</th>
-                <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {spreads.map((spread, idx) => (
-                <SpreadRow key={`${spread.event.id}-${idx}`} spread={spread} onSelect={onSelectSpread} globalMode={globalMode} />
-              ))}
-            </tbody>
-          </table>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-3 border border-t-0 rounded-b-lg p-3" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}>
+            {spreads.map((spread, idx) => (
+              <SpreadCard key={`${spread.event.id}-${idx}`} spread={spread} onSelect={onSelectSpread} globalMode={globalMode} />
+            ))}
+          </div>
+
+          {/* Desktop Table View */}
+          <div 
+            className="hidden md:block border border-t-0 overflow-x-auto rounded-b-lg"
+            style={{
+              borderColor: 'var(--border)',
+              backgroundColor: 'var(--surface)'
+            }}
+          >
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Type</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Event</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Time (AEST)</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Line</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Bets Required</th>
+                  <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Profit</th>
+                  <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {spreads.map((spread, idx) => (
+                  <SpreadRow key={`${spread.event.id}-${idx}`} spread={spread} onSelect={onSelectSpread} globalMode={globalMode} />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
       {/* Middles */}
-      {showMiddles && middles.filter(m => m.marketType === 'spreads').length > 0 && (
-        <div 
-          className="border overflow-x-auto rounded-lg"
-          style={{
-            borderColor: 'var(--border)',
-            backgroundColor: 'var(--surface)'
-          }}
-        >
+      {showMiddles && spreadMiddles.length > 0 && (
+        <div>
+          {/* Section Header */}
           <div 
-            className="px-4 py-3 border-b"
+            className="px-3 sm:px-4 py-2 sm:py-3 rounded-t-lg border border-b-0"
             style={{ 
               borderColor: 'var(--border)',
               backgroundColor: 'color-mix(in srgb, var(--warning) 10%, var(--surface))'
             }}
           >
             <span className="text-sm font-medium text-yellow-400">🎯 Middle Opportunities</span>
-            <span className="text-xs ml-2" style={{ color: 'var(--muted)' }}>Different lines create win-win zone</span>
+            <span className="text-xs ml-2 hidden sm:inline" style={{ color: 'var(--muted)' }}>Different lines create win-win zone</span>
           </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Event</th>
-                <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Time</th>
-                <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Middle Zone</th>
-                <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Bets Required</th>
-                <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Max Loss</th>
-                <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>If Middle Hits</th>
-                <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {middles.filter(m => m.marketType === 'spreads').map((middle, idx) => (
-                <MiddleRow key={`${middle.event.id}-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} globalMode={globalMode} />
-              ))}
-            </tbody>
-          </table>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-3 border border-t-0 rounded-b-lg p-3" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}>
+            {spreadMiddles.map((middle, idx) => (
+              <MiddleCard key={`${middle.event.id}-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} globalMode={globalMode} />
+            ))}
+          </div>
+
+          {/* Desktop Table View */}
+          <div 
+            className="hidden md:block border border-t-0 overflow-x-auto rounded-b-lg"
+            style={{
+              borderColor: 'var(--border)',
+              backgroundColor: 'var(--surface)'
+            }}
+          >
+            <table className="w-full text-sm">
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Event</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Time</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Middle Zone</th>
+                  <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Bets Required</th>
+                  <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Max Loss</th>
+                  <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>If Middle Hits</th>
+                  <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {spreadMiddles.map((middle, idx) => (
+                  <MiddleRow key={`${middle.event.id}-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} globalMode={globalMode} />
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
+// Mobile Spread Card
+function SpreadCard({ spread, onSelect, globalMode }: { spread: SpreadArb; onSelect: (s: SpreadArb) => void; globalMode: boolean }) {
+  const eventDate = new Date(spread.event.commenceTime);
+  const soon = isEventSoon(eventDate);
+  const timeUntil = getTimeUntil(eventDate);
+
+  return (
+    <div 
+      className="border rounded-lg overflow-hidden"
+      style={{
+        borderColor: 'var(--border)',
+        backgroundColor: 'var(--background)'
+      }}
+    >
+      {/* Header */}
+      <div 
+        className="px-3 py-2 flex items-center justify-between"
+        style={{ borderBottom: '1px solid var(--border)' }}
+      >
+        <div className="flex items-center gap-2">
+          <TypeBadge type={spread.type} />
+          <span className="font-mono text-sm font-bold" style={{ color: 'var(--foreground)' }}>
+            {spread.line > 0 ? '+' : ''}{spread.line}
+          </span>
+        </div>
+        <span 
+          className="font-mono font-bold text-base"
+          style={{ color: spread.profitPercentage >= 0 ? 'var(--success)' : 'var(--muted)' }}
+        >
+          {spread.profitPercentage >= 0 ? '+' : ''}{spread.profitPercentage.toFixed(2)}%
+        </span>
+      </div>
+
+      {/* Event Info */}
+      <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
+        <div className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
+          {spread.event.homeTeam} vs {spread.event.awayTeam}
+        </div>
+        <div className="flex items-center justify-between mt-1">
+          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{spread.event.sportTitle}</span>
+          <span className={`text-xs ${soon ? 'text-yellow-500' : ''}`} style={soon ? {} : { color: 'var(--muted)' }}>
+            {formatEventTimeShort(eventDate)} ({timeUntil})
+          </span>
+        </div>
+      </div>
+
+      {/* Bets */}
+      <div className="px-3 py-2 space-y-2">
+        <BetLineMobile 
+          name={spread.favorite.name} 
+          odds={spread.favorite.odds} 
+          bookmaker={spread.favorite.bookmaker}
+          point={spread.favorite.point}
+          showRegion={globalMode}
+          event={spread.event}
+        />
+        <BetLineMobile 
+          name={spread.underdog.name} 
+          odds={spread.underdog.odds} 
+          bookmaker={spread.underdog.bookmaker}
+          point={spread.underdog.point}
+          showRegion={globalMode}
+          event={spread.event}
+        />
+      </div>
+
+      {/* Action */}
+      <div className="px-3 py-2" style={{ backgroundColor: 'var(--surface)' }}>
+        <button
+          onClick={() => onSelect(spread)}
+          className="w-full py-2 text-sm font-medium rounded-lg transition-colors"
+          style={{
+            backgroundColor: 'var(--foreground)',
+            color: 'var(--background)'
+          }}
+        >
+          Calculate Stakes
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Mobile Middle Card
+function MiddleCard({ middle, onSelect, globalMode }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void; globalMode: boolean }) {
+  const eventDate = new Date(middle.event.commenceTime);
+  const soon = isEventSoon(eventDate);
+
+  return (
+    <div 
+      className="border rounded-lg overflow-hidden"
+      style={{
+        borderColor: 'color-mix(in srgb, var(--warning) 50%, var(--border))',
+        backgroundColor: 'var(--background)'
+      }}
+    >
+      {/* Header */}
+      <div 
+        className="px-3 py-2 flex items-center justify-between"
+        style={{ 
+          borderBottom: '1px solid var(--border)',
+          backgroundColor: 'color-mix(in srgb, var(--warning) 10%, transparent)'
+        }}
+      >
+        <span className="text-yellow-400 font-medium text-sm">🎯 Middle</span>
+        <span className="text-xs" style={{ color: 'var(--muted)' }}>
+          ~{middle.middleProbability.toFixed(0)}% chance
+        </span>
+      </div>
+
+      {/* Event Info */}
+      <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
+        <div className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
+          {middle.event.homeTeam} vs {middle.event.awayTeam}
+        </div>
+        <div className="flex items-center justify-between mt-1">
+          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{middle.event.sportTitle}</span>
+          <span className={`text-xs ${soon ? 'text-yellow-500' : ''}`} style={soon ? {} : { color: 'var(--muted)' }}>
+            {formatEventTimeShort(eventDate)}
+          </span>
+        </div>
+      </div>
+
+      {/* Middle Zone */}
+      <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
+        <div className="text-yellow-400 font-medium text-sm">
+          {middle.middleRange.description}
+        </div>
+      </div>
+
+      {/* Bets */}
+      <div className="px-3 py-2 space-y-2 text-xs">
+        <div className="flex items-center justify-between flex-wrap gap-1">
+          <div className="flex items-center gap-1">
+            <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side1.point > 0 ? '+' : ''}{middle.side1.point}</span>
+            <span style={{ color: 'var(--muted)' }}>@ {middle.side1.odds.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span style={{ color: 'var(--muted-foreground)' }}>{getBookmakerName(middle.side1.bookmaker)}</span>
+            {globalMode && <RegionBadge bookmaker={middle.side1.bookmaker} />}
+          </div>
+        </div>
+        <div className="flex items-center justify-between flex-wrap gap-1">
+          <div className="flex items-center gap-1">
+            <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side2.point > 0 ? '+' : ''}{middle.side2.point}</span>
+            <span style={{ color: 'var(--muted)' }}>@ {middle.side2.odds.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span style={{ color: 'var(--muted-foreground)' }}>{getBookmakerName(middle.side2.bookmaker)}</span>
+            {globalMode && <RegionBadge bookmaker={middle.side2.bookmaker} />}
+          </div>
+        </div>
+      </div>
+
+      {/* Outcomes */}
+      <div 
+        className="px-3 py-2 grid grid-cols-2 gap-2 text-center"
+        style={{ borderTop: '1px solid var(--border)' }}
+      >
+        <div>
+          <div className="text-[10px] uppercase" style={{ color: 'var(--muted-foreground)' }}>Max Loss</div>
+          <div className="font-mono text-sm" style={{ color: 'var(--danger)' }}>-${middle.guaranteedLoss.toFixed(2)}</div>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase" style={{ color: 'var(--muted-foreground)' }}>If Middle Hits</div>
+          <div className="font-mono text-sm text-green-400">+${middle.potentialProfit.toFixed(2)}</div>
+        </div>
+      </div>
+
+      {/* Action */}
+      <div className="px-3 py-2" style={{ backgroundColor: 'var(--surface)' }}>
+        <button
+          onClick={() => onSelect(middle)}
+          className="w-full py-2 text-sm font-medium rounded-lg border border-yellow-600 text-yellow-400 hover:bg-yellow-600 hover:text-black transition-colors"
+        >
+          Calculate Stakes
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Mobile Bet Line for Spreads
+function BetLineMobile({
+  name,
+  odds,
+  bookmaker,
+  point,
+  showRegion,
+  event,
+}: {
+  name: string;
+  odds: number;
+  bookmaker: string;
+  point: number;
+  showRegion?: boolean;
+  event: { homeTeam: string; awayTeam: string; sportTitle?: string; sportKey?: string; commenceTime?: any };
+}) {
+  const href = buildBookmakerSearchUrl(bookmaker, {
+    home_team: event.homeTeam,
+    away_team: event.awayTeam,
+    sport_title: event.sportTitle || event.sportKey,
+    commence_time: event.commenceTime ? String(event.commenceTime) : undefined,
+  }) ?? undefined;
+
+  return (
+    <div className="flex items-center justify-between">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="font-mono text-sm" style={{ color: 'var(--foreground)' }}>{point > 0 ? '+' : ''}{point}</span>
+          <span className="text-sm truncate" style={{ color: 'var(--muted)' }}>{name}</span>
+        </div>
+        <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline"
+          >
+            {getBookmakerName(bookmaker)}
+          </a>
+          {showRegion && <RegionBadge bookmaker={bookmaker} />}
+        </div>
+      </div>
+      <span className="font-mono text-sm shrink-0 ml-2" style={{ color: 'var(--muted)' }}>@ {odds.toFixed(2)}</span>
+    </div>
+  );
+}
+
+// Desktop Table Row for Spreads
 function SpreadRow({ spread, onSelect, globalMode }: { spread: SpreadArb; onSelect: (s: SpreadArb) => void; globalMode: boolean }) {
   const eventDate = new Date(spread.event.commenceTime);
   const soon = isEventSoon(eventDate);
@@ -246,6 +510,7 @@ function SpreadRow({ spread, onSelect, globalMode }: { spread: SpreadArb; onSele
   );
 }
 
+// Desktop Middle Row
 function MiddleRow({ middle, onSelect, globalMode }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void; globalMode: boolean }) {
   const eventDate = new Date(middle.event.commenceTime);
   const soon = isEventSoon(eventDate);
@@ -314,6 +579,7 @@ function MiddleRow({ middle, onSelect, globalMode }: { middle: MiddleOpportunity
   );
 }
 
+// Desktop Bet Line
 function BetLine({
   name,
   odds,
@@ -363,7 +629,7 @@ function TypeBadge({ type }: { type: string }) {
   if (type === 'arb') {
     return (
       <span 
-        className="inline-block px-2 py-0.5 text-xs font-medium rounded"
+        className="inline-block px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-medium rounded"
         style={{
           backgroundColor: 'var(--foreground)',
           color: 'var(--background)'
@@ -375,7 +641,7 @@ function TypeBadge({ type }: { type: string }) {
   }
   return (
     <span 
-      className="inline-block px-2 py-0.5 text-xs font-medium rounded"
+      className="inline-block px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-medium rounded"
       style={{
         backgroundColor: 'var(--surface-secondary)',
         color: 'var(--muted)'

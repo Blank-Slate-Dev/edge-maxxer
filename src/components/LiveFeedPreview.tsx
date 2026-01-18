@@ -289,277 +289,294 @@ export function LiveFeedPreview() {
   };
 
   return (
-    <div 
-      className="relative"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      {/* Main Container - fixed width, doesn't change */}
-      <div 
-        className="relative rounded-2xl overflow-hidden"
-        style={{ 
-          backgroundColor: '#0d0d0c',
-          border: '1px solid #2a2a28',
-          width: '780px',
-          boxShadow: '0 0 60px rgba(20, 184, 166, 0.15), 0 25px 50px -12px rgba(0, 0, 0, 0.5)'
-        }}
-      >
-        {/* Browser Chrome */}
-        <div 
-          className="flex items-center justify-between px-4 py-3"
-          style={{ 
-            backgroundColor: '#161614',
-            borderBottom: '1px solid #2a2a28'
-          }}
-        >
-          <div className="flex gap-2">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ff5f56' }} />
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ffbd2e' }} />
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#27ca40' }} />
-          </div>
-          <div 
-            className="flex-1 mx-4 px-3 py-1.5 rounded-md text-xs text-center"
-            style={{ backgroundColor: '#0d0d0c', color: '#666' }}
-          >
-            edgemaxxer.com/dashboard
-          </div>
-          <div className="flex items-center gap-2">
-            <span 
-              className="w-2 h-2 rounded-full animate-pulse"
-              style={{ backgroundColor: '#22c55e' }}
-            />
-            <span className="text-[10px] font-medium tracking-wider" style={{ color: '#888' }}>
-              ARB SCANNER
-            </span>
-          </div>
+    <>
+      {/* Mobile Version - Shows only on small screens */}
+      <div className="block md:hidden w-full flex justify-center">
+        <div className="relative w-full max-w-[320px]">
+          <Image
+            src="/mobile_phone.png"
+            alt="Edge Maxxer Mobile App Preview"
+            width={1082}
+            height={1944}
+            className="w-full h-auto"
+            priority
+          />
         </div>
+      </div>
 
-        {/* Scrollable Feed - Manual scroll only */}
+      {/* Desktop Version - Shows only on medium screens and up */}
+      <div 
+        className="relative hidden md:block"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+      >
+        {/* Main Container - fixed width, doesn't change */}
         <div 
-          className="overflow-y-auto overflow-x-hidden custom-scrollbar"
+          className="relative rounded-2xl overflow-hidden"
           style={{ 
-            height: '535px',
+            backgroundColor: '#0d0d0c',
+            border: '1px solid #2a2a28',
+            width: '780px',
+            boxShadow: '0 0 60px rgba(20, 184, 166, 0.15), 0 25px 50px -12px rgba(0, 0, 0, 0.5)'
           }}
         >
-          <div className="p-3 space-y-3">
-            {SAMPLE_ARBS.map((arb) => (
-              <div 
-                key={arb.id}
-                className="rounded-lg overflow-hidden"
-                style={{ 
-                  backgroundColor: '#1a1a18',
-                  border: '1px solid #2a2a28'
-                }}
-              >
-                {/* Header Row */}
-                <div 
-                  className="px-3 py-2.5 flex items-center justify-between"
-                  style={{ borderBottom: '1px solid #2a2a28' }}
-                >
-                  <div className="flex items-center gap-2">
-                    <Image
-                      src={`/sports/${arb.sport}.png`}
-                      alt={arb.sport}
-                      width={16}
-                      height={16}
-                      className="w-4 h-4 object-contain"
-                    />
-                    <span className="text-[10px] font-medium" style={{ color: '#888' }}>
-                      {arb.league}
-                    </span>
-                    <span className="font-semibold text-xs" style={{ color: '#14b8a6' }}>
-                      {arb.matchup}
-                    </span>
-                    {arb.tag && (
-                      <span 
-                        className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                        style={{ 
-                          backgroundColor: arb.tag === 'Middle' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(20, 184, 166, 0.15)',
-                          color: arb.tag === 'Middle' ? '#a855f7' : '#14b8a6',
-                          border: `1px solid ${arb.tag === 'Middle' ? 'rgba(168, 85, 247, 0.3)' : 'rgba(20, 184, 166, 0.3)'}`
-                        }}
-                      >
-                        {arb.tag}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {arb.gameTime && (
-                      <span 
-                        className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                        style={{ 
-                          backgroundColor: 'rgba(20, 184, 166, 0.15)',
-                          color: '#14b8a6'
-                        }}
-                      >
-                        {arb.gameTime}
-                      </span>
-                    )}
-                  </div>
-                </div>
+          {/* Browser Chrome */}
+          <div 
+            className="flex items-center justify-between px-4 py-3"
+            style={{ 
+              backgroundColor: '#161614',
+              borderBottom: '1px solid #2a2a28'
+            }}
+          >
+            <div className="flex gap-2">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ff5f56' }} />
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ffbd2e' }} />
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#27ca40' }} />
+            </div>
+            <div 
+              className="flex-1 mx-4 px-3 py-1.5 rounded-md text-xs text-center"
+              style={{ backgroundColor: '#0d0d0c', color: '#666' }}
+            >
+              edgemaxxer.com/dashboard
+            </div>
+            <div className="flex items-center gap-2">
+              <span 
+                className="w-2 h-2 rounded-full animate-pulse"
+                style={{ backgroundColor: '#22c55e' }}
+              />
+              <span className="text-[10px] font-medium tracking-wider" style={{ color: '#888' }}>
+                ARB SCANNER
+              </span>
+            </div>
+          </div>
 
-                {/* Bet Type */}
+          {/* Scrollable Feed - Manual scroll only */}
+          <div 
+            className="overflow-y-auto overflow-x-hidden custom-scrollbar"
+            style={{ 
+              height: '535px',
+            }}
+          >
+            <div className="p-3 space-y-3">
+              {SAMPLE_ARBS.map((arb) => (
                 <div 
-                  className="px-3 py-1.5 text-[10px] font-medium"
-                  style={{ color: '#666', borderBottom: '1px solid #2a2a28' }}
+                  key={arb.id}
+                  className="rounded-lg overflow-hidden"
+                  style={{ 
+                    backgroundColor: '#1a1a18',
+                    border: '1px solid #2a2a28'
+                  }}
                 >
-                  {arb.betType}
-                </div>
-
-                {/* Profit Row */}
-                <div 
-                  className="px-3 py-2 flex items-center justify-between"
-                  style={{ backgroundColor: '#141412' }}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xl font-bold" style={{ color: '#22c55e' }}>
-                      {arb.profit.toFixed(1)}%
-                    </span>
-                    <div>
-                      <div className="text-[9px] uppercase tracking-wider" style={{ color: '#666' }}>
-                        Guaranteed Profit
-                      </div>
-                      <div className="text-xs font-medium flex items-center gap-1" style={{ color: '#22c55e' }}>
-                        <TrendingUp className="w-3 h-3" />
-                        +${arb.profitAmount}
-                      </div>
+                  {/* Header Row */}
+                  <div 
+                    className="px-3 py-2.5 flex items-center justify-between"
+                    style={{ borderBottom: '1px solid #2a2a28' }}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Image
+                        src={`/sports/${arb.sport}.png`}
+                        alt={arb.sport}
+                        width={16}
+                        height={16}
+                        className="w-4 h-4 object-contain"
+                      />
+                      <span className="text-[10px] font-medium" style={{ color: '#888' }}>
+                        {arb.league}
+                      </span>
+                      <span className="font-semibold text-xs" style={{ color: '#14b8a6' }}>
+                        {arb.matchup}
+                      </span>
+                      {arb.tag && (
+                        <span 
+                          className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                          style={{ 
+                            backgroundColor: arb.tag === 'Middle' ? 'rgba(168, 85, 247, 0.2)' : 'rgba(20, 184, 166, 0.15)',
+                            color: arb.tag === 'Middle' ? '#a855f7' : '#14b8a6',
+                            border: `1px solid ${arb.tag === 'Middle' ? 'rgba(168, 85, 247, 0.3)' : 'rgba(20, 184, 166, 0.3)'}`
+                          }}
+                        >
+                          {arb.tag}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {arb.gameTime && (
+                        <span 
+                          className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                          style={{ 
+                            backgroundColor: 'rgba(20, 184, 166, 0.15)',
+                            color: '#14b8a6'
+                          }}
+                        >
+                          {arb.gameTime}
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <div className="flex gap-1">
-                    <button 
-                      className="p-1.5 rounded hover:bg-[#2a2a28] transition-colors"
-                      style={{ color: '#666' }}
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                    </button>
-                    <button 
-                      className="p-1.5 rounded hover:bg-[#2a2a28] transition-colors"
-                      style={{ color: '#666' }}
-                    >
-                      <Pin className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
 
-                {/* Outcomes */}
-                {arb.outcomes.map((outcome, i) => (
+                  {/* Bet Type */}
                   <div 
-                    key={i}
-                    className="px-4 py-3"
-                    style={{ 
-                      borderTop: '1px solid #2a2a28',
-                      backgroundColor: '#141412'
-                    }}
+                    className="px-3 py-1.5 text-[10px] font-medium"
+                    style={{ color: '#666', borderBottom: '1px solid #2a2a28' }}
                   >
-                    <div className="flex items-center justify-between">
-                      {/* Left: Book Logo + Label */}
-                      <div className="flex items-center gap-3 min-w-[160px]">
-                        <BookLogo bookKey={outcome.bookKey} size={32} />
-                        <span className="font-medium text-sm" style={{ color: '#fff' }}>
-                          {outcome.label}
-                        </span>
+                    {arb.betType}
+                  </div>
+
+                  {/* Profit Row */}
+                  <div 
+                    className="px-3 py-2 flex items-center justify-between"
+                    style={{ backgroundColor: '#141412' }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="text-xl font-bold" style={{ color: '#22c55e' }}>
+                        {arb.profit.toFixed(1)}%
+                      </span>
+                      <div>
+                        <div className="text-[9px] uppercase tracking-wider" style={{ color: '#666' }}>
+                          Guaranteed Profit
+                        </div>
+                        <div className="text-xs font-medium flex items-center gap-1" style={{ color: '#22c55e' }}>
+                          <TrendingUp className="w-3 h-3" />
+                          +${arb.profitAmount}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <button 
+                        className="p-1.5 rounded hover:bg-[#2a2a28] transition-colors"
+                        style={{ color: '#666' }}
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </button>
+                      <button 
+                        className="p-1.5 rounded hover:bg-[#2a2a28] transition-colors"
+                        style={{ color: '#666' }}
+                      >
+                        <Pin className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Outcomes */}
+                  {arb.outcomes.map((outcome, i) => (
+                    <div 
+                      key={i}
+                      className="px-4 py-3"
+                      style={{ 
+                        borderTop: '1px solid #2a2a28',
+                        backgroundColor: '#141412'
+                      }}
+                    >
+                      <div className="flex items-center justify-between">
+                        {/* Left: Book Logo + Label */}
+                        <div className="flex items-center gap-3 min-w-[160px]">
+                          <BookLogo bookKey={outcome.bookKey} size={32} />
+                          <span className="font-medium text-sm" style={{ color: '#fff' }}>
+                            {outcome.label}
+                          </span>
+                        </div>
+                        
+                        {/* Right: Stats row */}
+                        <div className="flex items-center gap-3">
+                          {/* EV Badge */}
+                          <div className="w-[70px] text-right">
+                            {outcome.ev && (
+                              <span 
+                                className="text-[10px] px-2 py-1 rounded"
+                                style={{ 
+                                  backgroundColor: 'rgba(20, 184, 166, 0.15)',
+                                  color: '#14b8a6'
+                                }}
+                              >
+                                {outcome.ev.toFixed(1)}% EV
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Line */}
+                          <div className="w-[50px] text-right">
+                            {outcome.line !== undefined && (
+                              <span className="text-sm font-mono font-medium" style={{ color: '#14b8a6' }}>
+                                {outcome.line > 0 ? '+' : ''}{outcome.line}
+                              </span>
+                            )}
+                          </div>
+                          
+                          {/* Odds */}
+                          <div className="w-[55px] text-right">
+                            <span className="text-sm font-mono font-bold" style={{ color: '#22c55e' }}>
+                              {formatOdds(outcome.odds)}
+                            </span>
+                          </div>
+                          
+                          {/* Stake */}
+                          <div className="w-[50px] text-right">
+                            <span className="text-xs font-mono" style={{ color: '#666' }}>
+                              ${outcome.stake}
+                            </span>
+                          </div>
+                        </div>
                       </div>
                       
-                      {/* Right: Stats row */}
-                      <div className="flex items-center gap-3">
-                        {/* EV Badge */}
-                        <div className="w-[70px] text-right">
-                          {outcome.ev && (
-                            <span 
-                              className="text-[10px] px-2 py-1 rounded"
-                              style={{ 
-                                backgroundColor: 'rgba(20, 184, 166, 0.15)',
-                                color: '#14b8a6'
-                              }}
-                            >
-                              {outcome.ev.toFixed(1)}% EV
-                            </span>
-                          )}
+                      {/* Alt Odds Row */}
+                      {outcome.altOdds && outcome.altOdds.length > 0 && (
+                        <div className="flex justify-end mt-2 gap-2">
+                          {outcome.altOdds.slice(0, 3).map((alt, j) => (
+                            <BookBadge key={j} bookKey={alt.bookKey} odds={alt.odds} />
+                          ))}
                         </div>
-                        
-                        {/* Line */}
-                        <div className="w-[50px] text-right">
-                          {outcome.line !== undefined && (
-                            <span className="text-sm font-mono font-medium" style={{ color: '#14b8a6' }}>
-                              {outcome.line > 0 ? '+' : ''}{outcome.line}
-                            </span>
-                          )}
-                        </div>
-                        
-                        {/* Odds */}
-                        <div className="w-[55px] text-right">
-                          <span className="text-sm font-mono font-bold" style={{ color: '#22c55e' }}>
-                            {formatOdds(outcome.odds)}
-                          </span>
-                        </div>
-                        
-                        {/* Stake */}
-                        <div className="w-[50px] text-right">
-                          <span className="text-xs font-mono" style={{ color: '#666' }}>
-                            ${outcome.stake}
-                          </span>
-                        </div>
-                      </div>
+                      )}
                     </div>
-                    
-                    {/* Alt Odds Row */}
-                    {outcome.altOdds && outcome.altOdds.length > 0 && (
-                      <div className="flex justify-end mt-2 gap-2">
-                        {outcome.altOdds.slice(0, 3).map((alt, j) => (
-                          <BookBadge key={j} bookKey={alt.bookKey} odds={alt.odds} />
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Sidebar - extends outside the main container to the right, vertically centered */}
-      <div 
-        className="absolute top-1/2 left-full -translate-y-1/2 transition-all duration-300 ease-out overflow-hidden"
-        style={{ 
-          width: isHovered ? '200px' : '0px',
-          backgroundColor: '#0d0d0c',
-          border: '1px solid #2a2a28',
-          borderLeft: 'none',
-          borderTopRightRadius: '12px',
-          borderBottomRightRadius: '12px',
-        }}
-      >
-        <div className="p-4 w-[200px]">
-          <h3 
-            className="text-[10px] font-semibold uppercase tracking-wider mb-4"
-            style={{ color: '#14b8a6' }}
-          >
-            Key Features
-          </h3>
-          <div className="space-y-3">
-            {SIDEBAR_ITEMS.map((item, i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div 
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: '#1a1a18', border: '1px solid #2a2a28' }}
-                >
-                  <item.icon 
-                    className="w-5 h-5" 
-                    style={{ color: '#14b8a6' }} 
-                  />
+                  ))}
                 </div>
-                <span 
-                  className="text-sm"
-                  style={{ color: '#fff' }}
-                >
-                  {item.label}
-                </span>
-              </div>
-            ))}
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Sidebar - extends outside the main container to the right, vertically centered */}
+        <div 
+          className="absolute top-1/2 left-full -translate-y-1/2 transition-all duration-300 ease-out overflow-hidden"
+          style={{ 
+            width: isHovered ? '200px' : '0px',
+            backgroundColor: '#0d0d0c',
+            border: '1px solid #2a2a28',
+            borderLeft: 'none',
+            borderTopRightRadius: '12px',
+            borderBottomRightRadius: '12px',
+          }}
+        >
+          <div className="p-4 w-[200px]">
+            <h3 
+              className="text-[10px] font-semibold uppercase tracking-wider mb-4"
+              style={{ color: '#14b8a6' }}
+            >
+              Key Features
+            </h3>
+            <div className="space-y-3">
+              {SIDEBAR_ITEMS.map((item, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <div 
+                    className="w-10 h-10 rounded-lg flex items-center justify-center"
+                    style={{ backgroundColor: '#1a1a18', border: '1px solid #2a2a28' }}
+                  >
+                    <item.icon 
+                      className="w-5 h-5" 
+                      style={{ color: '#14b8a6' }} 
+                    />
+                  </div>
+                  <span 
+                    className="text-sm"
+                    style={{ color: '#fff' }}
+                  >
+                    {item.label}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }

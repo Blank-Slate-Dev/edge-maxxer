@@ -112,7 +112,6 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
         return;
       }
 
-      // Call success callback if provided, otherwise navigate to dashboard
       if (onAuthSuccess) {
         onAuthSuccess();
         onClose();
@@ -147,7 +146,6 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
         return;
       }
 
-      // Auto sign in
       const signInResult = await signIn('credentials', {
         email: signupData.email,
         password: signupData.password,
@@ -155,10 +153,8 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
       });
 
       if (signInResult?.error) {
-        // If auto sign-in fails, switch to login modal
         onSwitch('login');
       } else {
-        // Call success callback if provided, otherwise navigate to dashboard
         if (onAuthSuccess) {
           onAuthSuccess();
           onClose();
@@ -176,7 +172,6 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
   const handleGoogleSignIn = async () => {
     setIsGoogleLoading(true);
     try {
-      // For Google sign-in, we redirect - the callback will handle the rest
       await signIn('google', { callbackUrl: '/dashboard' });
     } catch (error) {
       setApiError('Failed to sign in with Google');
@@ -188,12 +183,12 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
 
   return (
     <div 
-      className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 animate-fade-in"
       style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
       onClick={onClose}
     >
       <div 
-        className="relative w-full max-w-md rounded-2xl border animate-scale-in overflow-hidden"
+        className="relative w-full max-w-md rounded-xl sm:rounded-2xl border animate-scale-in overflow-hidden max-h-[90vh] overflow-y-auto"
         style={{ 
           backgroundColor: 'var(--surface)',
           borderColor: 'var(--border)'
@@ -203,22 +198,22 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
         {/* Close button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-lg transition-colors hover:bg-[var(--background)] z-10"
+          className="absolute top-3 sm:top-4 right-3 sm:right-4 p-1.5 sm:p-2 rounded-lg transition-colors hover:bg-[var(--background)] z-10"
           style={{ color: 'var(--muted)' }}
         >
           <X className="w-5 h-5" />
         </button>
 
-        <div className="p-8">
+        <div className="p-5 sm:p-8">
           {/* Header */}
-          <div className="mb-6">
+          <div className="mb-4 sm:mb-6 pr-8">
             <h2 
-              className="text-2xl font-semibold mb-2"
+              className="text-xl sm:text-2xl font-semibold mb-1 sm:mb-2"
               style={{ color: 'var(--foreground)' }}
             >
               {isOpen === 'login' ? 'Welcome back' : 'Create your account'}
             </h2>
-            <p className="text-sm" style={{ color: 'var(--muted)' }}>
+            <p className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
               {isOpen === 'login' 
                 ? 'Enter your credentials to continue' 
                 : 'Get started with Edge Maxxer'}
@@ -228,7 +223,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
           {/* Error message */}
           {apiError && (
             <div 
-              className="mb-4 p-3 rounded-lg text-sm"
+              className="mb-3 sm:mb-4 p-2.5 sm:p-3 rounded-lg text-xs sm:text-sm"
               style={{ 
                 backgroundColor: 'var(--danger-muted)',
                 color: 'var(--danger)',
@@ -240,11 +235,11 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
           )}
 
           {/* Form */}
-          <form onSubmit={isOpen === 'login' ? handleLogin : handleSignup} className="space-y-4">
+          <form onSubmit={isOpen === 'login' ? handleLogin : handleSignup} className="space-y-3 sm:space-y-4">
             {/* Name (signup only) */}
             {isOpen === 'signup' && (
               <div>
-                <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
+                <label className="block text-xs sm:text-sm font-medium mb-1 sm:mb-1.5" style={{ color: 'var(--foreground)' }}>
                   Full name
                 </label>
                 <input
@@ -253,7 +248,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
                   onChange={(e) => setSignupData({ ...signupData, name: e.target.value })}
                   placeholder="John Smith"
                   disabled={isLoading}
-                  className="w-full px-3 py-2.5 text-sm rounded-lg disabled:opacity-50"
+                  className="w-full px-3 py-2 sm:py-2.5 text-sm rounded-lg disabled:opacity-50"
                   style={{
                     backgroundColor: 'var(--background)',
                     border: errors.name ? '1px solid var(--danger)' : '1px solid var(--border)',
@@ -261,14 +256,14 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
                   }}
                 />
                 {errors.name && (
-                  <p className="text-xs mt-1" style={{ color: 'var(--danger)' }}>{errors.name}</p>
+                  <p className="text-[10px] sm:text-xs mt-1" style={{ color: 'var(--danger)' }}>{errors.name}</p>
                 )}
               </div>
             )}
 
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
+              <label className="block text-xs sm:text-sm font-medium mb-1 sm:mb-1.5" style={{ color: 'var(--foreground)' }}>
                 Email
               </label>
               <input
@@ -280,7 +275,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
                 }
                 placeholder="you@example.com"
                 disabled={isLoading}
-                className="w-full px-3 py-2.5 text-sm rounded-lg disabled:opacity-50"
+                className="w-full px-3 py-2 sm:py-2.5 text-sm rounded-lg disabled:opacity-50"
                 style={{
                   backgroundColor: 'var(--background)',
                   border: errors.email ? '1px solid var(--danger)' : '1px solid var(--border)',
@@ -288,13 +283,13 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
                 }}
               />
               {errors.email && (
-                <p className="text-xs mt-1" style={{ color: 'var(--danger)' }}>{errors.email}</p>
+                <p className="text-[10px] sm:text-xs mt-1" style={{ color: 'var(--danger)' }}>{errors.email}</p>
               )}
             </div>
 
             {/* Password */}
             <div>
-              <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
+              <label className="block text-xs sm:text-sm font-medium mb-1 sm:mb-1.5" style={{ color: 'var(--foreground)' }}>
                 Password
               </label>
               <div className="relative">
@@ -307,7 +302,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
                   }
                   placeholder={isOpen === 'signup' ? 'Min. 8 characters' : '••••••••'}
                   disabled={isLoading}
-                  className="w-full px-3 py-2.5 pr-10 text-sm rounded-lg disabled:opacity-50"
+                  className="w-full px-3 py-2 sm:py-2.5 pr-10 text-sm rounded-lg disabled:opacity-50"
                   style={{
                     backgroundColor: 'var(--background)',
                     border: errors.password ? '1px solid var(--danger)' : '1px solid var(--border)',
@@ -317,21 +312,21 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1"
                   style={{ color: 'var(--muted)' }}
                 >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
               {errors.password && (
-                <p className="text-xs mt-1" style={{ color: 'var(--danger)' }}>{errors.password}</p>
+                <p className="text-[10px] sm:text-xs mt-1" style={{ color: 'var(--danger)' }}>{errors.password}</p>
               )}
             </div>
 
             {/* Region (signup only) */}
             {isOpen === 'signup' && (
               <div>
-                <label className="block text-sm font-medium mb-1.5" style={{ color: 'var(--foreground)' }}>
+                <label className="block text-xs sm:text-sm font-medium mb-1 sm:mb-1.5" style={{ color: 'var(--foreground)' }}>
                   Your region
                 </label>
                 <div className="relative">
@@ -339,7 +334,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
                     value={signupData.region}
                     onChange={(e) => setSignupData({ ...signupData, region: e.target.value as UserRegion })}
                     disabled={isLoading}
-                    className="w-full px-3 py-2.5 text-sm rounded-lg appearance-none cursor-pointer disabled:opacity-50"
+                    className="w-full px-3 py-2 sm:py-2.5 text-sm rounded-lg appearance-none cursor-pointer disabled:opacity-50"
                     style={{
                       backgroundColor: 'var(--background)',
                       border: '1px solid var(--border)',
@@ -364,7 +359,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
             <button
               type="submit"
               disabled={isLoading || isGoogleLoading}
-              className="w-full py-3 text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition-all hover:opacity-90 disabled:opacity-50"
+              className="w-full py-2.5 sm:py-3 text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition-all hover:opacity-90 disabled:opacity-50"
               style={{
                 backgroundColor: '#14b8a6',
                 color: '#ffffff'
@@ -373,7 +368,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
               {isLoading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  {isOpen === 'login' ? 'Logging in...' : 'Creating account...'}
+                  <span className="text-sm">{isOpen === 'login' ? 'Logging in...' : 'Creating...'}</span>
                 </>
               ) : (
                 isOpen === 'login' ? 'Log in' : 'Create account'
@@ -382,7 +377,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
           </form>
 
           {/* Divider */}
-          <div className="relative my-6">
+          <div className="relative my-4 sm:my-6">
             <div className="absolute inset-0 flex items-center">
               <div className="w-full border-t" style={{ borderColor: 'var(--border)' }} />
             </div>
@@ -401,7 +396,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
             type="button"
             onClick={handleGoogleSignIn}
             disabled={isLoading || isGoogleLoading}
-            className="w-full py-2.5 text-sm rounded-lg flex items-center justify-center gap-2 transition-colors hover:bg-[var(--background)] border disabled:opacity-50"
+            className="w-full py-2 sm:py-2.5 text-sm rounded-lg flex items-center justify-center gap-2 transition-colors hover:bg-[var(--background)] border disabled:opacity-50"
             style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
           >
             {isGoogleLoading ? (
@@ -414,11 +409,11 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
                 <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
               </svg>
             )}
-            Continue with Google
+            <span>Continue with Google</span>
           </button>
 
           {/* Switch link */}
-          <p className="text-sm text-center mt-6" style={{ color: 'var(--muted)' }}>
+          <p className="text-xs sm:text-sm text-center mt-4 sm:mt-6" style={{ color: 'var(--muted)' }}>
             {isOpen === 'login' ? "Don't have an account? " : 'Already have an account? '}
             <button
               type="button"

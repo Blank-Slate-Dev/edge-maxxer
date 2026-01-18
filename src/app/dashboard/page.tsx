@@ -59,21 +59,18 @@ const DEFAULT_FILTERS: FilterType = {
 
 // High-liquidity sports most likely to have arbitrage opportunities
 const QUICK_SCAN_SPORTS = [
-  // US Major Leagues
   'basketball_nba',
   'basketball_ncaab',
   'americanfootball_nfl',
   'americanfootball_ncaaf',
   'icehockey_nhl',
   'baseball_mlb',
-  // Top Soccer Leagues
   'soccer_epl',
   'soccer_spain_la_liga',
   'soccer_italy_serie_a',
   'soccer_germany_bundesliga',
   'soccer_uefa_champs_league',
   'soccer_usa_mls',
-  // Tennis
   'tennis_atp_australian_open',
   'tennis_atp_french_open', 
   'tennis_atp_us_open',
@@ -82,7 +79,6 @@ const QUICK_SCAN_SPORTS = [
   'tennis_wta_french_open',
   'tennis_wta_us_open',
   'tennis_wta_wimbledon',
-  // Australian Sports
   'aussierules_afl',
   'rugbyleague_nrl',
 ];
@@ -110,10 +106,10 @@ function RegionTab({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border rounded-lg transition-all ${colorMap[info.color]}`}
+      className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium border rounded-lg transition-all ${colorMap[info.color]}`}
     >
       <span>{info.flag}</span>
-      <span>{region}</span>
+      <span className="hidden xs:inline">{region}</span>
     </button>
   );
 }
@@ -129,14 +125,14 @@ function GlobalToggle({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium border rounded-lg transition-all ${
+      className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium border rounded-lg transition-all ${
         isGlobal 
           ? 'bg-gradient-to-r from-red-600 via-purple-600 to-green-600 border-transparent text-white' 
           : 'border-zinc-600 text-zinc-400 hover:bg-zinc-800/50'
       }`}
     >
-      <Globe className="w-4 h-4" />
-      <span>Global</span>
+      <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+      <span className="hidden sm:inline">Global</span>
     </button>
   );
 }
@@ -150,7 +146,6 @@ function getBookmakersFromArb(opp: ArbOpportunity): string[] {
     }
     return bookmakers;
   } else {
-    // book-vs-betfair
     return [opp.backOutcome.bookmaker];
   }
 }
@@ -167,7 +162,6 @@ export default function DashboardPage() {
   const [sports, setSports] = useState<Sport[]>([]);
   const [bookmakers, setBookmakers] = useState<string[]>([]);
   
-  // Split loading states for progressive rendering
   const [isLoadingArbs, setIsLoadingArbs] = useState(false);
   const [isLoadingLines, setIsLoadingLines] = useState(false);
   const [arbsProgress, setArbsProgress] = useState<string>('');
@@ -186,7 +180,6 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<Tab>('opportunities');
   const [showMiddles, setShowMiddles] = useState(true);
   
-  // Region selection state
   const [selectedRegions, setSelectedRegions] = useState<UserRegion[]>(['AU']);
   const [userDefaultRegion, setUserDefaultRegion] = useState<UserRegion>('AU');
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -201,7 +194,6 @@ export default function DashboardPage() {
     deleteTransaction 
   } = useAccounts();
 
-  // Derived loading state - show overlay only when arbs are loading
   const hasFetched = hasFetchedArbs;
 
   // Load user's default region from settings
@@ -229,7 +221,6 @@ export default function DashboardPage() {
   const toggleRegion = (region: UserRegion) => {
     setSelectedRegions(prev => {
       if (prev.includes(region)) {
-        // Don't allow deselecting the last region
         if (prev.length === 1) return prev;
         return prev.filter(r => r !== region);
       } else {
@@ -240,10 +231,8 @@ export default function DashboardPage() {
 
   const toggleGlobal = () => {
     if (isGlobalMode) {
-      // Go back to just user's default region
       setSelectedRegions([userDefaultRegion]);
     } else {
-      // Select all regions
       setSelectedRegions([...config.regionOrder]);
     }
   };
@@ -260,13 +249,10 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // Sequential fetch - H2H completes first, then lines starts
   const fetchArbs = useCallback(async (quickScan: boolean = false) => {
-    // Reset states
     setError(null);
     setLinesError(null);
     
-    // Start H2H loading (lines will start after H2H completes)
     setIsLoadingArbs(true);
     setIsLoadingLines(false);
     setArbsProgress(quickScan ? 'Quick scan initializing...' : 'Initializing scan...');
@@ -278,10 +264,8 @@ export default function DashboardPage() {
         await fetchSports();
       }
 
-      // Get API regions string from selected user regions
       const apiRegions = getApiRegionsForUserRegions(selectedRegions);
 
-      // Build params
       const params = new URLSearchParams({
         minProfit: filters.minProfit.toString(),
         maxHours: filters.maxHoursUntilStart.toString(),
@@ -291,13 +275,11 @@ export default function DashboardPage() {
         regions: apiRegions,
       });
       
-      // Use quick scan sports or user-selected sports
       const sportsToScan = quickScan ? QUICK_SCAN_SPORTS : filters.sports;
       if (sportsToScan.length > 0) {
         params.set('sports', sportsToScan.join(','));
       }
 
-      // ============ PHASE 1: H2H FETCH ============
       const scanType = quickScan ? 'Quick scanning' : 'Scanning';
       const sportCount = quickScan ? `${QUICK_SCAN_SPORTS.length} priority sports` : 'all sports';
       setArbsProgress(`${scanType} ${selectedRegions.join(', ')} - ${sportCount}...`);
@@ -310,7 +292,6 @@ export default function DashboardPage() {
         throw new Error(arbsData.error || 'Failed to fetch arbs');
       }
 
-      // Parse H2H opportunities
       const parsed = arbsData.opportunities.map(opp => ({
         ...opp,
         event: {
@@ -329,7 +310,6 @@ export default function DashboardPage() {
         lastUpdated: new Date(vb.lastUpdated),
       }));
 
-      // Update H2H state immediately - user sees results now
       setOpportunities(parsed);
       setValueBets(parsedValueBets);
       setStats(arbsData.stats);
@@ -340,7 +320,6 @@ export default function DashboardPage() {
       setIsLoadingArbs(false);
       setArbsProgress('');
 
-      // Collect unique bookmakers from opportunities
       const uniqueBookmakers = new Set<string>();
       parsed.forEach(opp => {
         getBookmakersFromArb(opp).forEach(bm => uniqueBookmakers.add(bm));
@@ -349,11 +328,9 @@ export default function DashboardPage() {
 
       console.log(`[Dashboard] H2H complete: ${parsed.length} opportunities`);
 
-      // ============ PHASE 2: LINES FETCH (starts after H2H is displayed) ============
       setIsLoadingLines(true);
       setLinesProgress('Scanning spreads & totals...');
 
-      // Fire lines fetch - don't await, let it complete in background
       fetch(`/api/lines?${params}&middles=${showMiddles}`)
         .then(async (linesRes) => {
           setLinesProgress('Processing spreads & totals...');
@@ -363,7 +340,6 @@ export default function DashboardPage() {
             throw new Error(linesData.error || 'Failed to fetch lines');
           }
 
-          // Parse line opportunities
           const parsedSpreads = (linesData.spreadArbs || []).map(s => ({
             ...s,
             event: {
@@ -391,14 +367,12 @@ export default function DashboardPage() {
             lastUpdated: new Date(m.lastUpdated),
           }));
 
-          // Update lines state
           setSpreadArbs(parsedSpreads);
           setTotalsArbs(parsedTotals);
           setMiddles(parsedMiddles);
           setLineStats(linesData.stats);
           setHasFetchedLines(true);
 
-          // Update remaining requests
           if (linesData.remainingApiRequests !== undefined) {
             setRemainingRequests(prev => 
               prev === undefined ? linesData.remainingApiRequests : Math.min(prev, linesData.remainingApiRequests!)
@@ -424,7 +398,6 @@ export default function DashboardPage() {
     }
   }, [filters, sports, fetchSports, showMiddles, selectedRegions]);
 
-  // Handle logging a bet
   const handleLogBet = (bet: Omit<PlacedBet, 'id' | 'createdAt'>) => {
     addBet(bet);
     setSelectedArb(null);
@@ -432,7 +405,6 @@ export default function DashboardPage() {
     setSelectedLineOpp(null);
   };
 
-  // Filter opportunities based on current filters
   const filteredOpportunities = opportunities.filter(opp => {
     if (filters.profitableOnly && opp.profitPercentage < 0) return false;
     if (!filters.showNearArbs && opp.type === 'near-arb') return false;
@@ -461,10 +433,8 @@ export default function DashboardPage() {
   const spreadMiddles = middles.filter(m => m.marketType === 'spreads');
   const totalsMiddles = middles.filter(m => m.marketType === 'totals');
 
-  // Calculate bookmaker count for selected regions
   const selectedBookmakerCount = countBookmakersForRegions(selectedRegions);
 
-  // Determine scan progress message
   const getScanProgress = () => {
     if (arbsProgress) return arbsProgress;
     if (linesProgress && isLoadingLines) return linesProgress;
@@ -485,21 +455,21 @@ export default function DashboardPage() {
         onQuickScan={() => fetchArbs(true)}
       />
 
-      {/* Scanning Overlay - only show when arbs are loading (first phase) */}
+      {/* Scanning Overlay */}
       {isLoadingArbs && (
         <div 
-          className="fixed inset-0 z-40 flex items-center justify-center"
+          className="fixed inset-0 z-40 flex items-center justify-center p-4"
           style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
         >
           <div 
-            className="flex flex-col items-center gap-6 p-8 rounded-xl border"
+            className="flex flex-col items-center gap-4 sm:gap-6 p-6 sm:p-8 rounded-xl border w-full max-w-sm"
             style={{ 
               backgroundColor: 'var(--surface)',
               borderColor: 'var(--border)'
             }}
           >
             {/* Animated Scanner */}
-            <div className="relative w-20 h-20">
+            <div className="relative w-16 h-16 sm:w-20 sm:h-20">
               <div 
                 className="absolute inset-0 rounded-full border-2 animate-ping"
                 style={{ 
@@ -534,17 +504,17 @@ export default function DashboardPage() {
             {/* Text */}
             <div className="text-center">
               <h3 
-                className="text-lg font-medium mb-2"
+                className="text-base sm:text-lg font-medium mb-2"
                 style={{ color: 'var(--foreground)' }}
               >
                 Scanning Markets
               </h3>
               <p 
-                className="text-sm flex items-center gap-2"
+                className="text-xs sm:text-sm flex items-center justify-center gap-2"
                 style={{ color: 'var(--muted)' }}
               >
                 <Loader2 className="w-3 h-3 animate-spin" />
-                {getScanProgress()}
+                <span className="truncate max-w-[200px]">{getScanProgress()}</span>
               </p>
             </div>
 
@@ -556,18 +526,18 @@ export default function DashboardPage() {
                 color: 'var(--muted)'
               }}
             >
-              <Globe className="w-3 h-3" />
-              Scanning {selectedRegions.join(', ')} ({selectedBookmakerCount} bookmakers)
+              <Globe className="w-3 h-3 shrink-0" />
+              <span className="truncate">{selectedRegions.join(', ')} ({selectedBookmakerCount} books)</span>
             </div>
           </div>
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6">
         {/* Region Tabs */}
         {settingsLoaded && (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm mr-2" style={{ color: 'var(--muted)' }}>Regions:</span>
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <span className="text-xs sm:text-sm mr-1 sm:mr-2" style={{ color: 'var(--muted)' }}>Regions:</span>
             {config.regionOrder.map(region => (
               <RegionTab
                 key={region}
@@ -576,9 +546,9 @@ export default function DashboardPage() {
                 onClick={() => toggleRegion(region)}
               />
             ))}
-            <div className="w-px h-6 mx-2" style={{ backgroundColor: 'var(--border)' }} />
+            <div className="w-px h-5 sm:h-6 mx-1 sm:mx-2 hidden sm:block" style={{ backgroundColor: 'var(--border)' }} />
             <GlobalToggle isGlobal={isGlobalMode} onClick={toggleGlobal} />
-            <span className="text-xs ml-2" style={{ color: 'var(--muted)' }}>
+            <span className="text-[10px] sm:text-xs ml-1 sm:ml-2 hidden sm:inline" style={{ color: 'var(--muted)' }}>
               {selectedBookmakerCount} bookmakers
             </span>
           </div>
@@ -587,23 +557,25 @@ export default function DashboardPage() {
         {/* Multi-Region Warning */}
         {selectedRegions.length > 1 && (
           <div 
-            className="border px-4 py-3 text-sm rounded-lg"
+            className="border px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm rounded-lg"
             style={{
               borderColor: 'var(--info)',
               backgroundColor: 'color-mix(in srgb, var(--info) 10%, transparent)'
             }}
           >
-            <div className="flex items-start gap-3">
-              <Globe className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--info)' }} />
+            <div className="flex items-start gap-2 sm:gap-3">
+              <Globe className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 mt-0.5" style={{ color: 'var(--info)' }} />
               <div>
                 <div className="font-medium" style={{ color: 'var(--info)' }}>
-                  Multi-Region Scan: {selectedRegions.join(', ')}
+                  Multi-Region: {selectedRegions.join(', ')}
                 </div>
-                <div className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
-                  Scanning {selectedBookmakerCount} bookmakers. 
-                  {selectedRegions.some(r => r !== userDefaultRegion) && (
-                    <> Note: Bookmakers outside your region ({userDefaultRegion}) may require local ID/address to register.</>
-                  )}
+                <div className="text-[10px] sm:text-xs mt-0.5 sm:mt-1" style={{ color: 'var(--muted)' }}>
+                  {selectedBookmakerCount} bookmakers
+                  <span className="hidden sm:inline">
+                    {selectedRegions.some(r => r !== userDefaultRegion) && (
+                      <>. Bookmakers outside your region ({userDefaultRegion}) may require local ID.</>
+                    )}
+                  </span>
                 </div>
               </div>
             </div>
@@ -613,19 +585,19 @@ export default function DashboardPage() {
         {/* Initial State */}
         {!hasFetched && !isLoadingArbs && activeTab === 'opportunities' && (
           <div 
-            className="border p-12 text-center rounded-lg"
+            className="border p-8 sm:p-12 text-center rounded-lg"
             style={{
               borderColor: 'var(--border-light)',
               backgroundColor: 'var(--surface-secondary)'
             }}
           >
-            <div className="text-4xl mb-4">📡</div>
-            <h2 className="text-xl font-medium mb-2" style={{ color: 'var(--foreground)' }}>Ready to scan</h2>
-            <p className="text-sm mb-4" style={{ color: 'var(--muted)' }}>
-              Click <span className="font-medium" style={{ color: 'var(--foreground)' }}>Scan</span> to search ALL markets for opportunities
+            <div className="text-3xl sm:text-4xl mb-4">📡</div>
+            <h2 className="text-lg sm:text-xl font-medium mb-2" style={{ color: 'var(--foreground)' }}>Ready to scan</h2>
+            <p className="text-xs sm:text-sm mb-4" style={{ color: 'var(--muted)' }}>
+              Tap <span className="font-medium" style={{ color: 'var(--foreground)' }}>Scan</span> to search markets
             </p>
-            <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              Scanning {selectedRegions.join(', ')} regions ({selectedBookmakerCount} bookmakers)
+            <p className="text-[10px] sm:text-xs" style={{ color: 'var(--muted-foreground)' }}>
+              {selectedRegions.join(', ')} ({selectedBookmakerCount} bookmakers)
             </p>
           </div>
         )}
@@ -633,21 +605,21 @@ export default function DashboardPage() {
         {/* Demo Mode Notice */}
         {isUsingMockData && hasFetched && (
           <div 
-            className="border px-4 py-3 text-sm rounded-lg"
+            className="border px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm rounded-lg"
             style={{
               borderColor: 'var(--border)',
               backgroundColor: 'var(--surface)',
               color: 'var(--muted)'
             }}
           >
-            Demo mode — add <code style={{ color: 'var(--foreground)' }}>ODDS_API_KEY</code> to .env.local for live data
+            Demo mode — add API key for live data
           </div>
         )}
 
         {/* Error */}
         {error && (
           <div 
-            className="border px-4 py-3 text-sm rounded-lg"
+            className="border px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm rounded-lg"
             style={{
               borderColor: 'var(--danger)',
               backgroundColor: 'var(--danger-muted)',
@@ -658,10 +630,10 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Lines Error (separate, less prominent) */}
+        {/* Lines Error */}
         {linesError && !error && (
           <div 
-            className="border px-4 py-3 text-sm rounded-lg"
+            className="border px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm rounded-lg"
             style={{
               borderColor: 'var(--warning)',
               backgroundColor: 'color-mix(in srgb, var(--warning) 10%, transparent)',
@@ -672,10 +644,10 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Stats Grid */}
+        {/* Stats Grid - Responsive: 2 cols mobile, 4 tablet, 8 desktop */}
         {hasFetched && stats && (
           <div 
-            className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-px rounded-lg overflow-hidden"
+            className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-px rounded-lg overflow-hidden"
             style={{ backgroundColor: 'var(--border-light)' }}
           >
             <StatBox label="Events" value={stats.totalEvents} />
@@ -712,9 +684,9 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Tabs */}
+        {/* Tabs - Scrollable on mobile */}
         <div 
-          className="flex gap-1 border-b overflow-x-auto"
+          className="flex gap-1 border-b overflow-x-auto scrollbar-hide -mx-3 sm:mx-0 px-3 sm:px-0"
           style={{ borderColor: 'var(--border-light)' }}
         >
           <TabButton 
@@ -745,7 +717,7 @@ export default function DashboardPage() {
             onClick={() => setActiveTab('value-bets')}
             count={valueBets.length}
           >
-            Value Bets
+            Value
           </TabButton>
           <TabButton 
             active={activeTab === 'history'} 
@@ -765,7 +737,7 @@ export default function DashboardPage() {
 
         {/* Filters */}
         {hasFetched && (activeTab === 'opportunities' || activeTab === 'spreads' || activeTab === 'totals') && (
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
             <ArbFilters
               filters={filters}
               onFiltersChange={setFilters}
@@ -775,7 +747,7 @@ export default function DashboardPage() {
             {(activeTab === 'spreads' || activeTab === 'totals') && (
               <button
                 onClick={() => setShowMiddles(!showMiddles)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium border transition-colors rounded-lg"
+                className="flex items-center justify-center gap-2 px-3 py-1.5 text-xs sm:text-sm font-medium border transition-colors rounded-lg"
                 style={{
                   backgroundColor: showMiddles ? 'var(--warning)' : 'transparent',
                   borderColor: showMiddles ? 'var(--warning)' : 'var(--border)',
@@ -873,18 +845,17 @@ export default function DashboardPage() {
   );
 }
 
-// Loading placeholder for tabs that are still loading
 function LoadingPlaceholder({ message }: { message: string }) {
   return (
     <div 
-      className="border p-12 text-center rounded-lg"
+      className="border p-8 sm:p-12 text-center rounded-lg"
       style={{
         borderColor: 'var(--border)',
         backgroundColor: 'var(--surface)'
       }}
     >
-      <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: 'var(--muted)' }} />
-      <p style={{ color: 'var(--muted)' }}>{message}</p>
+      <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin mx-auto mb-4" style={{ color: 'var(--muted)' }} />
+      <p className="text-sm" style={{ color: 'var(--muted)' }}>{message}</p>
     </div>
   );
 }
@@ -903,25 +874,25 @@ function StatBox({
   loading?: boolean;
 }) {
   return (
-    <div className="px-4 py-3" style={{ backgroundColor: 'var(--background)' }}>
+    <div className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3" style={{ backgroundColor: 'var(--background)' }}>
       <div 
-        className="text-xs uppercase tracking-wide mb-1"
+        className="text-[10px] sm:text-xs uppercase tracking-wide mb-0.5 sm:mb-1 truncate"
         style={{ color: 'var(--muted)' }}
       >
         {label}
       </div>
       <div 
-        className="text-2xl font-mono flex items-center gap-2"
+        className="text-lg sm:text-xl lg:text-2xl font-mono flex items-center gap-1 sm:gap-2"
         style={{ color: highlight ? 'var(--foreground)' : 'var(--muted)' }}
       >
         {loading ? (
-          <Loader2 className="w-5 h-5 animate-spin" style={{ color: 'var(--muted)' }} />
+          <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" style={{ color: 'var(--muted)' }} />
         ) : (
           value
         )}
       </div>
       {subtitle && (
-        <div className="text-xs mt-0.5" style={{ color: 'var(--muted-foreground)' }}>
+        <div className="text-[10px] sm:text-xs mt-0.5 truncate" style={{ color: 'var(--muted-foreground)' }}>
           {subtitle}
         </div>
       )}
@@ -945,7 +916,7 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className="px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap"
+      className="px-2.5 sm:px-4 py-2 text-xs sm:text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0"
       style={{
         borderColor: active ? 'var(--accent)' : 'transparent',
         color: active ? 'var(--foreground)' : 'var(--muted)'
@@ -953,10 +924,10 @@ function TabButton({
     >
       {children}
       {loading ? (
-        <Loader2 className="inline-block ml-2 w-3 h-3 animate-spin" style={{ color: 'var(--muted)' }} />
+        <Loader2 className="inline-block ml-1.5 sm:ml-2 w-3 h-3 animate-spin" style={{ color: 'var(--muted)' }} />
       ) : count !== undefined && count > 0 && (
         <span 
-          className="ml-2 text-xs px-1.5 py-0.5 rounded"
+          className="ml-1 sm:ml-2 text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded"
           style={{
             backgroundColor: active ? 'var(--accent)' : 'var(--surface)',
             color: active ? 'var(--accent-foreground)' : 'var(--muted)'
@@ -973,15 +944,15 @@ function ValueBetsTable({ valueBets, onSelectValueBet, globalMode }: { valueBets
   if (valueBets.length === 0) {
     return (
       <div 
-        className="border p-12 text-center rounded-lg"
+        className="border p-8 sm:p-12 text-center rounded-lg"
         style={{
           borderColor: 'var(--border)',
           backgroundColor: 'var(--surface)'
         }}
       >
-        <p style={{ color: 'var(--muted)' }} className="mb-2">No value bets found</p>
+        <p style={{ color: 'var(--muted)' }} className="mb-2 text-sm">No value bets found</p>
         <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
-          Value bets have {'>'}5% expected edge based on implied probability
+          Value bets have {'>'}5% expected edge
         </p>
       </div>
     );
@@ -995,15 +966,15 @@ function ValueBetsTable({ valueBets, onSelectValueBet, globalMode }: { valueBets
         backgroundColor: 'var(--surface)'
       }}
     >
-      <table className="w-full text-sm">
+      <table className="w-full text-xs sm:text-sm">
         <thead>
           <tr style={{ borderBottom: '1px solid var(--border)' }}>
-            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Event</th>
-            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Bookmaker</th>
-            <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Selection</th>
-            <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Odds</th>
-            <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Edge</th>
-            <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Action</th>
+            <th className="text-left px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Event</th>
+            <th className="text-left px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-xs uppercase tracking-wide font-medium hidden sm:table-cell" style={{ color: 'var(--muted)' }}>Book</th>
+            <th className="text-left px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Selection</th>
+            <th className="text-right px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Odds</th>
+            <th className="text-right px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Edge</th>
+            <th className="text-right px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -1013,24 +984,25 @@ function ValueBetsTable({ valueBets, onSelectValueBet, globalMode }: { valueBets
               className="hover:bg-[var(--background)] transition-colors"
               style={{ borderBottom: '1px solid var(--border)' }}
             >
-              <td className="px-4 py-3">
-                <div className="font-medium" style={{ color: 'var(--foreground)' }}>{vb.event.homeTeam}</div>
-                <div style={{ color: 'var(--muted)' }}>vs {vb.event.awayTeam}</div>
+              <td className="px-2 sm:px-4 py-2 sm:py-3">
+                <div className="font-medium text-xs sm:text-sm" style={{ color: 'var(--foreground)' }}>{vb.event.homeTeam}</div>
+                <div className="text-[10px] sm:text-xs" style={{ color: 'var(--muted)' }}>vs {vb.event.awayTeam}</div>
+                <div className="text-[10px] sm:hidden mt-1" style={{ color: 'var(--muted-foreground)' }}>{vb.outcome.bookmaker}</div>
               </td>
-              <td className="px-4 py-3" style={{ color: 'var(--foreground)' }}>{vb.outcome.bookmaker}</td>
-              <td className="px-4 py-3" style={{ color: 'var(--foreground)' }}>{vb.outcome.name}</td>
-              <td className="px-4 py-3 text-right font-mono" style={{ color: 'var(--foreground)' }}>{vb.outcome.odds.toFixed(2)}</td>
-              <td className="px-4 py-3 text-right font-mono" style={{ color: '#22c55e' }}>+{vb.valuePercentage.toFixed(1)}%</td>
-              <td className="px-4 py-3 text-right">
+              <td className="px-2 sm:px-4 py-2 sm:py-3 hidden sm:table-cell" style={{ color: 'var(--foreground)' }}>{vb.outcome.bookmaker}</td>
+              <td className="px-2 sm:px-4 py-2 sm:py-3" style={{ color: 'var(--foreground)' }}>{vb.outcome.name}</td>
+              <td className="px-2 sm:px-4 py-2 sm:py-3 text-right font-mono" style={{ color: 'var(--foreground)' }}>{vb.outcome.odds.toFixed(2)}</td>
+              <td className="px-2 sm:px-4 py-2 sm:py-3 text-right font-mono" style={{ color: '#22c55e' }}>+{vb.valuePercentage.toFixed(1)}%</td>
+              <td className="px-2 sm:px-4 py-2 sm:py-3 text-right">
                 <button
                   onClick={() => onSelectValueBet(vb)}
-                  className="px-3 py-1 text-xs font-medium rounded transition-colors"
+                  className="px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-medium rounded transition-colors"
                   style={{
                     backgroundColor: 'var(--foreground)',
                     color: 'var(--background)'
                   }}
                 >
-                  Calculate
+                  Calc
                 </button>
               </td>
             </tr>
