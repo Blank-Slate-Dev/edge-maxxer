@@ -82,8 +82,7 @@
 }
 
 html {
-  scrollbar-gutter: stable;
-  overflow-y: scroll; /* Always reserve space for scrollbar to prevent layout shift */
+  overflow-x: hidden;
 }
 
 body {
@@ -93,6 +92,8 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   transition: background-color 0.2s ease, color 0.2s ease;
+  overflow-x: hidden;
+  width: 100%;
 }
 
 /* Minimal scrollbar */
@@ -112,6 +113,16 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--muted);
+}
+
+/* Hide scrollbar utility for swipeable elements */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
 /* Clean range input */
@@ -417,6 +428,74 @@ iframe[name^="embedded-checkout"] {
   }
   100% {
     transform: translateX(-50%);
+  }
+}
+
+/* Perfect seamless marquee */
+.marquee-wrapper {
+  display: flex;
+  width: -webkit-fit-content;
+  width: fit-content;
+  -webkit-animation: marquee-scroll 15s linear infinite;
+  animation: marquee-scroll 15s linear infinite;
+  -webkit-will-change: transform;
+  will-change: transform;
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+
+.marquee-content {
+  display: flex;
+  gap: 0.75rem;
+  padding-right: 0.75rem;
+  -webkit-flex-shrink: 0;
+  flex-shrink: 0;
+}
+
+@-webkit-keyframes marquee-scroll {
+  from {
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    -webkit-transform: translate3d(-50%, 0, 0);
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+@keyframes marquee-scroll {
+  from {
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    -webkit-transform: translate3d(-50%, 0, 0);
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+/* Pixel-based scroll using CSS variable - for iOS compatibility */
+@-webkit-keyframes marquee-scroll-px {
+  from {
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    -webkit-transform: translate3d(calc(var(--scroll-width, 500px) * -1), 0, 0);
+    transform: translate3d(calc(var(--scroll-width, 500px) * -1), 0, 0);
+  }
+}
+
+@keyframes marquee-scroll-px {
+  from {
+    -webkit-transform: translate3d(0, 0, 0);
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    -webkit-transform: translate3d(calc(var(--scroll-width, 500px) * -1), 0, 0);
+    transform: translate3d(calc(var(--scroll-width, 500px) * -1), 0, 0);
   }
 }
 

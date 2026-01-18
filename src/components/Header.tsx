@@ -144,7 +144,7 @@ export function Header({
           <div className="flex items-center justify-between gap-2 sm:gap-4">
             {/* Logo & Brand */}
             <div className="flex items-center gap-3 sm:gap-6 shrink-0">
-              <Link href="/dashboard" className="flex items-center">
+              <Link href="/" className="flex items-center">
                 {/* Responsive logo - smaller on mobile */}
                 <Image
                   src="/logo_thin_dark_version.png"

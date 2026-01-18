@@ -1,5 +1,5 @@
 // src/app/layout.tsx
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import AuthProvider from '@/components/AuthProvider';
 import './globals.css';
@@ -15,6 +15,13 @@ export const metadata: Metadata = {
     siteName: 'Edge Maxxer',
     type: 'website',
   },
+};
+
+// Viewport configuration with viewport-fit=cover for iOS safe areas
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 };
 
 // Inline script to prevent flash of wrong theme
@@ -38,11 +45,12 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
         <script
           dangerouslySetInnerHTML={{ __html: themeScript }}
         />
       </head>
-      <body className="antialiased">
+      <body className="antialiased overflow-x-hidden">
         <AuthProvider>
           <ThemeProvider>
             {children}

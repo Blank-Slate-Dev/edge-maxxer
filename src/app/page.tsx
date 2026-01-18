@@ -129,7 +129,7 @@ export default function LandingPage() {
 
   return (
     <div 
-      className="min-h-screen"
+      className="min-h-screen overflow-x-hidden"
       style={{ backgroundColor: 'var(--background)' }}
     >
       {/* Navigation */}
@@ -317,12 +317,12 @@ export default function LandingPage() {
         <div className="absolute inset-0 hero-grid-pattern" />
         
         <div className="max-w-7xl mx-auto px-4 sm:px-6 relative">
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-8 items-start">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-8 items-start max-w-full overflow-hidden">
             {/* Left: Text Content */}
-            <div className="max-w-xl lg:max-w-lg">
+            <div className="w-full sm:max-w-xl lg:max-w-lg overflow-hidden">
               {/* Live badge */}
               <div 
-                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[10px] sm:text-xs font-medium mb-4 sm:mb-6"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[9px] sm:text-[10px] md:text-xs font-medium mb-4 sm:mb-6 max-w-full"
                 style={{ 
                   backgroundColor: 'var(--surface)',
                   color: 'var(--muted)',
@@ -330,15 +330,15 @@ export default function LandingPage() {
                 }}
               >
                 <span 
-                  className="w-2 h-2 rounded-full animate-pulse"
+                  className="w-2 h-2 rounded-full animate-pulse shrink-0"
                   style={{ backgroundColor: '#22c55e' }}
                 />
-                LIVE MARKET REFRESHED EVERY 2S
+                <span className="truncate">LIVE MARKET REFRESHED EVERY 2S</span>
               </div>
 
               {/* Headline */}
               <h1 
-                className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.1] mb-4 sm:mb-6"
+                className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold tracking-tight leading-[1.1] mb-4 sm:mb-6"
                 style={{ color: 'var(--foreground)' }}
               >
                 Beat the{' '}
@@ -347,7 +347,7 @@ export default function LandingPage() {
               
               {/* Subheadline */}
               <p 
-                className="text-base sm:text-lg md:text-xl font-semibold mb-3 sm:mb-4"
+                className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold mb-3 sm:mb-4"
                 style={{ color: 'var(--foreground)' }}
               >
                 Stop Guessing. Start Profiting. Bet both sides—profit no matter the outcome.
@@ -387,27 +387,27 @@ export default function LandingPage() {
 
               {/* Profit Counter */}
               <div 
-                className="inline-flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg mb-8 sm:mb-10"
+                className="inline-flex flex-wrap items-center gap-1.5 sm:gap-2 md:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg mb-8 sm:mb-10 max-w-full"
                 style={{ 
                   backgroundColor: 'var(--surface)',
                   border: '1px solid var(--border)'
                 }}
               >
                 <div 
-                  className="w-2 h-2 rounded-full animate-pulse"
+                  className="w-2 h-2 rounded-full animate-pulse shrink-0"
                   style={{ backgroundColor: '#22c55e' }}
                 />
-                <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
+                <span className="text-xs sm:text-sm whitespace-nowrap" style={{ color: 'var(--muted)' }}>
                   Users have made
                 </span>
                 <ProfitCounter initialValue={0} refreshInterval={5000} />
-                <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
+                <span className="text-xs sm:text-sm whitespace-nowrap" style={{ color: 'var(--muted)' }}>
                   in profit
                 </span>
               </div>
 
               {/* Stats Row */}
-              <div className="flex items-center gap-6 sm:gap-8 md:gap-12 mb-4 sm:mb-6">
+              <div className="flex flex-wrap items-center gap-4 sm:gap-6 md:gap-8 lg:gap-12 mb-4 sm:mb-6">
                 {[
                   { value: '80+', label: 'SPORTSBOOKS' },
                   { value: '<2s', label: 'LATENCY' },
@@ -415,13 +415,13 @@ export default function LandingPage() {
                 ].map((stat, i) => (
                   <div key={i}>
                     <div 
-                      className="text-xl sm:text-2xl md:text-3xl font-bold mb-0.5"
+                      className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mb-0.5"
                       style={{ color: 'var(--foreground)' }}
                     >
                       {stat.value}
                     </div>
                     <div 
-                      className="text-[9px] sm:text-[10px] tracking-wider"
+                      className="text-[8px] sm:text-[9px] md:text-[10px] tracking-wider"
                       style={{ color: 'var(--muted)' }}
                     >
                       {stat.label}
@@ -431,13 +431,17 @@ export default function LandingPage() {
               </div>
 
               {/* Sportsbook logos slider */}
-              <div className="mb-4">
-                <SportsbookSlider onViewAll={() => setSportsbooksOpen(true)} compact />
+              <div className="mb-4 overflow-hidden">
+                <SportsbookSlider 
+                  onViewAll={() => setSportsbooksOpen(true)} 
+                  compact 
+                  region={detectedRegion}
+                />
               </div>
             </div>
 
             {/* Right: Feed Preview */}
-            <div className="relative flex justify-center lg:justify-start lg:mt-16">
+            <div className="w-full lg:mt-16">
               <LiveFeedPreview />
             </div>
           </div>

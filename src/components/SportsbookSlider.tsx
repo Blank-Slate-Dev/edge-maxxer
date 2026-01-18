@@ -1,14 +1,21 @@
 // src/components/SportsbookSlider.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { ArrowRight } from 'lucide-react';
-import { getFeaturedBookmakers, getBookmakerAbbr, getLogoPath, type BookmakerConfig } from '@/lib/bookmakers';
+import { 
+  getBookmakersByDisplayRegion, 
+  getBookmakerAbbr, 
+  getLogoPath, 
+  type BookmakerConfig,
+  type DisplayRegion 
+} from '@/lib/bookmakers';
 
 interface SportsbookSliderProps {
   onViewAll: () => void;
   compact?: boolean;
+  region?: DisplayRegion;
 }
 
 // BookLogo component with image fallback
@@ -55,14 +62,25 @@ function SliderBookLogo({ bookmaker, compact }: { bookmaker: BookmakerConfig; co
   );
 }
 
-export function SportsbookSlider({ onViewAll, compact = false }: SportsbookSliderProps) {
-  const featuredBooks = getFeaturedBookmakers();
+export function SportsbookSlider({ onViewAll, compact = false, region = 'US' }: SportsbookSliderProps) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [trackWidth, setTrackWidth] = useState(0);
   
-  // Double the items for seamless loop
-  const items = [...featuredBooks, ...featuredBooks];
+  // Get bookmakers for user's region only
+  const regionBookmakers = getBookmakersByDisplayRegion(region);
+  
+  // Measure actual track width after render
+  useEffect(() => {
+    if (trackRef.current) {
+      setTrackWidth(trackRef.current.offsetWidth);
+    }
+  }, [regionBookmakers.length, compact]);
+
+  // Target speed: ~50px per second
+  const animationDuration = trackWidth ? trackWidth / 50 : 15;
 
   return (
-    <div className="w-full">
+    <div className="w-full max-w-full overflow-hidden">
       {/* Stats row - only show if not compact */}
       {!compact && (
         <div className="flex items-center justify-center gap-8 md:gap-16 mb-8">
@@ -89,22 +107,52 @@ export function SportsbookSlider({ onViewAll, compact = false }: SportsbookSlide
         </div>
       )}
 
-      {/* Marquee container */}
+      {/* Slider container */}
       <div 
-        className="relative overflow-hidden py-2"
+        className="relative overflow-hidden py-2 w-full pointer-events-none select-none"
         style={{ 
           maskImage: 'linear-gradient(to right, transparent, black 5%, black 95%, transparent)',
-          WebkitMaskImage: 'linear-gradient(to right, transparent, black 5%, black 95%, transparent)'
+          WebkitMaskImage: 'linear-gradient(to right, transparent, black 5%, black 95%, transparent)',
         }}
       >
-        <div className="flex gap-3 animate-marquee hover:pause">
-          {items.map((book, i) => (
-            <SliderBookLogo 
-              key={`${book.key}-${i}`} 
-              bookmaker={book} 
-              compact={compact} 
-            />
-          ))}
+        {/* Inject keyframe animation with exact pixel value */}
+        {trackWidth > 0 && (
+          <style>{`
+            @keyframes marquee-exact {
+              from { transform: translate3d(0, 0, 0); }
+              to { transform: translate3d(-${trackWidth}px, 0, 0); }
+            }
+          `}</style>
+        )}
+        
+        {/* Marquee wrapper - contains two identical sets */}
+        <div 
+          className="flex"
+          style={{ 
+            animation: trackWidth > 0 
+              ? `marquee-exact ${animationDuration}s linear infinite` 
+              : 'none',
+            willChange: 'transform',
+          }}
+        >
+          <div ref={trackRef} className="flex gap-3 shrink-0 pr-3">
+            {regionBookmakers.map((book, i) => (
+              <SliderBookLogo 
+                key={`a-${book.key}-${i}`} 
+                bookmaker={book} 
+                compact={compact} 
+              />
+            ))}
+          </div>
+          <div className="flex gap-3 shrink-0 pr-3" aria-hidden="true">
+            {regionBookmakers.map((book, i) => (
+              <SliderBookLogo 
+                key={`b-${book.key}-${i}`} 
+                bookmaker={book} 
+                compact={compact} 
+              />
+            ))}
+          </div>
         </div>
       </div>
 
