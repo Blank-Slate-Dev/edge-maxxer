@@ -323,15 +323,28 @@ export function LiveFeedPreview() {
             priority
           />
         ) : (
-          // Placeholder with same aspect ratio to prevent layout shift
+          // Skeleton placeholder with same aspect ratio to prevent layout shift
+          // Uses CSS variables so it automatically matches theme without flash
           <div 
-            className="mx-auto"
+            className="mx-auto rounded-[2rem] animate-pulse"
             style={{ 
               width: '70%', 
               maxWidth: '280px',
-              aspectRatio: '1082 / 1944'
+              aspectRatio: '1082 / 1944',
+              backgroundColor: 'var(--surface)',
+              border: '1px solid var(--border)',
             }} 
-          />
+          >
+            {/* Phone screen skeleton */}
+            <div 
+              className="mx-auto mt-[8%] rounded-lg"
+              style={{
+                width: '85%',
+                height: '75%',
+                backgroundColor: 'var(--surface-secondary)',
+              }}
+            />
+          </div>
         )}
       </div>
 
