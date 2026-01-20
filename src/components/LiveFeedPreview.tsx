@@ -1,7 +1,7 @@
 // src/components/LiveFeedPreview.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { useTheme } from '@/contexts/ThemeContext';
 import {
@@ -223,6 +223,8 @@ const SIDEBAR_ITEMS = [
   { icon: LinkIcon, label: '1-Click Deep Links' },
 ];
 
+const PREVIEW_WIDTH = 780;
+
 // BookLogo component with image fallback
 function BookLogo({ bookKey, size = 28 }: { bookKey: string; size?: number }) {
   const [imgError, setImgError] = useState(false);
@@ -295,10 +297,53 @@ export function LiveFeedPreview() {
   const { theme } = useTheme();
   const [isHovered, setIsHovered] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [scale, setScale] = useState(1);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Responsive scaling: only scale down on smaller viewports
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const updateScale = () => {
+      const viewportWidth = window.innerWidth;
+      
+      // On large screens (1280px+), always use full size
+      if (viewportWidth >= 1280) {
+        setScale(1);
+        return;
+      }
+      
+      // On medium screens, scale based on available space
+      let availableWidth: number;
+      if (viewportWidth >= 1024 && containerRef.current) {
+        availableWidth = containerRef.current.offsetWidth;
+      } else {
+        availableWidth = viewportWidth - 64;
+      }
+      
+      const newScale = Math.min(1, availableWidth / PREVIEW_WIDTH);
+      setScale(newScale);
+    };
+
+    updateScale();
+    
+    let resizeObserver: ResizeObserver | null = null;
+    if (containerRef.current) {
+      resizeObserver = new ResizeObserver(updateScale);
+      resizeObserver.observe(containerRef.current);
+    }
+    
+    window.addEventListener('resize', updateScale);
+    
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', updateScale);
+    };
+  }, [mounted]);
 
   const phoneSrc = theme === 'light'
     ? '/mobile_phone_light_version.png'
@@ -349,270 +394,273 @@ export function LiveFeedPreview() {
       </div>
 
       {/* Desktop Version - Shows only on medium screens and up */}
+      <div ref={containerRef} className="hidden md:block w-full">
         <div
-          className="relative hidden md:block w-fit"
+          className="relative w-fit"
+          style={{ zoom: scale }}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
-        {/* Main Container - fixed width, doesn't change */}
-        <div
-          className="relative rounded-2xl overflow-hidden"
-          style={{
-            backgroundColor: '#0d0d0c',
-            border: '1px solid #2a2a28',
-            width: '780px',
-            boxShadow: '0 0 60px rgba(20, 184, 166, 0.15), 0 25px 50px -12px rgba(0, 0, 0, 0.5)',
-          }}
-        >
-          {/* Browser Chrome */}
+          {/* Main Container - fixed width, doesn't change */}
           <div
-            className="flex items-center justify-between px-4 py-3"
+            className="relative rounded-2xl overflow-hidden"
             style={{
-              backgroundColor: '#161614',
-              borderBottom: '1px solid #2a2a28',
+              backgroundColor: '#0d0d0c',
+              border: '1px solid #2a2a28',
+              width: '780px',
+              boxShadow: '0 0 60px rgba(20, 184, 166, 0.15), 0 25px 50px -12px rgba(0, 0, 0, 0.5)',
             }}
           >
-            <div className="flex gap-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ff5f56' }} />
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ffbd2e' }} />
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#27ca40' }} />
-            </div>
+            {/* Browser Chrome */}
             <div
-              className="flex-1 mx-4 px-3 py-1.5 rounded-md text-xs text-center"
-              style={{ backgroundColor: '#0d0d0c', color: '#666' }}
+              className="flex items-center justify-between px-4 py-3"
+              style={{
+                backgroundColor: '#161614',
+                borderBottom: '1px solid #2a2a28',
+              }}
             >
-              edgemaxxer.com/dashboard
+              <div className="flex gap-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ff5f56' }} />
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ffbd2e' }} />
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#27ca40' }} />
+              </div>
+              <div
+                className="flex-1 mx-4 px-3 py-1.5 rounded-md text-xs text-center"
+                style={{ backgroundColor: '#0d0d0c', color: '#666' }}
+              >
+                edgemaxxer.com/dashboard
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: '#22c55e' }} />
+                <span className="text-[10px] font-medium tracking-wider" style={{ color: '#888' }}>
+                  ARB SCANNER
+                </span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: '#22c55e' }} />
-              <span className="text-[10px] font-medium tracking-wider" style={{ color: '#888' }}>
-                ARB SCANNER
-              </span>
+
+            {/* Scrollable Feed - Manual scroll only */}
+            <div
+              className="overflow-y-auto overflow-x-hidden custom-scrollbar"
+              style={{
+                height: '535px',
+              }}
+            >
+              <div className="p-3 space-y-3">
+                {SAMPLE_ARBS.map((arb) => (
+                  <div
+                    key={arb.id}
+                    className="rounded-lg overflow-hidden"
+                    style={{
+                      backgroundColor: '#1a1a18',
+                      border: '1px solid #2a2a28',
+                    }}
+                  >
+                    {/* Header Row */}
+                    <div
+                      className="px-3 py-2.5 flex items-center justify-between"
+                      style={{ borderBottom: '1px solid #2a2a28' }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Image
+                          src={`/sports/${arb.sport}.png`}
+                          alt={arb.sport}
+                          width={16}
+                          height={16}
+                          className="w-4 h-4 object-contain"
+                        />
+                        <span className="text-[10px] font-medium" style={{ color: '#888' }}>
+                          {arb.league}
+                        </span>
+                        <span className="font-semibold text-xs" style={{ color: '#14b8a6' }}>
+                          {arb.matchup}
+                        </span>
+                        {arb.tag && (
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                            style={{
+                              backgroundColor:
+                                arb.tag === 'Middle'
+                                  ? 'rgba(168, 85, 247, 0.2)'
+                                  : 'rgba(20, 184, 166, 0.15)',
+                              color: arb.tag === 'Middle' ? '#a855f7' : '#14b8a6',
+                              border: `1px solid ${
+                                arb.tag === 'Middle'
+                                  ? 'rgba(168, 85, 247, 0.3)'
+                                  : 'rgba(20, 184, 166, 0.3)'
+                              }`,
+                            }}
+                          >
+                            {arb.tag}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {arb.gameTime && (
+                          <span
+                            className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                            style={{
+                              backgroundColor: 'rgba(20, 184, 166, 0.15)',
+                              color: '#14b8a6',
+                            }}
+                          >
+                            {arb.gameTime}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Bet Type */}
+                    <div
+                      className="px-3 py-1.5 text-[10px] font-medium"
+                      style={{ color: '#666', borderBottom: '1px solid #2a2a28' }}
+                    >
+                      {arb.betType}
+                    </div>
+
+                    {/* Profit Row */}
+                    <div
+                      className="px-3 py-2 flex items-center justify-between"
+                      style={{ backgroundColor: '#141412' }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl font-bold" style={{ color: '#22c55e' }}>
+                          {arb.profit.toFixed(1)}%
+                        </span>
+                        <div>
+                          <div className="text-[9px] uppercase tracking-wider" style={{ color: '#666' }}>
+                            Guaranteed Profit
+                          </div>
+                          <div className="text-xs font-medium flex items-center gap-1" style={{ color: '#22c55e' }}>
+                            <TrendingUp className="w-3 h-3" />
+                            +${arb.profitAmount}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-1">
+                        <button
+                          className="p-1.5 rounded hover:bg-[#2a2a28] transition-colors"
+                          style={{ color: '#666' }}
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          className="p-1.5 rounded hover:bg-[#2a2a28] transition-colors"
+                          style={{ color: '#666' }}
+                        >
+                          <Pin className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Outcomes */}
+                    {arb.outcomes.map((outcome, i) => (
+                      <div
+                        key={i}
+                        className="px-4 py-3"
+                        style={{
+                          borderTop: '1px solid #2a2a28',
+                          backgroundColor: '#141412',
+                        }}
+                      >
+                        <div className="flex items-center justify-between">
+                          {/* Left: Book Logo + Label */}
+                          <div className="flex items-center gap-3 min-w-[160px]">
+                            <BookLogo bookKey={outcome.bookKey} size={32} />
+                            <span className="font-medium text-sm" style={{ color: '#fff' }}>
+                              {outcome.label}
+                            </span>
+                          </div>
+
+                          {/* Right: Stats row */}
+                          <div className="flex items-center gap-3">
+                            {/* EV Badge */}
+                            <div className="w-[70px] text-right">
+                              {outcome.ev && (
+                                <span
+                                  className="text-[10px] px-2 py-1 rounded"
+                                  style={{
+                                    backgroundColor: 'rgba(20, 184, 166, 0.15)',
+                                    color: '#14b8a6',
+                                  }}
+                                >
+                                  {outcome.ev.toFixed(1)}% EV
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Line */}
+                            <div className="w-[50px] text-right">
+                              {outcome.line !== undefined && (
+                                <span className="text-sm font-mono font-medium" style={{ color: '#14b8a6' }}>
+                                  {outcome.line > 0 ? '+' : ''}
+                                  {outcome.line}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Odds */}
+                            <div className="w-[55px] text-right">
+                              <span className="text-sm font-mono font-bold" style={{ color: '#22c55e' }}>
+                                {formatOdds(outcome.odds)}
+                              </span>
+                            </div>
+
+                            {/* Stake */}
+                            <div className="w-[50px] text-right">
+                              <span className="text-xs font-mono" style={{ color: '#666' }}>
+                                ${outcome.stake}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Alt Odds Row */}
+                        {outcome.altOdds && outcome.altOdds.length > 0 && (
+                          <div className="flex justify-end mt-2 gap-2">
+                            {outcome.altOdds.slice(0, 3).map((alt, j) => (
+                              <BookBadge key={j} bookKey={alt.bookKey} odds={alt.odds} />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
-          {/* Scrollable Feed - Manual scroll only */}
+          {/* Sidebar - extends outside the main container to the right, vertically centered */}
           <div
-            className="overflow-y-auto overflow-x-hidden custom-scrollbar"
+            className="absolute top-1/2 left-full -translate-y-1/2 transition-all duration-300 ease-out overflow-hidden"
             style={{
-              height: '535px',
+              width: isHovered ? '200px' : '0px',
+              backgroundColor: '#0d0d0c',
+              border: '1px solid #2a2a28',
+              borderLeft: 'none',
+              borderTopRightRadius: '12px',
+              borderBottomRightRadius: '12px',
             }}
           >
-            <div className="p-3 space-y-3">
-              {SAMPLE_ARBS.map((arb) => (
-                <div
-                  key={arb.id}
-                  className="rounded-lg overflow-hidden"
-                  style={{
-                    backgroundColor: '#1a1a18',
-                    border: '1px solid #2a2a28',
-                  }}
-                >
-                  {/* Header Row */}
-                  <div
-                    className="px-3 py-2.5 flex items-center justify-between"
-                    style={{ borderBottom: '1px solid #2a2a28' }}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Image
-                        src={`/sports/${arb.sport}.png`}
-                        alt={arb.sport}
-                        width={16}
-                        height={16}
-                        className="w-4 h-4 object-contain"
-                      />
-                      <span className="text-[10px] font-medium" style={{ color: '#888' }}>
-                        {arb.league}
-                      </span>
-                      <span className="font-semibold text-xs" style={{ color: '#14b8a6' }}>
-                        {arb.matchup}
-                      </span>
-                      {arb.tag && (
-                        <span
-                          className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                          style={{
-                            backgroundColor:
-                              arb.tag === 'Middle'
-                                ? 'rgba(168, 85, 247, 0.2)'
-                                : 'rgba(20, 184, 166, 0.15)',
-                            color: arb.tag === 'Middle' ? '#a855f7' : '#14b8a6',
-                            border: `1px solid ${
-                              arb.tag === 'Middle'
-                                ? 'rgba(168, 85, 247, 0.3)'
-                                : 'rgba(20, 184, 166, 0.3)'
-                            }`,
-                          }}
-                        >
-                          {arb.tag}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {arb.gameTime && (
-                        <span
-                          className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                          style={{
-                            backgroundColor: 'rgba(20, 184, 166, 0.15)',
-                            color: '#14b8a6',
-                          }}
-                        >
-                          {arb.gameTime}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Bet Type */}
-                  <div
-                    className="px-3 py-1.5 text-[10px] font-medium"
-                    style={{ color: '#666', borderBottom: '1px solid #2a2a28' }}
-                  >
-                    {arb.betType}
-                  </div>
-
-                  {/* Profit Row */}
-                  <div
-                    className="px-3 py-2 flex items-center justify-between"
-                    style={{ backgroundColor: '#141412' }}
-                  >
-                    <div className="flex items-center gap-3">
-                      <span className="text-xl font-bold" style={{ color: '#22c55e' }}>
-                        {arb.profit.toFixed(1)}%
-                      </span>
-                      <div>
-                        <div className="text-[9px] uppercase tracking-wider" style={{ color: '#666' }}>
-                          Guaranteed Profit
-                        </div>
-                        <div className="text-xs font-medium flex items-center gap-1" style={{ color: '#22c55e' }}>
-                          <TrendingUp className="w-3 h-3" />
-                          +${arb.profitAmount}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex gap-1">
-                      <button
-                        className="p-1.5 rounded hover:bg-[#2a2a28] transition-colors"
-                        style={{ color: '#666' }}
-                      >
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        className="p-1.5 rounded hover:bg-[#2a2a28] transition-colors"
-                        style={{ color: '#666' }}
-                      >
-                        <Pin className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Outcomes */}
-                  {arb.outcomes.map((outcome, i) => (
+            <div className="p-4 w-[200px]">
+              <h3 className="text-[10px] font-semibold uppercase tracking-wider mb-4" style={{ color: '#14b8a6' }}>
+                Key Features
+              </h3>
+              <div className="space-y-3">
+                {SIDEBAR_ITEMS.map((item, i) => (
+                  <div key={i} className="flex items-center gap-3">
                     <div
-                      key={i}
-                      className="px-4 py-3"
-                      style={{
-                        borderTop: '1px solid #2a2a28',
-                        backgroundColor: '#141412',
-                      }}
+                      className="w-10 h-10 rounded-lg flex items-center justify-center"
+                      style={{ backgroundColor: '#1a1a18', border: '1px solid #2a2a28' }}
                     >
-                      <div className="flex items-center justify-between">
-                        {/* Left: Book Logo + Label */}
-                        <div className="flex items-center gap-3 min-w-[160px]">
-                          <BookLogo bookKey={outcome.bookKey} size={32} />
-                          <span className="font-medium text-sm" style={{ color: '#fff' }}>
-                            {outcome.label}
-                          </span>
-                        </div>
-
-                        {/* Right: Stats row */}
-                        <div className="flex items-center gap-3">
-                          {/* EV Badge */}
-                          <div className="w-[70px] text-right">
-                            {outcome.ev && (
-                              <span
-                                className="text-[10px] px-2 py-1 rounded"
-                                style={{
-                                  backgroundColor: 'rgba(20, 184, 166, 0.15)',
-                                  color: '#14b8a6',
-                                }}
-                              >
-                                {outcome.ev.toFixed(1)}% EV
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Line */}
-                          <div className="w-[50px] text-right">
-                            {outcome.line !== undefined && (
-                              <span className="text-sm font-mono font-medium" style={{ color: '#14b8a6' }}>
-                                {outcome.line > 0 ? '+' : ''}
-                                {outcome.line}
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Odds */}
-                          <div className="w-[55px] text-right">
-                            <span className="text-sm font-mono font-bold" style={{ color: '#22c55e' }}>
-                              {formatOdds(outcome.odds)}
-                            </span>
-                          </div>
-
-                          {/* Stake */}
-                          <div className="w-[50px] text-right">
-                            <span className="text-xs font-mono" style={{ color: '#666' }}>
-                              ${outcome.stake}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Alt Odds Row */}
-                      {outcome.altOdds && outcome.altOdds.length > 0 && (
-                        <div className="flex justify-end mt-2 gap-2">
-                          {outcome.altOdds.slice(0, 3).map((alt, j) => (
-                            <BookBadge key={j} bookKey={alt.bookKey} odds={alt.odds} />
-                          ))}
-                        </div>
-                      )}
+                      <item.icon className="w-5 h-5" style={{ color: '#14b8a6' }} />
                     </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Sidebar - extends outside the main container to the right, vertically centered */}
-        <div
-          className="absolute top-1/2 left-full -translate-y-1/2 transition-all duration-300 ease-out overflow-hidden"
-          style={{
-            width: isHovered ? '200px' : '0px',
-            backgroundColor: '#0d0d0c',
-            border: '1px solid #2a2a28',
-            borderLeft: 'none',
-            borderTopRightRadius: '12px',
-            borderBottomRightRadius: '12px',
-          }}
-        >
-          <div className="p-4 w-[200px]">
-            <h3 className="text-[10px] font-semibold uppercase tracking-wider mb-4" style={{ color: '#14b8a6' }}>
-              Key Features
-            </h3>
-            <div className="space-y-3">
-              {SIDEBAR_ITEMS.map((item, i) => (
-                <div key={i} className="flex items-center gap-3">
-                  <div
-                    className="w-10 h-10 rounded-lg flex items-center justify-center"
-                    style={{ backgroundColor: '#1a1a18', border: '1px solid #2a2a28' }}
-                  >
-                    <item.icon className="w-5 h-5" style={{ color: '#14b8a6' }} />
+                    <span className="text-sm" style={{ color: '#fff' }}>
+                      {item.label}
+                    </span>
                   </div>
-                  <span className="text-sm" style={{ color: '#fff' }}>
-                    {item.label}
-                  </span>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </div>

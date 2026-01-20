@@ -41,19 +41,8 @@ function StepCard({ step, icon: Icon, title, description, children, delay = 0 }:
       ref={cardRef}
       className={`transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
     >
-      {/* Animation Container */}
-      <div 
-        className="relative h-64 rounded-xl border overflow-hidden mb-6"
-        style={{ 
-          backgroundColor: 'var(--surface)',
-          borderColor: 'var(--border)'
-        }}
-      >
-        {children}
-      </div>
-
-      {/* Text Content */}
-      <div className="flex items-start gap-3">
+      {/* Text Content - Fixed height to align animation containers */}
+      <div className="flex items-start gap-3 mb-6 min-h-[100px]">
         <div 
           className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
           style={{ backgroundColor: 'rgba(20, 184, 166, 0.15)' }}
@@ -74,6 +63,17 @@ function StepCard({ step, icon: Icon, title, description, children, delay = 0 }:
             {description}
           </p>
         </div>
+      </div>
+
+      {/* Animation Container - Now below the text */}
+      <div 
+        className="relative h-64 rounded-xl border overflow-hidden"
+        style={{ 
+          backgroundColor: 'var(--surface)',
+          borderColor: 'var(--border)'
+        }}
+      >
+        {children}
       </div>
     </div>
   );
