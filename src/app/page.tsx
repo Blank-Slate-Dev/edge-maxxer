@@ -313,11 +313,11 @@ export default function LandingPage() {
       )}
 
       {/* Hero Section */}
-      <section className="pt-24 sm:pt-28 pb-12 sm:pb-16 relative overflow-hidden">
+      <section className="pt-24 sm:pt-28 pb-12 sm:pb-16 relative overflow-x-hidden">
         <div className="absolute inset-0 hero-grid-pattern" />
         
         <div className="max-w-7xl mx-auto px-4 sm:px-6 relative">
-          <div className="grid lg:grid-cols-2 gap-8 lg:gap-8 items-start max-w-full overflow-hidden">
+          <div className="grid lg:grid-cols-2 gap-8 lg:gap-8 items-start max-w-full lg:min-h-[700px]">
             {/* Left: Text Content */}
             <div className="w-full sm:max-w-xl lg:max-w-lg overflow-hidden">
               {/* Live badge */}
@@ -333,7 +333,7 @@ export default function LandingPage() {
                   className="w-2 h-2 rounded-full animate-pulse shrink-0"
                   style={{ backgroundColor: '#22c55e' }}
                 />
-                <span className="truncate">LIVE MARKET REFRESHED EVERY 2S</span>
+                <span className="truncate">INSTANT MARKET REFRESHING</span>
               </div>
 
               {/* Headline */}
@@ -470,7 +470,7 @@ export default function LandingPage() {
               Stop overpaying for arb software
             </h2>
             <p className="text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
-              Same features, 10x lower price
+              Same features, 33x lower price
             </p>
           </div>
 
@@ -489,7 +489,7 @@ export default function LandingPage() {
               <div className="space-y-3 sm:space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>Monthly cost</span>
-                  <span className="font-medium line-through text-sm" style={{ color: 'var(--foreground)' }}>$50 - $199</span>
+                  <span className="font-medium line-through text-sm" style={{ color: 'var(--foreground)' }}>$150 - $350</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>Typical arbs</span>
@@ -497,7 +497,7 @@ export default function LandingPage() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>Hidden API fees</span>
-                  <span className="font-medium text-sm" style={{ color: 'var(--danger)' }}>Often yes</span>
+                  <span className="font-medium text-sm" style={{ color: 'var(--danger)' }}>Always</span>
                 </div>
               </div>
             </div>

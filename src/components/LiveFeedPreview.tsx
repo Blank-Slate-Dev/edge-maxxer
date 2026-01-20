@@ -349,11 +349,11 @@ export function LiveFeedPreview() {
       </div>
 
       {/* Desktop Version - Shows only on medium screens and up */}
-      <div
-        className="relative hidden md:block"
-        onMouseEnter={() => setIsHovered(true)}
-        onMouseLeave={() => setIsHovered(false)}
-      >
+        <div
+          className="relative hidden md:block w-fit"
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+        >
         {/* Main Container - fixed width, doesn't change */}
         <div
           className="relative rounded-2xl overflow-hidden"

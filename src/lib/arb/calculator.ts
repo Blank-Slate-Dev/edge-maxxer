@@ -152,7 +152,7 @@ export function validateArbitrage(
 ): { isValid: boolean; profitPct: number; impliedSum: number } {
   const impliedSum = (1 / odds1) + (1 / odds2);
   const isValid = impliedSum < 1;
-  const profitPct = isValid ? (1 - impliedSum) * 100 : 0;
+  const profitPct = ((1 / impliedSum) - 1) * 100;
   
   return {
     isValid,

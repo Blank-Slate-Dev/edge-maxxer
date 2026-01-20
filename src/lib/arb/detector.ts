@@ -214,7 +214,7 @@ function findArbitrageInEvent(
   }
 
   // Check for arbitrage
-  const profitPct = (1 - impliedSum) * 100;
+  const profitPct = ((1 / impliedSum) - 1) * 100;
 
   // Only include if it's profitable OR within near-arb threshold
   if (profitPct >= -nearArbThreshold) {

@@ -135,7 +135,7 @@ function findSpreadArbs(
     if (Math.sign(best1.point) === Math.sign(best2.point)) continue;
 
     const impliedSum = (1 / best1.odds) + (1 / best2.odds);
-    const profitPct = (1 - impliedSum) * 100;
+    const profitPct = ((1 / impliedSum) - 1) * 100;
 
     if (profitPct >= -nearArbThreshold) {
       const type: OpportunityType = profitPct >= 0 ? 'arb' : 'near-arb';
@@ -340,7 +340,7 @@ function findTotalsArbs(
     const bestUnder = under.reduce((a, b) => a.odds > b.odds ? a : b);
 
     const impliedSum = (1 / bestOver.odds) + (1 / bestUnder.odds);
-    const profitPct = (1 - impliedSum) * 100;
+    const profitPct = ((1 / impliedSum) - 1) * 100;
 
     if (profitPct >= -nearArbThreshold) {
       const type: OpportunityType = profitPct >= 0 ? 'arb' : 'near-arb';
