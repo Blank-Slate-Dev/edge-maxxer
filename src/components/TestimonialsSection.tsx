@@ -196,10 +196,10 @@ export function TestimonialsSection() {
         >
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             {[
-              { value: '1,200+', label: 'Active Users' },
-              { value: '$127K+', label: 'User Profits' },
-              { value: '4.9/5', label: 'Avg. Rating' },
-              { value: '98%', label: 'Would Recommend' },
+              { value: '12,000+', label: 'Active Users' },
+              { value: '$2.6M+', label: 'User Profits' },
+              { value: '4.8/5', label: 'Avg. Rating' },
+              { value: '96%', label: 'Would Recommend' },
             ].map((stat, i) => (
               <div key={i}>
                 <div 

@@ -77,7 +77,7 @@ function PositiveEVCard() {
   return (
     <div 
       ref={cardRef}
-      className={`rounded-2xl border p-8 transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+      className={`rounded-2xl border p-6 sm:p-8 transition-all duration-700 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
       style={{ 
         backgroundColor: 'var(--surface)',
         borderColor: 'var(--border)'
@@ -85,22 +85,22 @@ function PositiveEVCard() {
     >
       {/* Icon */}
       <div 
-        className="w-12 h-12 rounded-xl flex items-center justify-center mb-6"
+        className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center mb-4 sm:mb-6"
         style={{ backgroundColor: 'rgba(59, 130, 246, 0.15)' }}
       >
-        <BarChart3 className="w-6 h-6" style={{ color: '#3b82f6' }} />
+        <BarChart3 className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: '#3b82f6' }} />
       </div>
 
       {/* Title */}
-      <div className="flex items-center gap-3 mb-2">
+      <div className="flex items-center gap-2 sm:gap-3 mb-2">
         <h3 
-          className="text-2xl font-bold"
+          className="text-xl sm:text-2xl font-bold"
           style={{ color: 'var(--foreground)' }}
         >
           Positive EV
         </h3>
         <span 
-          className="text-xs font-medium px-2 py-1 rounded"
+          className="text-[10px] sm:text-xs font-medium px-2 py-0.5 sm:py-1 rounded"
           style={{ 
             backgroundColor: '#22c55e',
             color: '#000'
@@ -112,18 +112,18 @@ function PositiveEVCard() {
 
       {/* Description */}
       <p 
-        className="text-sm mb-6 leading-relaxed"
+        className="text-xs sm:text-sm mb-4 sm:mb-6 leading-relaxed"
         style={{ color: 'var(--muted)' }}
       >
         Beat the closing line. We compare sharp book consensus against soft lines to identify value bets with positive expected return.
       </p>
 
       {/* Features list */}
-      <div className="space-y-3 mb-8">
+      <div className="space-y-2 sm:space-y-3 mb-6 sm:mb-8">
         {['Real-time Devigging', 'Kelly Criterion Staking'].map((feature, i) => (
           <div key={i} className="flex items-center gap-2">
             <Check className="w-4 h-4" style={{ color: '#22c55e' }} />
-            <span className="text-sm" style={{ color: 'var(--foreground)' }}>
+            <span className="text-xs sm:text-sm" style={{ color: 'var(--foreground)' }}>
               {feature}
             </span>
           </div>
@@ -140,46 +140,49 @@ function PositiveEVCard() {
       >
         {/* Table header */}
         <div 
-          className="grid grid-cols-4 gap-2 px-4 py-2 text-xs font-medium border-b"
+          className="grid grid-cols-[1fr_auto_auto] gap-3 sm:gap-6 px-3 sm:px-4 py-2 sm:py-2.5 text-[10px] sm:text-xs font-medium border-b"
           style={{ 
             borderColor: 'var(--border)',
             color: 'var(--muted)'
           }}
         >
           <div>OPPORTUNITY</div>
-          <div className="text-center">EDGE</div>
-          <div className="text-center">ROI</div>
-          <div></div>
+          <div className="text-right min-w-[60px] sm:min-w-[70px]">EDGE</div>
+          <div className="text-right min-w-[45px] sm:min-w-[55px]">ROI</div>
         </div>
 
         {/* Table rows */}
         {EV_OPPORTUNITIES.map((opp, i) => (
           <div 
             key={i}
-            className="grid grid-cols-4 gap-2 px-4 py-3 items-center border-b last:border-0"
+            className="grid grid-cols-[1fr_auto_auto] gap-3 sm:gap-6 px-3 sm:px-4 py-2.5 sm:py-3 items-center border-b last:border-0"
             style={{ borderColor: 'var(--border)' }}
           >
-            <div className="flex items-center gap-2">
-              <BookLogo bookKey={opp.bookKey} size={28} />
-              <div>
-                <div className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+            {/* Opportunity column */}
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <BookLogo bookKey={opp.bookKey} size={24} />
+              <div className="min-w-0">
+                <div className="text-xs sm:text-sm font-medium truncate" style={{ color: 'var(--foreground)' }}>
                   {opp.team}
                 </div>
-                <div className="text-xs" style={{ color: 'var(--muted)' }}>
+                <div className="text-[10px] sm:text-xs" style={{ color: 'var(--muted)' }}>
                   {opp.odds}
                 </div>
               </div>
             </div>
-            <div className="text-center text-xs" style={{ color: 'var(--muted)' }}>
+            
+            {/* Edge column */}
+            <div className="text-right text-[10px] sm:text-xs min-w-[60px] sm:min-w-[70px]" style={{ color: 'var(--muted)' }}>
               Fair: {opp.fairOdds}
             </div>
+            
+            {/* ROI column */}
             <div 
-              className="text-center font-mono font-medium"
+              className="text-right font-mono text-xs sm:text-sm font-medium min-w-[45px] sm:min-w-[55px]"
               style={{ color: '#22c55e' }}
             >
               {opp.roi}
             </div>
-            <div></div>
           </div>
         ))}
       </div>
@@ -242,22 +245,22 @@ function TrackEdgeCard() {
   return (
     <div 
       ref={cardRef}
-      className={`rounded-2xl border p-8 transition-all duration-700 delay-200 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
+      className={`rounded-2xl border p-6 sm:p-8 transition-all duration-700 delay-200 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}
       style={{ 
         backgroundColor: 'var(--surface)',
         borderColor: 'var(--border)'
       }}
     >
       {/* Badge */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-4 sm:mb-6">
         <div 
-          className="w-12 h-12 rounded-xl flex items-center justify-center"
+          className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center"
           style={{ backgroundColor: 'rgba(20, 184, 166, 0.15)' }}
         >
-          <Clock className="w-6 h-6" style={{ color: '#14b8a6' }} />
+          <Clock className="w-5 h-5 sm:w-6 sm:h-6" style={{ color: '#14b8a6' }} />
         </div>
         <span 
-          className="text-xs font-medium px-3 py-1 rounded"
+          className="text-[10px] sm:text-xs font-medium px-2 sm:px-3 py-0.5 sm:py-1 rounded"
           style={{ 
             backgroundColor: '#14b8a6',
             color: '#fff'
@@ -269,7 +272,7 @@ function TrackEdgeCard() {
 
       {/* Title */}
       <h3 
-        className="text-2xl font-bold mb-2"
+        className="text-xl sm:text-2xl font-bold mb-2"
         style={{ color: 'var(--foreground)' }}
       >
         Track Your Edge
@@ -277,7 +280,7 @@ function TrackEdgeCard() {
 
       {/* Description */}
       <p 
-        className="text-sm mb-8 leading-relaxed"
+        className="text-xs sm:text-sm mb-6 sm:mb-8 leading-relaxed"
         style={{ color: 'var(--muted)' }}
       >
         Integrated P&L tracking. Visualize your growth and analyze performance by sportsbook.
@@ -285,35 +288,35 @@ function TrackEdgeCard() {
 
       {/* Profit Card */}
       <div 
-        className="rounded-xl p-6"
+        className="rounded-xl p-4 sm:p-6"
         style={{ 
           backgroundColor: 'var(--background)',
           border: '1px solid var(--border)'
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-xs font-medium tracking-wider" style={{ color: 'var(--muted)' }}>
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <span className="text-[10px] sm:text-xs font-medium tracking-wider" style={{ color: 'var(--muted)' }}>
             TOTAL PROFIT
           </span>
           <div 
-            className="w-8 h-8 rounded-full flex items-center justify-center"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center"
             style={{ backgroundColor: 'rgba(20, 184, 166, 0.15)' }}
           >
-            <TrendingUp className="w-4 h-4" style={{ color: '#14b8a6' }} />
+            <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" style={{ color: '#14b8a6' }} />
           </div>
         </div>
 
         {/* Profit amount */}
         <div 
-          className="text-4xl font-bold font-mono mb-6"
+          className="text-3xl sm:text-4xl font-bold font-mono mb-4 sm:mb-6"
           style={{ color: '#22c55e' }}
         >
           +${profit.toFixed(2)}
         </div>
 
         {/* Chart */}
-        <div className="relative h-20 mb-4">
+        <div className="relative h-16 sm:h-20 mb-3 sm:mb-4">
           <svg className="w-full h-full" viewBox="0 0 300 100" preserveAspectRatio="none">
             {/* Gradient fill */}
             <defs>
@@ -346,16 +349,16 @@ function TrackEdgeCard() {
 
         {/* Stats row */}
         <div 
-          className="flex items-center justify-between pt-4 border-t"
+          className="flex items-center justify-between pt-3 sm:pt-4 border-t"
           style={{ borderColor: 'var(--border)' }}
         >
           <div>
-            <span className="text-xs" style={{ color: 'var(--muted)' }}>ROI: </span>
-            <span className="text-sm font-medium" style={{ color: '#22c55e' }}>12.5%</span>
+            <span className="text-[10px] sm:text-xs" style={{ color: 'var(--muted)' }}>ROI: </span>
+            <span className="text-xs sm:text-sm font-medium" style={{ color: '#22c55e' }}>12.5%</span>
           </div>
           <div>
-            <span className="text-xs" style={{ color: 'var(--muted)' }}>Vol: </span>
-            <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>$10k</span>
+            <span className="text-[10px] sm:text-xs" style={{ color: 'var(--muted)' }}>Vol: </span>
+            <span className="text-xs sm:text-sm font-medium" style={{ color: 'var(--foreground)' }}>$10k</span>
           </div>
         </div>
       </div>
@@ -366,11 +369,11 @@ function TrackEdgeCard() {
 export function FeaturesShowcase() {
   return (
     <section 
-      className="py-24 px-6 border-t"
+      className="py-16 sm:py-24 px-4 sm:px-6 border-t"
       style={{ borderColor: 'var(--border)' }}
     >
       <div className="max-w-6xl mx-auto">
-        <div className="grid md:grid-cols-2 gap-8">
+        <div className="grid md:grid-cols-2 gap-4 sm:gap-8">
           <PositiveEVCard />
           <TrackEdgeCard />
         </div>
