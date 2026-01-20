@@ -2,14 +2,56 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Image from 'next/image';
 import { BarChart3, Check, TrendingUp, Clock } from 'lucide-react';
+import { getBookmaker, getBookmakerAbbr, getLogoPath } from '@/lib/bookmakers';
 
 // Sample EV opportunities data
 const EV_OPPORTUNITIES = [
-  { team: 'Lakers ML', book: 'FD', odds: '+145', fairOdds: '+115', roi: '12.4%' },
-  { team: 'Chiefs -3.5', book: 'DK', odds: '+105', fairOdds: '-130', roi: '8.2%' },
-  { team: 'O 9.5 Runs', book: 'MGM', odds: '+110', fairOdds: '-105', roi: '4.1%' },
+  { team: 'Lakers ML', bookKey: 'fanduel', odds: '+145', fairOdds: '+115', roi: '12.4%' },
+  { team: 'Chiefs -3.5', bookKey: 'draftkings', odds: '+105', fairOdds: '-130', roi: '8.2%' },
+  { team: 'O 9.5 Runs', bookKey: 'betmgm', odds: '+110', fairOdds: '-105', roi: '4.1%' },
 ];
+
+// BookLogo component with image fallback
+function BookLogo({ bookKey, size = 28 }: { bookKey: string; size?: number }) {
+  const [imgError, setImgError] = useState(false);
+  const bookmaker = getBookmaker(bookKey);
+
+  const bgColor = bookmaker?.color || '#333';
+  const textColor = bookmaker?.textColor || '#fff';
+  const abbr = bookmaker ? getBookmakerAbbr(bookmaker.name) : bookKey.slice(0, 2).toUpperCase();
+
+  if (imgError || !bookmaker) {
+    // Fallback to colored box with abbreviation
+    return (
+      <div
+        className="rounded flex items-center justify-center font-bold"
+        style={{
+          width: size,
+          height: size,
+          backgroundColor: bgColor,
+          color: textColor,
+          fontSize: size * 0.35,
+        }}
+      >
+        {abbr}
+      </div>
+    );
+  }
+
+  return (
+    <Image
+      src={getLogoPath(bookKey)}
+      alt={bookmaker.name}
+      width={size}
+      height={size}
+      className="rounded object-cover"
+      style={{ width: size, height: size }}
+      onError={() => setImgError(true)}
+    />
+  );
+}
 
 function PositiveEVCard() {
   const [isVisible, setIsVisible] = useState(false);
@@ -118,17 +160,7 @@ function PositiveEVCard() {
             style={{ borderColor: 'var(--border)' }}
           >
             <div className="flex items-center gap-2">
-              <span 
-                className="w-6 h-6 rounded flex items-center justify-center text-[10px] font-bold"
-                style={{ 
-                  backgroundColor: opp.book === 'FD' ? '#1493ff' 
-                    : opp.book === 'DK' ? '#53d337' 
-                    : '#c4a962',
-                  color: opp.book === 'MGM' ? '#000' : '#fff'
-                }}
-              >
-                {opp.book}
-              </span>
+              <BookLogo bookKey={opp.bookKey} size={28} />
               <div>
                 <div className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                   {opp.team}
