@@ -163,7 +163,7 @@ export function SportsbookSlider({ onViewAll, compact = false, region = 'US' }: 
           className="inline-flex items-center gap-2 text-sm font-medium transition-all hover:gap-3 group"
           style={{ color: '#14b8a6' }}
         >
-          View all 80+ supported books
+          View all 86 supported books
           <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
         </button>
       </div>
