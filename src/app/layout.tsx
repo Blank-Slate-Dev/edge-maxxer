@@ -5,11 +5,11 @@ import AuthProvider from '@/components/AuthProvider';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Edge Maxxer - Sports Arbitrage Scanner',
+  title: 'Edge Maxxer - Scanner 💵',
   description: 'Find guaranteed profit opportunities across bookmakers. The most affordable arb scanner on the market.',
   keywords: ['arbitrage', 'sports betting', 'arb scanner', 'sure bets', 'matched betting'],
   openGraph: {
-    title: 'Edge Maxxer - Sports Arbitrage Scanner',
+    title: 'Edge Maxxer - Scanner 💵',
     description: 'Find guaranteed profit opportunities across bookmakers.',
     url: 'https://edgemaxxer.com',
     siteName: 'Edge Maxxer',
