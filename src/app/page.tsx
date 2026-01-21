@@ -4,7 +4,6 @@
 import { useState } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import { 
@@ -26,7 +25,6 @@ import {
   ArrowRight, 
   Check, 
   ChevronDown,
-  Loader2,
   Menu,
   X,
 } from 'lucide-react';
@@ -90,11 +88,9 @@ const FEATURES = [
 export default function LandingPage() {
   const { theme, toggleTheme } = useTheme();
   const { data: session } = useSession();
-  const router = useRouter();
   const [authModal, setAuthModal] = useState<AuthModalType>(null);
   const [sportsbooksOpen, setSportsbooksOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [loadingPlan, setLoadingPlan] = useState<PlanType | null>(null);
   const [pendingPlan, setPendingPlan] = useState<PlanType | null>(null);
   const [checkoutPlan, setCheckoutPlan] = useState<PlanType | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -202,8 +198,8 @@ export default function LandingPage() {
               </button>
               
               {session ? (
-                <button
-                  onClick={() => router.push('/dashboard')}
+                <Link
+                  href="/dashboard"
                   className="px-4 sm:px-5 py-2 sm:py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
                   style={{ 
                     backgroundColor: '#14b8a6',
@@ -211,7 +207,7 @@ export default function LandingPage() {
                   }}
                 >
                   Dashboard
-                </button>
+                </Link>
               ) : (
                 <>
                   <button
