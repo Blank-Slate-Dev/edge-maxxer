@@ -17,6 +17,27 @@ const ThemeContext = createContext<ThemeContextType>({
   setTheme: () => {},
 });
 
+// Theme colors matching your viewport config in layout.tsx
+const THEME_COLORS = {
+  light: '#f0efeb',
+  dark: '#1c1c1a',
+} as const;
+
+// Helper to update the theme-color meta tag for iOS status bar
+function updateThemeColorMeta(theme: Theme) {
+  if (typeof window === 'undefined') return;
+  
+  // Find existing theme-color meta tags and remove them
+  const existingMetas = document.querySelectorAll('meta[name="theme-color"]');
+  existingMetas.forEach((meta) => meta.remove());
+  
+  // Create a new theme-color meta tag with the current theme's color
+  const meta = document.createElement('meta');
+  meta.name = 'theme-color';
+  meta.content = THEME_COLORS[theme];
+  document.head.appendChild(meta);
+}
+
 // Helper to get initial theme (checks what the inline script already set)
 function getInitialTheme(): Theme {
   if (typeof window !== 'undefined') {
@@ -47,6 +68,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setMounted(true);
     const initialTheme = getInitialTheme();
     setThemeState(initialTheme);
+    // Update the theme-color meta tag on initial mount
+    updateThemeColorMeta(initialTheme);
   }, []);
 
   const setTheme = (newTheme: Theme) => {
@@ -57,6 +80,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       // localStorage not available
     }
     document.documentElement.classList.toggle('light', newTheme === 'light');
+    // Update the iOS status bar color immediately
+    updateThemeColorMeta(newTheme);
   };
 
   const toggleTheme = () => {
