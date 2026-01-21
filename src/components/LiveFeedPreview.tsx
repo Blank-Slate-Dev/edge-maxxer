@@ -278,8 +278,8 @@ function BookBadge({ bookKey, odds }: { bookKey: string; odds: number }) {
     <span
       className="inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded"
       style={{
-        backgroundColor: '#2a2a28',
-        color: '#aaa',
+        backgroundColor: 'var(--surface-hover)',
+        color: 'var(--foreground-secondary)',
       }}
     >
       <span
@@ -405,18 +405,18 @@ export function LiveFeedPreview() {
           <div
             className="relative rounded-2xl overflow-hidden"
             style={{
-              backgroundColor: '#0d0d0c',
-              border: '1px solid #2a2a28',
+              backgroundColor: 'var(--surface-deep)',
+              border: '1px solid var(--border)',
               width: '780px',
-              boxShadow: '0 0 60px rgba(20, 184, 166, 0.15), 0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+              boxShadow: 'var(--preview-shadow)',
             }}
           >
             {/* Browser Chrome */}
             <div
               className="flex items-center justify-between px-4 py-3"
               style={{
-                backgroundColor: '#161614',
-                borderBottom: '1px solid #2a2a28',
+                backgroundColor: 'var(--surface-chrome)',
+                borderBottom: '1px solid var(--border)',
               }}
             >
               <div className="flex gap-2">
@@ -426,13 +426,13 @@ export function LiveFeedPreview() {
               </div>
               <div
                 className="flex-1 mx-4 px-3 py-1.5 rounded-md text-xs text-center"
-                style={{ backgroundColor: '#0d0d0c', color: '#666' }}
+                style={{ backgroundColor: 'var(--surface-deep)', color: 'var(--muted-foreground)' }}
               >
                 edgemaxxer.com/dashboard
               </div>
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: '#22c55e' }} />
-                <span className="text-[10px] font-medium tracking-wider" style={{ color: '#888' }}>
+                <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--success)' }} />
+                <span className="text-[10px] font-medium tracking-wider" style={{ color: 'var(--muted)' }}>
                   ARB SCANNER
                 </span>
               </div>
@@ -451,14 +451,14 @@ export function LiveFeedPreview() {
                     key={arb.id}
                     className="rounded-lg overflow-hidden"
                     style={{
-                      backgroundColor: '#1a1a18',
-                      border: '1px solid #2a2a28',
+                      backgroundColor: 'var(--surface-secondary)',
+                      border: '1px solid var(--border)',
                     }}
                   >
                     {/* Header Row */}
                     <div
                       className="px-3 py-2.5 flex items-center justify-between"
-                      style={{ borderBottom: '1px solid #2a2a28' }}
+                      style={{ borderBottom: '1px solid var(--border)' }}
                     >
                       <div className="flex items-center gap-2">
                         <Image
@@ -468,10 +468,10 @@ export function LiveFeedPreview() {
                           height={16}
                           className="w-4 h-4 object-contain"
                         />
-                        <span className="text-[10px] font-medium" style={{ color: '#888' }}>
+                        <span className="text-[10px] font-medium" style={{ color: 'var(--muted)' }}>
                           {arb.league}
                         </span>
-                        <span className="font-semibold text-xs" style={{ color: '#14b8a6' }}>
+                        <span className="font-semibold text-xs" style={{ color: 'var(--primary)' }}>
                           {arb.matchup}
                         </span>
                         {arb.tag && (
@@ -480,13 +480,13 @@ export function LiveFeedPreview() {
                             style={{
                               backgroundColor:
                                 arb.tag === 'Middle'
-                                  ? 'rgba(168, 85, 247, 0.2)'
-                                  : 'rgba(20, 184, 166, 0.15)',
-                              color: arb.tag === 'Middle' ? '#a855f7' : '#14b8a6',
+                                  ? 'var(--purple-muted)'
+                                  : 'var(--primary-alpha-15)',
+                              color: arb.tag === 'Middle' ? 'var(--purple)' : 'var(--primary)',
                               border: `1px solid ${
                                 arb.tag === 'Middle'
-                                  ? 'rgba(168, 85, 247, 0.3)'
-                                  : 'rgba(20, 184, 166, 0.3)'
+                                  ? 'var(--purple-border)'
+                                  : 'var(--primary-alpha-30)'
                               }`,
                             }}
                           >
@@ -499,8 +499,8 @@ export function LiveFeedPreview() {
                           <span
                             className="text-[10px] px-1.5 py-0.5 rounded font-medium"
                             style={{
-                              backgroundColor: 'rgba(20, 184, 166, 0.15)',
-                              color: '#14b8a6',
+                              backgroundColor: 'var(--primary-alpha-15)',
+                              color: 'var(--primary)',
                             }}
                           >
                             {arb.gameTime}
@@ -512,7 +512,7 @@ export function LiveFeedPreview() {
                     {/* Bet Type */}
                     <div
                       className="px-3 py-1.5 text-[10px] font-medium"
-                      style={{ color: '#666', borderBottom: '1px solid #2a2a28' }}
+                      style={{ color: 'var(--muted-foreground)', borderBottom: '1px solid var(--border)' }}
                     >
                       {arb.betType}
                     </div>
@@ -520,17 +520,17 @@ export function LiveFeedPreview() {
                     {/* Profit Row */}
                     <div
                       className="px-3 py-2 flex items-center justify-between"
-                      style={{ backgroundColor: '#141412' }}
+                      style={{ backgroundColor: 'var(--surface-inset)' }}
                     >
                       <div className="flex items-center gap-3">
-                        <span className="text-xl font-bold" style={{ color: '#22c55e' }}>
+                        <span className="text-xl font-bold" style={{ color: 'var(--success)' }}>
                           {arb.profit.toFixed(1)}%
                         </span>
                         <div>
-                          <div className="text-[9px] uppercase tracking-wider" style={{ color: '#666' }}>
+                          <div className="text-[9px] uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>
                             Guaranteed Profit
                           </div>
-                          <div className="text-xs font-medium flex items-center gap-1" style={{ color: '#22c55e' }}>
+                          <div className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--success)' }}>
                             <TrendingUp className="w-3 h-3" />
                             +${arb.profitAmount}
                           </div>
@@ -538,14 +538,14 @@ export function LiveFeedPreview() {
                       </div>
                       <div className="flex gap-1">
                         <button
-                          className="p-1.5 rounded hover:bg-[#2a2a28] transition-colors"
-                          style={{ color: '#666' }}
+                          className="p-1.5 rounded transition-colors"
+                          style={{ color: 'var(--muted-foreground)' }}
                         >
                           <ExternalLink className="w-3.5 h-3.5" />
                         </button>
                         <button
-                          className="p-1.5 rounded hover:bg-[#2a2a28] transition-colors"
-                          style={{ color: '#666' }}
+                          className="p-1.5 rounded transition-colors"
+                          style={{ color: 'var(--muted-foreground)' }}
                         >
                           <Pin className="w-3.5 h-3.5" />
                         </button>
@@ -558,15 +558,15 @@ export function LiveFeedPreview() {
                         key={i}
                         className="px-4 py-3"
                         style={{
-                          borderTop: '1px solid #2a2a28',
-                          backgroundColor: '#141412',
+                          borderTop: '1px solid var(--border)',
+                          backgroundColor: 'var(--surface-inset)',
                         }}
                       >
                         <div className="flex items-center justify-between">
                           {/* Left: Book Logo + Label */}
                           <div className="flex items-center gap-3 min-w-[160px]">
                             <BookLogo bookKey={outcome.bookKey} size={32} />
-                            <span className="font-medium text-sm" style={{ color: '#fff' }}>
+                            <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
                               {outcome.label}
                             </span>
                           </div>
@@ -579,8 +579,8 @@ export function LiveFeedPreview() {
                                 <span
                                   className="text-[10px] px-2 py-1 rounded"
                                   style={{
-                                    backgroundColor: 'rgba(20, 184, 166, 0.15)',
-                                    color: '#14b8a6',
+                                    backgroundColor: 'var(--primary-alpha-15)',
+                                    color: 'var(--primary)',
                                   }}
                                 >
                                   {outcome.ev.toFixed(1)}% EV
@@ -591,7 +591,7 @@ export function LiveFeedPreview() {
                             {/* Line */}
                             <div className="w-[50px] text-right">
                               {outcome.line !== undefined && (
-                                <span className="text-sm font-mono font-medium" style={{ color: '#14b8a6' }}>
+                                <span className="text-sm font-mono font-medium" style={{ color: 'var(--primary)' }}>
                                   {outcome.line > 0 ? '+' : ''}
                                   {outcome.line}
                                 </span>
@@ -600,14 +600,14 @@ export function LiveFeedPreview() {
 
                             {/* Odds */}
                             <div className="w-[55px] text-right">
-                              <span className="text-sm font-mono font-bold" style={{ color: '#22c55e' }}>
+                              <span className="text-sm font-mono font-bold" style={{ color: 'var(--success)' }}>
                                 {formatOdds(outcome.odds)}
                               </span>
                             </div>
 
                             {/* Stake */}
                             <div className="w-[50px] text-right">
-                              <span className="text-xs font-mono" style={{ color: '#666' }}>
+                              <span className="text-xs font-mono" style={{ color: 'var(--muted-foreground)' }}>
                                 ${outcome.stake}
                               </span>
                             </div>
@@ -635,15 +635,15 @@ export function LiveFeedPreview() {
             className="absolute top-1/2 left-full -translate-y-1/2 transition-all duration-300 ease-out overflow-hidden"
             style={{
               width: isHovered ? '200px' : '0px',
-              backgroundColor: '#0d0d0c',
-              border: '1px solid #2a2a28',
+              backgroundColor: 'var(--surface-deep)',
+              border: '1px solid var(--border)',
               borderLeft: 'none',
               borderTopRightRadius: '12px',
               borderBottomRightRadius: '12px',
             }}
           >
             <div className="p-4 w-[200px]">
-              <h3 className="text-[10px] font-semibold uppercase tracking-wider mb-4" style={{ color: '#14b8a6' }}>
+              <h3 className="text-[10px] font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--primary)' }}>
                 Key Features
               </h3>
               <div className="space-y-3">
@@ -651,11 +651,11 @@ export function LiveFeedPreview() {
                   <div key={i} className="flex items-center gap-3">
                     <div
                       className="w-10 h-10 rounded-lg flex items-center justify-center"
-                      style={{ backgroundColor: '#1a1a18', border: '1px solid #2a2a28' }}
+                      style={{ backgroundColor: 'var(--surface-secondary)', border: '1px solid var(--border)' }}
                     >
-                      <item.icon className="w-5 h-5" style={{ color: '#14b8a6' }} />
+                      <item.icon className="w-5 h-5" style={{ color: 'var(--primary)' }} />
                     </div>
-                    <span className="text-sm" style={{ color: '#fff' }}>
+                    <span className="text-sm" style={{ color: 'var(--foreground)' }}>
                       {item.label}
                     </span>
                   </div>
