@@ -379,7 +379,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
                   className="text-xs sm:text-sm cursor-pointer select-none"
                   style={{ color: 'var(--muted)' }}
                 >
-                  Remember me for 24 months
+                  Remember me
                 </label>
               </div>
             )}
