@@ -19,6 +19,7 @@ export { SpreadsTable } from './SpreadsTable';
 export { StakeCalculatorModal } from './StakeCalculatorModal';
 export { StealthGuide } from './StealthGuide';
 export { StepsSection } from './StepsSection';
+export { SubscriptionRequiredModal } from './SubscriptionRequiredModal';
 export { TestimonialsSection } from './TestimonialsSection';
 export { TotalsTable } from './TotalsTable';
 export { ValueBetCalculatorModal } from './ValueBetCalculatorModal';
