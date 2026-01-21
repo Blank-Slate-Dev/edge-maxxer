@@ -17,6 +17,7 @@ export default function LoginClient() {
     email: '',
     password: '',
   });
+  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -60,6 +61,7 @@ export default function LoginClient() {
       const result = await signIn('credentials', {
         email: formData.email,
         password: formData.password,
+        rememberMe: rememberMe.toString(),
         redirect: false,
       });
 
@@ -297,6 +299,29 @@ export default function LoginClient() {
               {errors.password && (
                 <p className="text-xs mt-1.5" style={{ color: 'var(--danger)' }}>{errors.password}</p>
               )}
+            </div>
+
+            {/* Remember Me Checkbox */}
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="rememberMe"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                disabled={isLoading}
+                className="w-4 h-4 rounded border-2 cursor-pointer accent-[var(--foreground)]"
+                style={{
+                  borderColor: 'var(--border)',
+                  backgroundColor: 'var(--surface)',
+                }}
+              />
+              <label
+                htmlFor="rememberMe"
+                className="text-sm cursor-pointer select-none"
+                style={{ color: 'var(--muted)' }}
+              >
+                Remember me for 24 months
+              </label>
             </div>
 
             <button
