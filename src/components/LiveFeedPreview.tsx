@@ -304,6 +304,9 @@ export function LiveFeedPreview() {
   
   // Auto-detect user's region for odds formatting (homepage visitors)
   const detectedRegion = useGeoRegion();
+  
+  // Convert DisplayRegion to UserRegion (handle 'ALL' case by defaulting to AU)
+  const userRegion: UserRegion = detectedRegion === 'ALL' ? 'AU' : detectedRegion;
 
   useEffect(() => {
     setMounted(true);
@@ -356,7 +359,7 @@ export function LiveFeedPreview() {
 
   // Format odds based on detected region
   const formatOdds = (odds: number) => {
-    return formatAmericanOddsForRegion(odds, detectedRegion);
+    return formatAmericanOddsForRegion(odds, userRegion);
   };
 
   return (
@@ -624,7 +627,7 @@ export function LiveFeedPreview() {
                         {outcome.altOdds && outcome.altOdds.length > 0 && (
                           <div className="flex justify-end mt-2 gap-2">
                             {outcome.altOdds.slice(0, 3).map((alt, j) => (
-                              <BookBadge key={j} bookKey={alt.bookKey} odds={alt.odds} region={detectedRegion} />
+                              <BookBadge key={j} bookKey={alt.bookKey} odds={alt.odds} region={userRegion} />
                             ))}
                           </div>
                         )}
