@@ -465,7 +465,7 @@ export default function DashboardPage() {
 
   return (
     <div 
-      className="min-h-screen transition-colors overflow-y-scroll"
+      className="min-h-screen transition-colors"
       style={{ backgroundColor: 'var(--background)' }}
     >
       <Header
