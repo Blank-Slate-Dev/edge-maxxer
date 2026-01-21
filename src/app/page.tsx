@@ -19,6 +19,7 @@ import {
   ProfitCounter
 } from '@/components';
 import { CheckoutModal } from '@/components/CheckoutModal';
+import { ResponsibleGambling } from '@/components/ResponsibleGambling';
 import { 
   Sun, 
   Moon, 
@@ -147,7 +148,7 @@ export default function LandingPage() {
               <Link href="/" className="flex items-center">
                 <Image
                   src="/logo_thin_dark_version.png"
-                  alt="Edge Maxxer"
+                  alt="Edge Maxxer - Sports Arbitrage Betting Scanner"
                   width={300}
                   height={72}
                   priority
@@ -155,7 +156,7 @@ export default function LandingPage() {
                 />
                 <Image
                   src="/logo_thin_light_version.png"
-                  alt="Edge Maxxer"
+                  alt="Edge Maxxer - Sports Arbitrage Betting Scanner"
                   width={300}
                   height={72}
                   priority
@@ -195,6 +196,7 @@ export default function LandingPage() {
                 onClick={toggleTheme}
                 className="p-2 rounded-lg transition-colors hover:bg-[var(--surface)]"
                 style={{ color: 'var(--muted)' }}
+                aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
               >
                 {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
@@ -238,6 +240,7 @@ export default function LandingPage() {
                 onClick={() => setMobileNavOpen(true)}
                 className="p-2 rounded-lg transition-colors hover:bg-[var(--surface)] md:hidden"
                 style={{ color: 'var(--foreground)' }}
+                aria-label="Open mobile menu"
               >
                 <Menu className="w-5 h-5" />
               </button>
@@ -269,6 +272,7 @@ export default function LandingPage() {
                 onClick={() => setMobileNavOpen(false)}
                 className="p-2 rounded-lg"
                 style={{ color: 'var(--muted)' }}
+                aria-label="Close mobile menu"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -336,7 +340,7 @@ export default function LandingPage() {
                 <span className="truncate">INSTANT MARKET REFRESHING</span>
               </div>
 
-              {/* Headline */}
+              {/* Headline - SEO optimized with H1 */}
               <h1 
                 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold tracking-tight leading-[1.1] mb-4 sm:mb-6"
                 style={{ color: 'var(--foreground)' }}
@@ -357,7 +361,7 @@ export default function LandingPage() {
                 className="text-sm sm:text-base mb-6 sm:mb-8 leading-relaxed"
                 style={{ color: 'var(--muted)' }}
               >
-                We spent years mastering arbitrage betting. We built the tool we always needed, now we're sharing it with you. Our software scans over 80 sportsbooks for profitable discrepancies 24/7.
+                We spent years mastering arbitrage betting. We built the tool we always needed, now we&apos;re sharing it with you. Our software scans over 80 sportsbooks for profitable discrepancies 24/7.
               </p>
 
               {/* CTA Buttons */}
@@ -734,6 +738,7 @@ export default function LandingPage() {
                 <button
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
                   className="w-full flex items-center justify-between p-3 sm:p-4 text-left"
+                  aria-expanded={openFaq === i}
                 >
                   <span className="font-medium text-sm sm:text-base pr-4" style={{ color: 'var(--foreground)' }}>
                     {faq.q}
@@ -822,6 +827,9 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Responsible Gambling Footer - Australian Compliance */}
+      <ResponsibleGambling />
 
       {/* Modals */}
       <AuthModals 

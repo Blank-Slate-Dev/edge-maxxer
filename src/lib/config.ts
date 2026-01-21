@@ -28,12 +28,13 @@ export const config = {
   } as Record<UserRegion, ApiRegion[]>,
 
   // Region display info
+  // flagCode uses ISO 3166-1 alpha-2 codes for flag-icons library
   regionInfo: {
-    US: { label: 'United States', flag: '🇺🇸', color: 'red' },
-    EU: { label: 'Europe', flag: '🇪🇺', color: 'purple' },
-    UK: { label: 'United Kingdom', flag: '🇬🇧', color: 'blue' },
-    AU: { label: 'Australia', flag: '🇦🇺', color: 'green' },
-  } as Record<UserRegion, { label: string; flag: string; color: string }>,
+    US: { label: 'United States', flag: '🇺🇸', flagCode: 'us', color: 'red' },
+    EU: { label: 'Europe', flag: '🇪🇺', flagCode: 'eu', color: 'purple' },
+    UK: { label: 'United Kingdom', flag: '🇬🇧', flagCode: 'gb', color: 'blue' },
+    AU: { label: 'Australia', flag: '🇦🇺', flagCode: 'au', color: 'green' },
+  } as Record<UserRegion, { label: string; flag: string; flagCode: string; color: string }>,
 
   // Bookmakers by user region
   bookmakersByRegion: {

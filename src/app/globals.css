@@ -595,3 +595,19 @@ iframe[name^="embedded-checkout"] {
 .light .logo-light {
   display: block;
 }
+
+/* Flag icon size utilities (prefixed to avoid conflict with country codes like fi-sm = San Marino) */
+.flag-size-sm {
+  width: 1rem;
+  height: 0.75rem;
+}
+
+.flag-size-md {
+  width: 1.25rem;
+  height: 0.9375rem;
+}
+
+.flag-size-lg {
+  width: 1.5rem;
+  height: 1.125rem;
+}

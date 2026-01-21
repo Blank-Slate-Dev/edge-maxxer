@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { Globe, Loader2 } from 'lucide-react';
-import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal } from '@/components';
+import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal, Flag } from '@/components';
 import { useBets } from '@/hooks/useBets';
 import { useAccounts } from '@/hooks/useAccounts';
 import type { ArbOpportunity, ValueBet, ArbFilters as FilterType, ScanStats, SpreadArb, TotalsArb, MiddleOpportunity, LineStats } from '@/lib/types';
@@ -108,7 +108,7 @@ function RegionTab({
       onClick={onClick}
       className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium border rounded-lg transition-all ${colorMap[info.color]}`}
     >
-      <span>{info.flag}</span>
+      <Flag code={info.flagCode} size="sm" />
       <span className="hidden xs:inline">{region}</span>
     </button>
   );
