@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { Globe, Loader2 } from 'lucide-react';
-import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal, Flag } from '@/components';
+import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal, Flag, SubscriptionRequiredModal } from '@/components';
 import { useBets } from '@/hooks/useBets';
 import { useAccounts } from '@/hooks/useAccounts';
 import type { ArbOpportunity, ValueBet, ArbFilters as FilterType, ScanStats, SpreadArb, TotalsArb, MiddleOpportunity, LineStats } from '@/lib/types';
@@ -27,6 +27,9 @@ interface ArbsResponse {
   remainingApiRequests?: number;
   error?: string;
   details?: string;
+  subscriptionRequired?: boolean;
+  noApiKey?: boolean;
+  message?: string;
 }
 
 interface LinesResponse {
@@ -183,6 +186,9 @@ export default function DashboardPage() {
   const [selectedRegions, setSelectedRegions] = useState<UserRegion[]>(['AU']);
   const [userDefaultRegion, setUserDefaultRegion] = useState<UserRegion>('AU');
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+  
+  // Subscription modal state
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
 
   const { bets, isLoaded: betsLoaded, addBet, updateBet, deleteBet, clearAllBets } = useBets();
   const { 
@@ -288,8 +294,24 @@ export default function DashboardPage() {
       setArbsProgress('Processing H2H results...');
       const arbsData: ArbsResponse = await arbsRes.json();
 
+      // Check for subscription required
+      if (arbsData.subscriptionRequired) {
+        setIsLoadingArbs(false);
+        setArbsProgress('');
+        setShowSubscriptionModal(true);
+        return;
+      }
+
       if (!arbsRes.ok) {
         throw new Error(arbsData.error || 'Failed to fetch arbs');
+      }
+
+      // Check for no API key (user has subscription but hasn't added key)
+      if (arbsData.noApiKey) {
+        setError(arbsData.message || 'No API key configured. Go to Settings to add your Odds API key.');
+        setIsLoadingArbs(false);
+        setArbsProgress('');
+        return;
       }
 
       const parsed = arbsData.opportunities.map(opp => ({
@@ -840,6 +862,12 @@ export default function DashboardPage() {
         opportunity={selectedLineOpp}
         onClose={() => setSelectedLineOpp(null)}
         onLogBet={handleLogBet}
+      />
+
+      {/* Subscription Required Modal */}
+      <SubscriptionRequiredModal
+        isOpen={showSubscriptionModal}
+        onClose={() => setShowSubscriptionModal(false)}
       />
     </div>
   );
