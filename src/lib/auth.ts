@@ -6,6 +6,10 @@ import bcrypt from 'bcryptjs';
 import dbConnect from '@/lib/mongodb';
 import User from '@/lib/models/User';
 
+// Session duration constants (in seconds)
+const SESSION_MAX_AGE_REMEMBER = 63072000; // 24 months
+const SESSION_MAX_AGE_DEFAULT = 5184000;   // 60 days (2 months)
+
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -17,31 +21,27 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: 'Email', type: 'email' },
         password: { label: 'Password', type: 'password' },
+        rememberMe: { label: 'Remember Me', type: 'text' },
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
           throw new Error('Email and password are required');
         }
-
         await dbConnect();
-
         const user = await User.findOne({ email: credentials.email.toLowerCase() });
-
         if (!user) {
           throw new Error('No account found with this email');
         }
-
         const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
-
         if (!isPasswordValid) {
           throw new Error('Invalid password');
         }
-
         return {
           id: user._id.toString(),
           email: user.email,
           name: user.name,
           image: user.image,
+          rememberMe: credentials.rememberMe === 'true',
         };
       },
     }),
@@ -74,6 +74,11 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
+        // Set token expiration based on rememberMe preference
+        // For Google OAuth users, default to the longer session
+        const rememberMe = (user as { rememberMe?: boolean }).rememberMe ?? true;
+        const maxAge = rememberMe ? SESSION_MAX_AGE_REMEMBER : SESSION_MAX_AGE_DEFAULT;
+        token.exp = Math.floor(Date.now() / 1000) + maxAge;
       }
       return token;
     },
@@ -115,7 +120,7 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 24 * 60 * 60,
+    maxAge: SESSION_MAX_AGE_REMEMBER, // Set to maximum; actual expiry controlled by JWT
   },
   secret: process.env.NEXTAUTH_SECRET,
 };
