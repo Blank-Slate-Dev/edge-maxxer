@@ -302,11 +302,44 @@ export function LiveFeedPreview() {
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Auto-detect user's region for odds formatting (homepage visitors)
+  // Auto-detect region for non-logged-in visitors
   const detectedRegion = useGeoRegion();
   
-  // Convert DisplayRegion to UserRegion (handle 'ALL' case by defaulting to AU)
-  const userRegion: UserRegion = detectedRegion === 'ALL' ? 'AU' : detectedRegion;
+  // User's saved region preference (if logged in)
+  const [savedRegion, setSavedRegion] = useState<UserRegion | null>(null);
+  
+  // Fetch user's saved region preference if logged in
+  useEffect(() => {
+    const fetchUserRegion = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.region) {
+            setSavedRegion(data.region as UserRegion);
+          }
+        }
+        // If not ok (401/403), user is not logged in - that's fine, we'll use auto-detection
+      } catch {
+        // Network error or not logged in - use auto-detection
+      }
+    };
+    fetchUserRegion();
+  }, []);
+  
+  // Priority: saved region (logged in) > detected region (auto) > default to AU
+  const resolveUserRegion = (): UserRegion => {
+    if (savedRegion) {
+      return savedRegion;
+    }
+    // Handle DisplayRegion 'ALL' case by defaulting to AU
+    if (detectedRegion === 'ALL') {
+      return 'AU';
+    }
+    return detectedRegion;
+  };
+  
+  const userRegion = resolveUserRegion();
 
   useEffect(() => {
     setMounted(true);
@@ -357,7 +390,7 @@ export function LiveFeedPreview() {
     ? '/mobilephone_light_version.png'
     : '/mobilephone_dark_version.png';
 
-  // Format odds based on detected region
+  // Format odds based on user's region
   const formatOdds = (odds: number) => {
     return formatAmericanOddsForRegion(odds, userRegion);
   };
@@ -607,7 +640,7 @@ export function LiveFeedPreview() {
                               )}
                             </div>
 
-                            {/* Odds - formatted based on detected region */}
+                            {/* Odds - formatted based on user's region */}
                             <div className="w-[55px] text-right">
                               <span className="text-sm font-mono font-bold" style={{ color: 'var(--success)' }}>
                                 {formatOdds(outcome.odds)}
