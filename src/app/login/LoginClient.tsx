@@ -320,7 +320,7 @@ export default function LoginClient() {
                 className="text-sm cursor-pointer select-none"
                 style={{ color: 'var(--muted)' }}
               >
-                Remember me for 24 months
+                Remember me
               </label>
             </div>
 
