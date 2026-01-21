@@ -13,6 +13,9 @@ import {
   Link as LinkIcon,
 } from 'lucide-react';
 import { getBookmaker, getBookmakerAbbr, getLogoPath } from '@/lib/bookmakers';
+import { useGeoRegion } from '@/components/SportsbooksModal';
+import { formatAmericanOddsForRegion } from '@/lib/oddsFormat';
+import type { UserRegion } from '@/lib/config';
 
 interface ArbOpportunity {
   id: string;
@@ -29,7 +32,7 @@ interface ArbOpportunity {
     label: string;
     book: string;
     bookKey: string;
-    odds: number;
+    odds: number; // Stored in American format
     line?: number;
     fairOdds?: number;
     ev?: number;
@@ -40,6 +43,7 @@ interface ArbOpportunity {
 
 // Sample data matching Gambit Odds style - ordered by profit % (highest to lowest)
 // All pre-game markets: h2h (moneyline), spreads, totals
+// Note: odds are stored in American format and converted for display based on user's region
 const SAMPLE_ARBS: ArbOpportunity[] = [
   {
     id: '1',
@@ -266,13 +270,11 @@ function BookLogo({ bookKey, size = 28 }: { bookKey: string; size?: number }) {
 }
 
 // Small inline book badge for alt odds
-function BookBadge({ bookKey, odds }: { bookKey: string; odds: number }) {
+function BookBadge({ bookKey, odds, region }: { bookKey: string; odds: number; region: UserRegion }) {
   const bookmaker = getBookmaker(bookKey);
   const abbr = bookmaker ? getBookmakerAbbr(bookmaker.name) : bookKey.slice(0, 2).toUpperCase();
   const bgColor = bookmaker?.color || '#333';
   const textColor = bookmaker?.textColor || '#fff';
-
-  const formatOdds = (o: number) => (o > 0 ? `+${o}` : o.toString());
 
   return (
     <span
@@ -288,7 +290,7 @@ function BookBadge({ bookKey, odds }: { bookKey: string; odds: number }) {
       >
         {abbr.slice(0, 1)}
       </span>
-      {formatOdds(odds)}
+      {formatAmericanOddsForRegion(odds, region)}
     </span>
   );
 }
@@ -299,6 +301,9 @@ export function LiveFeedPreview() {
   const [mounted, setMounted] = useState(false);
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
+  
+  // Auto-detect user's region for odds formatting (homepage visitors)
+  const detectedRegion = useGeoRegion();
 
   useEffect(() => {
     setMounted(true);
@@ -349,8 +354,9 @@ export function LiveFeedPreview() {
     ? '/mobilephone_light_version.png'
     : '/mobilephone_dark_version.png';
 
+  // Format odds based on detected region
   const formatOdds = (odds: number) => {
-    return odds > 0 ? `+${odds}` : odds.toString();
+    return formatAmericanOddsForRegion(odds, detectedRegion);
   };
 
   return (
@@ -598,7 +604,7 @@ export function LiveFeedPreview() {
                               )}
                             </div>
 
-                            {/* Odds */}
+                            {/* Odds - formatted based on detected region */}
                             <div className="w-[55px] text-right">
                               <span className="text-sm font-mono font-bold" style={{ color: 'var(--success)' }}>
                                 {formatOdds(outcome.odds)}
@@ -618,7 +624,7 @@ export function LiveFeedPreview() {
                         {outcome.altOdds && outcome.altOdds.length > 0 && (
                           <div className="flex justify-end mt-2 gap-2">
                             {outcome.altOdds.slice(0, 3).map((alt, j) => (
-                              <BookBadge key={j} bookKey={alt.bookKey} odds={alt.odds} />
+                              <BookBadge key={j} bookKey={alt.bookKey} odds={alt.odds} region={detectedRegion} />
                             ))}
                           </div>
                         )}
