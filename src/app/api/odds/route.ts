@@ -1,15 +1,59 @@
 // src/app/api/odds/route.ts
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { createOddsApiProvider } from '@/lib/providers/theOddsApiProvider';
 import { getCache } from '@/lib/cache';
 import { config } from '@/lib/config';
 import { getUserApiKey } from '@/lib/getUserApiKey';
+import dbConnect from '@/lib/mongodb';
+import User from '@/lib/models/User';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET() {
   try {
+    // Check authentication
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: 'Authentication required. Please log in to access odds data.' },
+        { status: 401 }
+      );
+    }
+
+    // Check subscription status
+    await dbConnect();
+    const userId = (session.user as { id: string }).id;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    // Check if user has active subscription
+    const hasActiveSubscription = 
+      user.subscriptionStatus === 'active' && 
+      user.subscriptionEndsAt !== undefined &&
+      user.subscriptionEndsAt !== null &&
+      new Date(user.subscriptionEndsAt) > new Date();
+
+    if (!hasActiveSubscription) {
+      return NextResponse.json(
+        { 
+          error: 'Active subscription required',
+          subscriptionRequired: true,
+          message: 'Please subscribe to access odds data.',
+        },
+        { status: 403 }
+      );
+    }
+
     const cache = getCache();
     
     // Check cache first

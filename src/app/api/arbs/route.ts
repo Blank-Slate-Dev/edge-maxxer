@@ -1,10 +1,14 @@
 // src/app/api/arbs/route.ts
 import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { createOddsApiProvider } from '@/lib/providers/theOddsApiProvider';
 import { detectAllOpportunities } from '@/lib/arb/detector';
 import { getCache } from '@/lib/cache';
 import { config } from '@/lib/config';
 import { getUserApiKey } from '@/lib/getUserApiKey';
+import dbConnect from '@/lib/mongodb';
+import User from '@/lib/models/User';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -16,6 +20,46 @@ const NO_STORE_HEADERS = {
 
 export async function GET(request: Request) {
   try {
+    // Check authentication
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user) {
+      return NextResponse.json(
+        { error: 'Authentication required. Please log in to scan for opportunities.' },
+        { status: 401, headers: NO_STORE_HEADERS }
+      );
+    }
+
+    // Check subscription status
+    await dbConnect();
+    const userId = (session.user as { id: string }).id;
+    const user = await User.findById(userId);
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404, headers: NO_STORE_HEADERS }
+      );
+    }
+
+    // Check if user has active subscription
+    const hasActiveSubscription = 
+      user.subscriptionStatus === 'active' && 
+      user.subscriptionEndsAt !== undefined &&
+      user.subscriptionEndsAt !== null &&
+      new Date(user.subscriptionEndsAt) > new Date();
+
+    if (!hasActiveSubscription) {
+      return NextResponse.json(
+        { 
+          error: 'Active subscription required',
+          subscriptionRequired: true,
+          message: 'Please subscribe to access the arbitrage scanner.',
+        },
+        { status: 403, headers: NO_STORE_HEADERS }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const minProfit = parseFloat(searchParams.get('minProfit') || '-2');
     const maxHours = parseInt(searchParams.get('maxHours') || '72', 10);
