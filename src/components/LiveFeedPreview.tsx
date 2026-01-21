@@ -346,8 +346,8 @@ export function LiveFeedPreview() {
   }, [mounted]);
 
   const phoneSrc = theme === 'light'
-    ? '/mobile_phone_light_version.png'
-    : '/mobile_phone_dark_version.png';
+    ? '/mobilephone_light_version.png'
+    : '/mobilephone_dark_version.png';
 
   const formatOdds = (odds: number) => {
     return odds > 0 ? `+${odds}` : odds.toString();
