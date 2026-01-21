@@ -7,6 +7,28 @@ import dbConnect from '@/lib/mongodb';
 import User from '@/lib/models/User';
 import type Stripe from 'stripe';
 
+// Use a dedicated production URL for Stripe redirects
+// This prevents issues with Vercel preview deployments
+function getBaseUrl(): string {
+  // First priority: explicit app URL (set this in Vercel production env vars)
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+  
+  // Second priority: Vercel production URL
+  if (process.env.VERCEL_ENV === 'production' && process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+    return `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`;
+  }
+  
+  // Third priority: NEXTAUTH_URL (but only if not a preview deployment)
+  if (process.env.NEXTAUTH_URL && !process.env.NEXTAUTH_URL.includes('vercel.app')) {
+    return process.env.NEXTAUTH_URL;
+  }
+  
+  // Fallback for local development
+  return 'http://localhost:3000';
+}
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -67,7 +89,8 @@ export async function POST(request: NextRequest) {
       await User.findByIdAndUpdate(user._id, { stripeCustomerId: customerId });
     }
 
-    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000';
+    const baseUrl = getBaseUrl();
+    console.log('[Stripe Checkout] Using baseUrl:', baseUrl);
 
     // Build checkout session based on plan type and mode
     if (plan === 'trial') {
