@@ -5,6 +5,7 @@
   /* Dark mode (default) - warm charcoal */
   --background: #1c1c1a;
   --foreground: #ffffff;
+  --foreground-secondary: #aaaaaa;
   --muted: #888888;
   --muted-foreground: #666666;
   --border: #2e2e2c;
@@ -12,6 +13,9 @@
   --surface: #232321;
   --surface-hover: #2a2a28;
   --surface-secondary: #1a1a18;
+  --surface-inset: #141412;
+  --surface-deep: #0d0d0c;
+  --surface-chrome: #161614;
   --accent: #f0efeb;
   --accent-foreground: #1c1c1a;
   --success: #22c55e;
@@ -24,12 +28,20 @@
   --info-muted: #1e40af;
   --primary: #14b8a6;
   --primary-muted: #0d9488;
+  --purple: #a855f7;
+  --purple-muted: rgba(168, 85, 247, 0.2);
+  --purple-border: rgba(168, 85, 247, 0.3);
+  --primary-alpha-15: rgba(20, 184, 166, 0.15);
+  --primary-alpha-30: rgba(20, 184, 166, 0.3);
+  --success-alpha-40: rgba(34, 197, 94, 0.4);
+  --preview-shadow: 0 0 60px rgba(20, 184, 166, 0.15), 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 
 .light {
   /* Light mode - warm cream */
   --background: #f0efeb;
   --foreground: #1c1c1a;
+  --foreground-secondary: #555555;
   --muted: #6b7280;
   --muted-foreground: #9ca3af;
   --border: #d4d3cf;
@@ -37,6 +49,9 @@
   --surface: #faf9f7;
   --surface-hover: #f5f4f0;
   --surface-secondary: #f0efeb;
+  --surface-inset: #f5f4f2;
+  --surface-deep: #ffffff;
+  --surface-chrome: #f8f7f5;
   --accent: #1c1c1a;
   --accent-foreground: #f0efeb;
   --success: #16a34a;
@@ -49,11 +64,19 @@
   --info-muted: #dbeafe;
   --primary: #0d9488;
   --primary-muted: #14b8a6;
+  --purple: #9333ea;
+  --purple-muted: rgba(147, 51, 234, 0.15);
+  --purple-border: rgba(147, 51, 234, 0.25);
+  --primary-alpha-15: rgba(13, 148, 136, 0.12);
+  --primary-alpha-30: rgba(13, 148, 136, 0.25);
+  --success-alpha-40: rgba(22, 163, 74, 0.3);
+  --preview-shadow: 0 0 60px rgba(13, 148, 136, 0.1), 0 25px 50px -12px rgba(0, 0, 0, 0.15);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-foreground-secondary: var(--foreground-secondary);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-border: var(--border);
@@ -61,6 +84,9 @@
   --color-surface: var(--surface);
   --color-surface-hover: var(--surface-hover);
   --color-surface-secondary: var(--surface-secondary);
+  --color-surface-inset: var(--surface-inset);
+  --color-surface-deep: var(--surface-deep);
+  --color-surface-chrome: var(--surface-chrome);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-success: var(--success);
@@ -73,6 +99,8 @@
   --color-info-muted: var(--info-muted);
   --color-primary: var(--primary);
   --color-primary-muted: var(--primary-muted);
+  --color-purple: var(--purple);
+  --color-purple-muted: var(--purple-muted);
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: "SF Mono", SFMono-Regular, ui-monospace, Menlo, Consolas, monospace;
 }
