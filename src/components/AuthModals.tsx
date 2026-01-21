@@ -30,6 +30,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [apiError, setApiError] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
 
   // Login form
   const [loginData, setLoginData] = useState({ email: '', password: '' });
@@ -48,6 +49,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
       setErrors({});
       setApiError('');
       setShowPassword(false);
+      setRememberMe(false);
     }
   }, [isOpen]);
 
@@ -103,6 +105,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
       const result = await signIn('credentials', {
         email: loginData.email,
         password: loginData.password,
+        rememberMe: rememberMe.toString(),
         redirect: false,
       });
 
@@ -149,6 +152,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
       const signInResult = await signIn('credentials', {
         email: signupData.email,
         password: signupData.password,
+        rememberMe: 'false',
         redirect: false,
       });
 
@@ -352,6 +356,31 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
                     style={{ color: 'var(--muted)' }}
                   />
                 </div>
+              </div>
+            )}
+
+            {/* Remember Me Checkbox (login only) */}
+            {isOpen === 'login' && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="rememberMeModal"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  disabled={isLoading}
+                  className="w-4 h-4 rounded border-2 cursor-pointer accent-[var(--foreground)]"
+                  style={{
+                    borderColor: 'var(--border)',
+                    backgroundColor: 'var(--background)',
+                  }}
+                />
+                <label
+                  htmlFor="rememberMeModal"
+                  className="text-xs sm:text-sm cursor-pointer select-none"
+                  style={{ color: 'var(--muted)' }}
+                >
+                  Remember me for 24 months
+                </label>
               </div>
             )}
 
