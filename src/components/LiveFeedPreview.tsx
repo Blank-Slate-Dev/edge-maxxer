@@ -55,20 +55,27 @@ interface RegionBookmakers {
 
 const REGION_BOOKMAKERS: Record<UserRegion, RegionBookmakers> = {
   AU: {
+    // Ordered by popularity/recognition for Australian users
+    // Pairings in sample arbs: [0]+[1], [2]+[3], [4]+[5], [6]+[7], [8]+[0]
     primary: [
-      { name: 'Sportsbet', key: 'sportsbet' },
-      { name: 'TAB', key: 'tab' },
-      { name: 'Ladbrokes', key: 'ladbrokes_au' },
-      { name: 'Neds', key: 'neds' },
-      { name: 'PointsBet', key: 'pointsbetau' },
-      { name: 'Bet365', key: 'bet365_au' },
+      { name: 'Sportsbet', key: 'sportsbet' },       // 0 - Most popular
+      { name: 'TAB', key: 'tab' },                   // 1 - Very well known
+      { name: 'Bet365', key: 'bet365_au' },          // 2 - Huge brand
+      { name: 'Ladbrokes', key: 'ladbrokes_au' },    // 3 - Well known
+      { name: 'PointsBet', key: 'pointsbetau' },     // 4 - Popular
+      { name: 'PlayUp', key: 'playup' },             // 5 - Growing
+      { name: 'Neds', key: 'neds' },                 // 6 - Popular
+      { name: 'Unibet', key: 'unibet' },             // 7 - Known
+      { name: 'Betfair', key: 'betfair_ex_au' },     // 8 - For sharps
     ],
     secondary: [
       { abbr: 'TAB', key: 'tab' },
       { abbr: 'SB', key: 'sportsbet' },
+      { abbr: '365', key: 'bet365_au' },
       { abbr: 'LAD', key: 'ladbrokes_au' },
-      { abbr: 'NEDS', key: 'neds' },
       { abbr: 'PB', key: 'pointsbetau' },
+      { abbr: 'PU', key: 'playup' },
+      { abbr: 'NEDS', key: 'neds' },
       { abbr: 'UNI', key: 'unibet' },
       { abbr: 'BF', key: 'betfair_ex_au' },
     ],
@@ -184,6 +191,7 @@ function getSampleArbs(region: UserRegion): ArbOpportunity[] {
 
   return [
     {
+      // Arb 1: Sportsbet + TAB (the two biggest AU books)
       id: '1',
       matchup: 'CELTICS @ KNICKS',
       league: 'NBA',
@@ -203,12 +211,12 @@ function getSampleArbs(region: UserRegion): ArbOpportunity[] {
           ev: 26.2,
           line: 218.5,
           stake: 268,
-          altOdds: [{ book: getSecondary(0).abbr, bookKey: getSecondary(0).key, odds: -110 }],
+          altOdds: [{ book: getSecondary(2).abbr, bookKey: getSecondary(2).key, odds: -110 }],
         },
         {
           label: 'Under 222.5',
-          book: getPrimary(2).name,
-          bookKey: getPrimary(2).key,
+          book: getPrimary(1).name,
+          bookKey: getPrimary(1).key,
           odds: 190,
           ev: 21.8,
           line: 222.5,
@@ -217,6 +225,7 @@ function getSampleArbs(region: UserRegion): ArbOpportunity[] {
       ],
     },
     {
+      // Arb 2: Bet365 + Ladbrokes (major international + local brand)
       id: '2',
       matchup: 'SUNS @ LAKERS',
       league: 'NBA',
@@ -230,30 +239,31 @@ function getSampleArbs(region: UserRegion): ArbOpportunity[] {
       outcomes: [
         {
           label: 'Lakers -4.5',
-          book: getPrimary(1).name,
-          bookKey: getPrimary(1).key,
+          book: getPrimary(2).name,
+          bookKey: getPrimary(2).key,
           odds: 185,
           ev: 24.5,
           line: -4.5,
           stake: 215,
           altOdds: [
-            { book: getSecondary(2).abbr, bookKey: getSecondary(2).key, odds: 135 },
-            { book: getSecondary(1).abbr, bookKey: getSecondary(1).key, odds: 140 },
+            { book: getSecondary(1).abbr, bookKey: getSecondary(1).key, odds: 135 },
+            { book: getSecondary(0).abbr, bookKey: getSecondary(0).key, odds: 140 },
           ],
         },
         {
           label: 'Suns +5.5',
-          book: getPrimary(2).name,
-          bookKey: getPrimary(2).key,
+          book: getPrimary(3).name,
+          bookKey: getPrimary(3).key,
           odds: 115,
           ev: 18.2,
           line: 5.5,
           stake: 285,
-          altOdds: [{ book: getSecondary(3).abbr, bookKey: getSecondary(3).key, odds: -160 }],
+          altOdds: [{ book: getSecondary(4).abbr, bookKey: getSecondary(4).key, odds: -160 }],
         },
       ],
     },
     {
+      // Arb 3: PointsBet + PlayUp (growing AU brands)
       id: '3',
       matchup: 'FLAMES @ OILERS',
       league: 'NHL',
@@ -267,30 +277,31 @@ function getSampleArbs(region: UserRegion): ArbOpportunity[] {
       outcomes: [
         {
           label: 'Over 5.5',
-          book: getPrimary(3).name,
-          bookKey: getPrimary(3).key,
+          book: getPrimary(4).name,
+          bookKey: getPrimary(4).key,
           odds: 160,
           ev: 16.1,
           line: 5.5,
           stake: 226,
           altOdds: [
             { book: getSecondary(1).abbr, bookKey: getSecondary(1).key, odds: 125 },
-            { book: getSecondary(0).abbr, bookKey: getSecondary(0).key, odds: 130 },
+            { book: getSecondary(3).abbr, bookKey: getSecondary(3).key, odds: 130 },
           ],
         },
         {
           label: 'Under 6.5',
-          book: getPrimary(2).name,
-          bookKey: getPrimary(2).key,
+          book: getPrimary(5).name,
+          bookKey: getPrimary(5).key,
           odds: 115,
           ev: 2.5,
           line: 6.5,
           stake: 274,
-          altOdds: [{ book: getSecondary(4).abbr, bookKey: getSecondary(4).key, odds: -145 }],
+          altOdds: [{ book: getSecondary(6).abbr, bookKey: getSecondary(6).key, odds: -145 }],
         },
       ],
     },
     {
+      // Arb 4: Neds + Unibet (popular + international)
       id: '4',
       matchup: 'YANKEES @ RED SOX',
       league: 'MLB',
@@ -303,17 +314,17 @@ function getSampleArbs(region: UserRegion): ArbOpportunity[] {
       outcomes: [
         {
           label: 'Yankees',
-          book: getPrimary(4).name,
-          bookKey: getPrimary(4).key,
+          book: getPrimary(6).name,
+          bookKey: getPrimary(6).key,
           odds: 130,
           ev: 14.5,
           stake: 247,
-          altOdds: [{ book: getSecondary(4).abbr, bookKey: getSecondary(4).key, odds: -105 }],
+          altOdds: [{ book: getSecondary(8).abbr, bookKey: getSecondary(8).key, odds: -105 }],
         },
         {
           label: 'Red Sox',
-          book: getPrimary(0).name,
-          bookKey: getPrimary(0).key,
+          book: getPrimary(7).name,
+          bookKey: getPrimary(7).key,
           odds: 125,
           ev: 11.2,
           stake: 253,
@@ -322,6 +333,7 @@ function getSampleArbs(region: UserRegion): ArbOpportunity[] {
       ],
     },
     {
+      // Arb 5: Betfair + Sportsbet (exchange + biggest retail)
       id: '5',
       matchup: 'KNICKS @ NUGGETS',
       league: 'NBA',
@@ -334,21 +346,21 @@ function getSampleArbs(region: UserRegion): ArbOpportunity[] {
       outcomes: [
         {
           label: 'Nuggets -5.5',
-          book: getPrimary(1).name,
-          bookKey: getPrimary(1).key,
+          book: getPrimary(8).name,
+          bookKey: getPrimary(8).key,
           odds: 125,
           ev: 12.3,
           line: -4.5,
           stake: 247,
           altOdds: [
-            { book: getSecondary(4).abbr, bookKey: getSecondary(4).key, odds: -105 },
-            { book: getSecondary(1).abbr, bookKey: getSecondary(1).key, odds: 100 },
+            { book: getSecondary(2).abbr, bookKey: getSecondary(2).key, odds: -105 },
+            { book: getSecondary(3).abbr, bookKey: getSecondary(3).key, odds: 100 },
           ],
         },
         {
           label: 'Knicks +6.5',
-          book: getPrimary(3).name,
-          bookKey: getPrimary(3).key,
+          book: getPrimary(0).name,
+          bookKey: getPrimary(0).key,
           odds: 120,
           ev: 11.0,
           line: 6.5,
