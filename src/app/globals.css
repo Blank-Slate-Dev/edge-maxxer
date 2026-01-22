@@ -111,6 +111,7 @@
 
 html {
   overflow-x: hidden;
+  scrollbar-gutter: stable; /* ✅ prevents layout shift when scrollbar appears/disappears */
 }
 
 body {
