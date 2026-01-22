@@ -421,36 +421,6 @@ function BookLogo({ bookKey, size = 28 }: { bookKey: string; size?: number }) {
   );
 }
 
-// Small inline book badge for alt odds
-function BookBadge({ bookKey, odds, region, isLoading }: { bookKey: string; odds: number; region: UserRegion; isLoading: boolean }) {
-  const bookmaker = getBookmaker(bookKey);
-  const abbr = bookmaker ? getBookmakerAbbr(bookmaker.name) : bookKey.slice(0, 2).toUpperCase();
-  const bgColor = bookmaker?.color || '#333';
-  const textColor = bookmaker?.textColor || '#fff';
-
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 text-[10px] px-2 py-1 rounded"
-      style={{
-        backgroundColor: 'var(--surface-hover)',
-        color: 'var(--foreground-secondary)',
-      }}
-    >
-      <span
-        className="w-4 h-4 rounded flex items-center justify-center text-[8px] font-bold"
-        style={{ backgroundColor: bgColor, color: textColor }}
-      >
-        {abbr.slice(0, 1)}
-      </span>
-      {isLoading ? (
-        <span className="w-8 h-3 rounded animate-pulse" style={{ backgroundColor: 'var(--surface)' }} />
-      ) : (
-        formatAmericanOddsForRegion(odds, region)
-      )}
-    </span>
-  );
-}
-
 export function LiveFeedPreview() {
   const { theme } = useTheme();
   const [isHovered, setIsHovered] = useState(false);
@@ -806,20 +776,6 @@ export function LiveFeedPreview() {
                             </div>
                           </div>
 
-                          {/* Alt Odds Row */}
-                          {outcome.altOdds && outcome.altOdds.length > 0 && (
-                            <div className="flex justify-end mt-2 gap-2">
-                              {outcome.altOdds.slice(0, 3).map((alt, j) => (
-                                <BookBadge 
-                                  key={j} 
-                                  bookKey={alt.bookKey} 
-                                  odds={alt.odds} 
-                                  region={userRegion} 
-                                  isLoading={!regionResolved}
-                                />
-                              ))}
-                            </div>
-                          )}
                         </div>
                       ))}
                     </div>
