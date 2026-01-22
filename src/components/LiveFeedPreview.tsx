@@ -228,6 +228,7 @@ const SIDEBAR_ITEMS = [
 ];
 
 const PREVIEW_WIDTH = 780;
+const SIDEBAR_WIDTH = 200;
 
 // BookLogo component with image fallback
 function BookLogo({ bookKey, size = 28 }: { bookKey: string; size?: number }) {
@@ -369,8 +370,9 @@ export function LiveFeedPreview() {
         availableWidth = viewportWidth - 64;
       }
       
-      const newScale = Math.min(1, availableWidth / PREVIEW_WIDTH);
-      setScale(newScale);
+      // Account for sidebar space when calculating scale
+      const newScale = Math.min(1, (availableWidth - SIDEBAR_WIDTH - 20) / PREVIEW_WIDTH);
+      setScale(Math.max(0.5, newScale)); // Minimum scale of 0.5
     };
 
     updateScale();
@@ -436,12 +438,18 @@ export function LiveFeedPreview() {
 
       {/* Desktop Version */}
       <div ref={containerRef} className="hidden md:block w-full">
-        <div
-          className="relative w-fit"
-          style={{ zoom: scale }}
+        {/* Wrapper with right padding to reserve space for sidebar */}
+        <div 
+          className="relative"
+          style={{ 
+            width: 'fit-content',
+            paddingRight: `${SIDEBAR_WIDTH + 20}px`, // Reserve space for sidebar + gap
+            zoom: scale,
+          }}
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
+          {/* Main Container */}
           <div
             className="relative rounded-2xl overflow-hidden"
             style={{
@@ -681,11 +689,12 @@ export function LiveFeedPreview() {
             </div>
           </div>
 
-          {/* Sidebar */}
+          {/* Sidebar - pops out to the RIGHT, space is reserved via paddingRight on wrapper */}
           <div
             className="absolute top-1/2 left-full -translate-y-1/2 transition-all duration-300 ease-out overflow-hidden"
             style={{
-              width: isHovered ? '200px' : '0px',
+              width: isHovered ? `${SIDEBAR_WIDTH}px` : '0px',
+              marginLeft: '0px', // Sits right against the main container
               backgroundColor: 'var(--surface-deep)',
               border: '1px solid var(--border)',
               borderLeft: 'none',
@@ -693,7 +702,7 @@ export function LiveFeedPreview() {
               borderBottomRightRadius: '12px',
             }}
           >
-            <div className="p-4 w-[200px]">
+            <div className="p-4" style={{ width: `${SIDEBAR_WIDTH}px` }}>
               <h3 className="text-[10px] font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--primary)' }}>
                 Key Features
               </h3>
