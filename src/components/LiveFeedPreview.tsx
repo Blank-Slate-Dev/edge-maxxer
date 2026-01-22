@@ -21,7 +21,7 @@ interface ArbOpportunity {
   id: string;
   matchup: string;
   league: string;
-  sport: 'NBA' | 'NFL' | 'NHL' | 'MLB' | 'EPL' | 'Tennis';
+  sport: 'NBA' | 'NFL' | 'NHL' | 'MLB' | 'EPL' | 'Tennis' | 'AFL' | 'NRL' | 'LaLiga' | 'Bundesliga';
   betType: string;
   profit: number;
   profitAmount: number;
@@ -41,184 +41,323 @@ interface ArbOpportunity {
   }[];
 }
 
-// Sample data matching Gambit Odds style - ordered by profit % (highest to lowest)
-// All pre-game markets: h2h (moneyline), spreads, totals
-// Note: odds are stored in American format and converted for display based on user's region
-const SAMPLE_ARBS: ArbOpportunity[] = [
-  {
-    id: '1',
-    matchup: 'CELTICS @ KNICKS',
-    league: 'NBA',
-    sport: 'NBA',
-    betType: 'TOTAL POINTS',
-    profit: 25.8,
-    profitAmount: 129,
-    tag: 'Middle',
-    status: 'pregame',
-    gameTime: 'Today 7:30 PM',
-    outcomes: [
-      {
-        label: 'Over 218.5',
-        book: 'FanDuel',
-        bookKey: 'fanduel',
-        odds: 150,
-        ev: 26.2,
-        line: 218.5,
-        stake: 268,
-        altOdds: [{ book: 'DK', bookKey: 'draftkings', odds: -110 }],
-      },
-      {
-        label: 'Under 222.5',
-        book: 'Caesars',
-        bookKey: 'williamhill_us',
-        odds: 190,
-        ev: 21.8,
-        line: 222.5,
-        stake: 232,
-      },
+// =============================================================================
+// REGION-SPECIFIC BOOKMAKER CONFIGURATION
+// =============================================================================
+// These mappings define which bookmakers to show for each region.
+// Each region has primary bookmakers (used in main outcomes) and 
+// secondary bookmakers (used in altOdds badges).
+
+interface RegionBookmakers {
+  primary: { name: string; key: string }[];
+  secondary: { abbr: string; key: string }[];
+}
+
+const REGION_BOOKMAKERS: Record<UserRegion, RegionBookmakers> = {
+  AU: {
+    primary: [
+      { name: 'Sportsbet', key: 'sportsbet' },
+      { name: 'TAB', key: 'tab' },
+      { name: 'Ladbrokes', key: 'ladbrokes_au' },
+      { name: 'Neds', key: 'neds' },
+      { name: 'PointsBet', key: 'pointsbetau' },
+      { name: 'Bet365', key: 'bet365_au' },
+    ],
+    secondary: [
+      { abbr: 'TAB', key: 'tab' },
+      { abbr: 'SB', key: 'sportsbet' },
+      { abbr: 'LAD', key: 'ladbrokes_au' },
+      { abbr: 'NEDS', key: 'neds' },
+      { abbr: 'PB', key: 'pointsbetau' },
+      { abbr: 'UNI', key: 'unibet' },
+      { abbr: 'BF', key: 'betfair_ex_au' },
     ],
   },
-  {
-    id: '2',
-    matchup: 'SUNS @ LAKERS',
-    league: 'NBA',
-    sport: 'NBA',
-    betType: 'SPREAD',
-    profit: 22.5,
-    profitAmount: 112,
-    tag: 'Staying Power',
-    status: 'pregame',
-    gameTime: 'Today 10:00 PM',
-    outcomes: [
-      {
-        label: 'Lakers -4.5',
-        book: 'DraftKings',
-        bookKey: 'draftkings',
-        odds: 185,
-        ev: 24.5,
-        line: -4.5,
-        stake: 215,
-        altOdds: [
-          { book: 'CZ', bookKey: 'williamhill_us', odds: 135 },
-          { book: 'FD', bookKey: 'fanduel', odds: 140 },
-        ],
-      },
-      {
-        label: 'Suns +5.5',
-        book: 'Caesars',
-        bookKey: 'williamhill_us',
-        odds: 115,
-        ev: 18.2,
-        line: 5.5,
-        stake: 285,
-        altOdds: [{ book: 'MGM', bookKey: 'betmgm', odds: -160 }],
-      },
+  UK: {
+    primary: [
+      { name: 'Bet365', key: 'williamhill' }, // Using williamhill as placeholder since bet365_uk doesn't exist
+      { name: 'William Hill', key: 'williamhill' },
+      { name: 'Paddy Power', key: 'paddypower' },
+      { name: 'Sky Bet', key: 'skybet' },
+      { name: 'Ladbrokes', key: 'ladbrokes_uk' },
+      { name: 'Betfair', key: 'betfair_ex_uk' },
+    ],
+    secondary: [
+      { abbr: 'WH', key: 'williamhill' },
+      { abbr: 'PP', key: 'paddypower' },
+      { abbr: 'SKY', key: 'skybet' },
+      { abbr: 'LAD', key: 'ladbrokes_uk' },
+      { abbr: 'BF', key: 'betfair_ex_uk' },
+      { abbr: '888', key: 'sport888' },
+      { abbr: 'COR', key: 'coral' },
     ],
   },
-  {
-    id: '3',
-    matchup: 'FLAMES @ OILERS',
-    league: 'NHL',
-    sport: 'NHL',
-    betType: 'TOTAL GOALS',
-    profit: 17.6,
-    profitAmount: 88,
-    tag: 'Staying Power',
-    status: 'pregame',
-    gameTime: 'Tomorrow 9:00 PM',
-    outcomes: [
-      {
-        label: 'Over 5.5',
-        book: 'BetMGM',
-        bookKey: 'betmgm',
-        odds: 160,
-        ev: 16.1,
-        line: 5.5,
-        stake: 226,
-        altOdds: [
-          { book: 'FD', bookKey: 'fanduel', odds: 125 },
-          { book: 'DK', bookKey: 'draftkings', odds: 130 },
-        ],
-      },
-      {
-        label: 'Under 6.5',
-        book: 'Caesars',
-        bookKey: 'williamhill_us',
-        odds: 115,
-        ev: 2.5,
-        line: 6.5,
-        stake: 274,
-        altOdds: [{ book: 'PB', bookKey: 'pointsbetau', odds: -145 }],
-      },
+  EU: {
+    primary: [
+      { name: 'Pinnacle', key: 'pinnacle' },
+      { name: 'Unibet', key: 'unibet_fr' },
+      { name: 'Betsson', key: 'betsson' },
+      { name: '1xBet', key: 'onexbet' },
+      { name: 'Betclic', key: 'betclic_fr' },
+      { name: 'Winamax', key: 'winamax_fr' },
+    ],
+    secondary: [
+      { abbr: 'PIN', key: 'pinnacle' },
+      { abbr: 'UNI', key: 'unibet_fr' },
+      { abbr: 'BET', key: 'betsson' },
+      { abbr: '1X', key: 'onexbet' },
+      { abbr: 'BC', key: 'betclic_fr' },
+      { abbr: 'WIN', key: 'winamax_fr' },
+      { abbr: 'MAR', key: 'marathonbet' },
     ],
   },
-  {
-    id: '4',
-    matchup: 'YANKEES @ RED SOX',
-    league: 'MLB',
-    sport: 'MLB',
-    betType: 'MONEYLINE',
-    profit: 13.7,
-    profitAmount: 68,
-    status: 'pregame',
-    gameTime: 'Tomorrow 1:05 PM',
-    outcomes: [
-      {
-        label: 'Yankees',
-        book: 'BetOnline',
-        bookKey: 'betonlineag',
-        odds: 130,
-        ev: 14.5,
-        stake: 247,
-        altOdds: [{ book: 'PIN', bookKey: 'pinnacle', odds: -105 }],
-      },
-      {
-        label: 'Red Sox',
-        book: 'FanDuel',
-        bookKey: 'fanduel',
-        odds: 125,
-        ev: 11.2,
-        stake: 253,
-        altOdds: [{ book: 'DK', bookKey: 'draftkings', odds: -110 }],
-      },
+  US: {
+    primary: [
+      { name: 'FanDuel', key: 'fanduel' },
+      { name: 'DraftKings', key: 'draftkings' },
+      { name: 'Caesars', key: 'williamhill_us' },
+      { name: 'BetMGM', key: 'betmgm' },
+      { name: 'BetOnline', key: 'betonlineag' },
+      { name: 'ESPN BET', key: 'espnbet' },
+    ],
+    secondary: [
+      { abbr: 'DK', key: 'draftkings' },
+      { abbr: 'FD', key: 'fanduel' },
+      { abbr: 'CZ', key: 'williamhill_us' },
+      { abbr: 'MGM', key: 'betmgm' },
+      { abbr: 'PIN', key: 'pinnacle' },
+      { abbr: 'PB', key: 'pointsbetau' },
+      { abbr: 'ESPN', key: 'espnbet' },
     ],
   },
-  {
-    id: '5',
-    matchup: 'KNICKS @ NUGGETS',
-    league: 'NBA',
-    sport: 'NBA',
-    betType: 'SPREAD',
-    profit: 11.2,
-    profitAmount: 56,
-    status: 'pregame',
-    gameTime: 'Sat 8:30 PM',
-    outcomes: [
-      {
-        label: 'Nuggets -5.5',
-        book: 'DraftKings',
-        bookKey: 'draftkings',
-        odds: 125,
-        ev: 12.3,
-        line: -4.5,
-        stake: 247,
-        altOdds: [
-          { book: 'PIN', bookKey: 'pinnacle', odds: -105 },
-          { book: 'FD', bookKey: 'fanduel', odds: 100 },
-        ],
-      },
-      {
-        label: 'Knicks +6.5',
-        book: 'BetMGM',
-        bookKey: 'betmgm',
-        odds: 120,
-        ev: 11.0,
-        line: 6.5,
-        stake: 253,
-      },
-    ],
-  },
-];
+};
+
+// =============================================================================
+// SAMPLE ARB DATA GENERATOR
+// =============================================================================
+// Generates sample arbitrage opportunities with region-appropriate bookmakers.
+// 
+// TODO (Option B - Region-specific sports/leagues):
+// When ready to implement fully localized previews, this function should also
+// accept region and return different matchups:
+//
+// AU: AFL (Collingwood vs Carlton), NRL (Broncos vs Storm), A-League
+// UK: EPL (Arsenal vs Chelsea), Championship, Scottish Premiership
+// EU: La Liga (Real Madrid vs Barcelona), Bundesliga, Serie A
+// US: NBA, NFL, MLB, NHL (current implementation)
+//
+// You would create separate SAMPLE_ARBS_AU, SAMPLE_ARBS_UK, etc. arrays
+// or a function like getSampleArbsForRegion(region: UserRegion)
+
+function getSampleArbs(region: UserRegion): ArbOpportunity[] {
+  const books = REGION_BOOKMAKERS[region];
+  
+  // Helper to get primary bookmaker by index (with wrapping)
+  const getPrimary = (index: number) => books.primary[index % books.primary.length];
+  
+  // Helper to get secondary bookmaker by index (with wrapping)
+  const getSecondary = (index: number) => books.secondary[index % books.secondary.length];
+
+  // =============================================================================
+  // TODO (Option B): Replace these US-centric matchups with region-specific ones
+  // 
+  // Example structure for AU:
+  // {
+  //   id: '1',
+  //   matchup: 'COLLINGWOOD @ CARLTON',
+  //   league: 'AFL',
+  //   sport: 'AFL',
+  //   betType: 'HEAD TO HEAD',
+  //   ...
+  // }
+  //
+  // Example structure for UK:
+  // {
+  //   id: '1',
+  //   matchup: 'ARSENAL @ CHELSEA',
+  //   league: 'EPL',
+  //   sport: 'EPL',
+  //   betType: 'MATCH RESULT',
+  //   ...
+  // }
+  // =============================================================================
+
+  return [
+    {
+      id: '1',
+      matchup: 'CELTICS @ KNICKS',
+      league: 'NBA',
+      sport: 'NBA',
+      betType: 'TOTAL POINTS',
+      profit: 25.8,
+      profitAmount: 129,
+      tag: 'Middle',
+      status: 'pregame',
+      gameTime: 'Today 7:30 PM',
+      outcomes: [
+        {
+          label: 'Over 218.5',
+          book: getPrimary(0).name,
+          bookKey: getPrimary(0).key,
+          odds: 150,
+          ev: 26.2,
+          line: 218.5,
+          stake: 268,
+          altOdds: [{ book: getSecondary(0).abbr, bookKey: getSecondary(0).key, odds: -110 }],
+        },
+        {
+          label: 'Under 222.5',
+          book: getPrimary(2).name,
+          bookKey: getPrimary(2).key,
+          odds: 190,
+          ev: 21.8,
+          line: 222.5,
+          stake: 232,
+        },
+      ],
+    },
+    {
+      id: '2',
+      matchup: 'SUNS @ LAKERS',
+      league: 'NBA',
+      sport: 'NBA',
+      betType: 'SPREAD',
+      profit: 22.5,
+      profitAmount: 112,
+      tag: 'Staying Power',
+      status: 'pregame',
+      gameTime: 'Today 10:00 PM',
+      outcomes: [
+        {
+          label: 'Lakers -4.5',
+          book: getPrimary(1).name,
+          bookKey: getPrimary(1).key,
+          odds: 185,
+          ev: 24.5,
+          line: -4.5,
+          stake: 215,
+          altOdds: [
+            { book: getSecondary(2).abbr, bookKey: getSecondary(2).key, odds: 135 },
+            { book: getSecondary(1).abbr, bookKey: getSecondary(1).key, odds: 140 },
+          ],
+        },
+        {
+          label: 'Suns +5.5',
+          book: getPrimary(2).name,
+          bookKey: getPrimary(2).key,
+          odds: 115,
+          ev: 18.2,
+          line: 5.5,
+          stake: 285,
+          altOdds: [{ book: getSecondary(3).abbr, bookKey: getSecondary(3).key, odds: -160 }],
+        },
+      ],
+    },
+    {
+      id: '3',
+      matchup: 'FLAMES @ OILERS',
+      league: 'NHL',
+      sport: 'NHL',
+      betType: 'TOTAL GOALS',
+      profit: 17.6,
+      profitAmount: 88,
+      tag: 'Staying Power',
+      status: 'pregame',
+      gameTime: 'Tomorrow 9:00 PM',
+      outcomes: [
+        {
+          label: 'Over 5.5',
+          book: getPrimary(3).name,
+          bookKey: getPrimary(3).key,
+          odds: 160,
+          ev: 16.1,
+          line: 5.5,
+          stake: 226,
+          altOdds: [
+            { book: getSecondary(1).abbr, bookKey: getSecondary(1).key, odds: 125 },
+            { book: getSecondary(0).abbr, bookKey: getSecondary(0).key, odds: 130 },
+          ],
+        },
+        {
+          label: 'Under 6.5',
+          book: getPrimary(2).name,
+          bookKey: getPrimary(2).key,
+          odds: 115,
+          ev: 2.5,
+          line: 6.5,
+          stake: 274,
+          altOdds: [{ book: getSecondary(4).abbr, bookKey: getSecondary(4).key, odds: -145 }],
+        },
+      ],
+    },
+    {
+      id: '4',
+      matchup: 'YANKEES @ RED SOX',
+      league: 'MLB',
+      sport: 'MLB',
+      betType: 'MONEYLINE',
+      profit: 13.7,
+      profitAmount: 68,
+      status: 'pregame',
+      gameTime: 'Tomorrow 1:05 PM',
+      outcomes: [
+        {
+          label: 'Yankees',
+          book: getPrimary(4).name,
+          bookKey: getPrimary(4).key,
+          odds: 130,
+          ev: 14.5,
+          stake: 247,
+          altOdds: [{ book: getSecondary(4).abbr, bookKey: getSecondary(4).key, odds: -105 }],
+        },
+        {
+          label: 'Red Sox',
+          book: getPrimary(0).name,
+          bookKey: getPrimary(0).key,
+          odds: 125,
+          ev: 11.2,
+          stake: 253,
+          altOdds: [{ book: getSecondary(0).abbr, bookKey: getSecondary(0).key, odds: -110 }],
+        },
+      ],
+    },
+    {
+      id: '5',
+      matchup: 'KNICKS @ NUGGETS',
+      league: 'NBA',
+      sport: 'NBA',
+      betType: 'SPREAD',
+      profit: 11.2,
+      profitAmount: 56,
+      status: 'pregame',
+      gameTime: 'Sat 8:30 PM',
+      outcomes: [
+        {
+          label: 'Nuggets -5.5',
+          book: getPrimary(1).name,
+          bookKey: getPrimary(1).key,
+          odds: 125,
+          ev: 12.3,
+          line: -4.5,
+          stake: 247,
+          altOdds: [
+            { book: getSecondary(4).abbr, bookKey: getSecondary(4).key, odds: -105 },
+            { book: getSecondary(1).abbr, bookKey: getSecondary(1).key, odds: 100 },
+          ],
+        },
+        {
+          label: 'Knicks +6.5',
+          book: getPrimary(3).name,
+          bookKey: getPrimary(3).key,
+          odds: 120,
+          ev: 11.0,
+          line: 6.5,
+          stake: 253,
+        },
+      ],
+    },
+  ];
+}
 
 // Shortened labels to fit within viewport
 const SIDEBAR_ITEMS = [
@@ -229,7 +368,7 @@ const SIDEBAR_ITEMS = [
 ];
 
 const PREVIEW_WIDTH = 780;
-const SIDEBAR_WIDTH = 160; // Reduced from 200
+const SIDEBAR_WIDTH = 160;
 
 // BookLogo component with image fallback
 function BookLogo({ bookKey, size = 28 }: { bookKey: string; size?: number }) {
@@ -307,40 +446,25 @@ export function LiveFeedPreview() {
   const [scale, setScale] = useState(1);
   const containerRef = useRef<HTMLDivElement>(null);
   
-  // Auto-detect region for non-logged-in visitors
+  // Auto-detect region for non-logged-in visitors (now includes user preference check)
   const detectedRegion = useGeoRegion();
-  
-  // User's saved region preference (if logged in)
-  const [savedRegion, setSavedRegion] = useState<UserRegion | null>(null);
   
   // Track whether we've finished determining the region
   const [regionResolved, setRegionResolved] = useState(false);
   
-  // Fetch user's saved region preference if logged in
+  // Mark region as resolved once useGeoRegion returns a non-default value
+  // or after a short delay to prevent infinite loading state
   useEffect(() => {
-    const fetchUserRegion = async () => {
-      try {
-        const res = await fetch('/api/settings');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.region) {
-            setSavedRegion(data.region as UserRegion);
-          }
-        }
-      } catch {
-        // Network error or not logged in - use auto-detection
-      } finally {
-        setRegionResolved(true);
-      }
-    };
-    fetchUserRegion();
-  }, []);
+    // Give the hook time to fetch user settings or detect geo
+    const timer = setTimeout(() => {
+      setRegionResolved(true);
+    }, 500);
+    
+    return () => clearTimeout(timer);
+  }, [detectedRegion]);
   
-  // Priority: saved region (logged in) > detected region (auto) > default to AU
+  // Resolve to a valid UserRegion (convert 'ALL' to 'AU' as default)
   const resolveUserRegion = (): UserRegion => {
-    if (savedRegion) {
-      return savedRegion;
-    }
     if (detectedRegion === 'ALL') {
       return 'AU';
     }
@@ -348,6 +472,9 @@ export function LiveFeedPreview() {
   };
   
   const userRegion = resolveUserRegion();
+  
+  // Get region-specific sample arbs
+  const sampleArbs = getSampleArbs(userRegion);
 
   useEffect(() => {
     setMounted(true);
@@ -492,7 +619,7 @@ export function LiveFeedPreview() {
                 style={{ height: '535px' }}
               >
                 <div className="p-3 space-y-3">
-                  {SAMPLE_ARBS.map((arb) => (
+                  {sampleArbs.map((arb) => (
                     <div
                       key={arb.id}
                       className="rounded-lg overflow-hidden"
