@@ -371,7 +371,8 @@ export function LiveFeedPreview() {
       }
       
       // Account for sidebar space when calculating scale
-      const newScale = Math.min(1, (availableWidth - SIDEBAR_WIDTH - 20) / PREVIEW_WIDTH);
+      const totalWidth = PREVIEW_WIDTH + SIDEBAR_WIDTH + 20;
+      const newScale = Math.min(1, availableWidth / totalWidth);
       setScale(Math.max(0.5, newScale)); // Minimum scale of 0.5
     };
 
@@ -438,288 +439,287 @@ export function LiveFeedPreview() {
 
       {/* Desktop Version */}
       <div ref={containerRef} className="hidden md:block w-full">
-        {/* Wrapper with right padding to reserve space for sidebar */}
-        <div 
-          className="relative"
-          style={{ 
-            width: 'fit-content',
-            paddingRight: `${SIDEBAR_WIDTH + 20}px`, // Reserve space for sidebar + gap
-            zoom: scale,
-          }}
-          onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
-        >
-          {/* Main Container */}
-          <div
-            className="relative rounded-2xl overflow-hidden"
-            style={{
-              backgroundColor: 'var(--surface-deep)',
-              border: '1px solid var(--border)',
-              width: '780px',
-              boxShadow: 'var(--preview-shadow)',
-            }}
+        {/* Outer wrapper for scaling */}
+        <div style={{ zoom: scale }}>
+          {/* Inner wrapper with fixed total width to reserve sidebar space */}
+          <div 
+            className="relative"
+            style={{ width: `${PREVIEW_WIDTH + SIDEBAR_WIDTH + 20}px` }}
+            onMouseEnter={() => setIsHovered(true)}
+            onMouseLeave={() => setIsHovered(false)}
           >
-            {/* Browser Chrome */}
+            {/* Main Container */}
             <div
-              className="flex items-center justify-between px-4 py-3"
+              className="relative rounded-2xl overflow-hidden"
               style={{
-                backgroundColor: 'var(--surface-chrome)',
-                borderBottom: '1px solid var(--border)',
+                backgroundColor: 'var(--surface-deep)',
+                border: '1px solid var(--border)',
+                width: `${PREVIEW_WIDTH}px`,
+                boxShadow: 'var(--preview-shadow)',
               }}
             >
-              <div className="flex gap-2">
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ff5f56' }} />
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ffbd2e' }} />
-                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#27ca40' }} />
-              </div>
+              {/* Browser Chrome */}
               <div
-                className="flex-1 mx-4 px-3 py-1.5 rounded-md text-xs text-center"
-                style={{ backgroundColor: 'var(--surface-deep)', color: 'var(--muted-foreground)' }}
+                className="flex items-center justify-between px-4 py-3"
+                style={{
+                  backgroundColor: 'var(--surface-chrome)',
+                  borderBottom: '1px solid var(--border)',
+                }}
               >
-                edgemaxxer.com/dashboard
+                <div className="flex gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ff5f56' }} />
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#ffbd2e' }} />
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#27ca40' }} />
+                </div>
+                <div
+                  className="flex-1 mx-4 px-3 py-1.5 rounded-md text-xs text-center"
+                  style={{ backgroundColor: 'var(--surface-deep)', color: 'var(--muted-foreground)' }}
+                >
+                  edgemaxxer.com/dashboard
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--success)' }} />
+                  <span className="text-[10px] font-medium tracking-wider" style={{ color: 'var(--muted)' }}>
+                    ARB SCANNER
+                  </span>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--success)' }} />
-                <span className="text-[10px] font-medium tracking-wider" style={{ color: 'var(--muted)' }}>
-                  ARB SCANNER
-                </span>
-              </div>
-            </div>
 
-            {/* Scrollable Feed */}
-            <div
-              className="overflow-y-auto overflow-x-hidden custom-scrollbar"
-              style={{ height: '535px' }}
-            >
-              <div className="p-3 space-y-3">
-                {SAMPLE_ARBS.map((arb) => (
-                  <div
-                    key={arb.id}
-                    className="rounded-lg overflow-hidden"
-                    style={{
-                      backgroundColor: 'var(--surface-secondary)',
-                      border: '1px solid var(--border)',
-                    }}
-                  >
-                    {/* Header Row */}
+              {/* Scrollable Feed */}
+              <div
+                className="overflow-y-auto overflow-x-hidden custom-scrollbar"
+                style={{ height: '535px' }}
+              >
+                <div className="p-3 space-y-3">
+                  {SAMPLE_ARBS.map((arb) => (
                     <div
-                      className="px-3 py-2.5 flex items-center justify-between"
-                      style={{ borderBottom: '1px solid var(--border)' }}
+                      key={arb.id}
+                      className="rounded-lg overflow-hidden"
+                      style={{
+                        backgroundColor: 'var(--surface-secondary)',
+                        border: '1px solid var(--border)',
+                      }}
                     >
-                      <div className="flex items-center gap-2">
-                        <Image
-                          src={`/sports/${arb.sport}.png`}
-                          alt={arb.sport}
-                          width={16}
-                          height={16}
-                          className="w-4 h-4 object-contain"
-                        />
-                        <span className="text-[10px] font-medium" style={{ color: 'var(--muted)' }}>
-                          {arb.league}
-                        </span>
-                        <span className="font-semibold text-xs" style={{ color: 'var(--primary)' }}>
-                          {arb.matchup}
-                        </span>
-                        {arb.tag && (
-                          <span
-                            className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                            style={{
-                              backgroundColor:
-                                arb.tag === 'Middle'
-                                  ? 'var(--purple-muted)'
-                                  : 'var(--primary-alpha-15)',
-                              color: arb.tag === 'Middle' ? 'var(--purple)' : 'var(--primary)',
-                              border: `1px solid ${
-                                arb.tag === 'Middle'
-                                  ? 'var(--purple-border)'
-                                  : 'var(--primary-alpha-30)'
-                              }`,
-                            }}
-                          >
-                            {arb.tag}
+                      {/* Header Row */}
+                      <div
+                        className="px-3 py-2.5 flex items-center justify-between"
+                        style={{ borderBottom: '1px solid var(--border)' }}
+                      >
+                        <div className="flex items-center gap-2">
+                          <Image
+                            src={`/sports/${arb.sport}.png`}
+                            alt={arb.sport}
+                            width={16}
+                            height={16}
+                            className="w-4 h-4 object-contain"
+                          />
+                          <span className="text-[10px] font-medium" style={{ color: 'var(--muted)' }}>
+                            {arb.league}
                           </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {arb.gameTime && (
-                          <span
-                            className="text-[10px] px-1.5 py-0.5 rounded font-medium"
-                            style={{
-                              backgroundColor: 'var(--primary-alpha-15)',
-                              color: 'var(--primary)',
-                            }}
-                          >
-                            {arb.gameTime}
+                          <span className="font-semibold text-xs" style={{ color: 'var(--primary)' }}>
+                            {arb.matchup}
                           </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Bet Type */}
-                    <div
-                      className="px-3 py-1.5 text-[10px] font-medium"
-                      style={{ color: 'var(--muted-foreground)', borderBottom: '1px solid var(--border)' }}
-                    >
-                      {arb.betType}
-                    </div>
-
-                    {/* Profit Row */}
-                    <div
-                      className="px-3 py-2 flex items-center justify-between"
-                      style={{ backgroundColor: 'var(--surface-inset)' }}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="text-xl font-bold" style={{ color: 'var(--success)' }}>
-                          {arb.profit.toFixed(1)}%
-                        </span>
-                        <div>
-                          <div className="text-[9px] uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>
-                            Guaranteed Profit
-                          </div>
-                          <div className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--success)' }}>
-                            <TrendingUp className="w-3 h-3" />
-                            +${arb.profitAmount}
-                          </div>
+                          {arb.tag && (
+                            <span
+                              className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                              style={{
+                                backgroundColor:
+                                  arb.tag === 'Middle'
+                                    ? 'var(--purple-muted)'
+                                    : 'var(--primary-alpha-15)',
+                                color: arb.tag === 'Middle' ? 'var(--purple)' : 'var(--primary)',
+                                border: `1px solid ${
+                                  arb.tag === 'Middle'
+                                    ? 'var(--purple-border)'
+                                    : 'var(--primary-alpha-30)'
+                                }`,
+                              }}
+                            >
+                              {arb.tag}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {arb.gameTime && (
+                            <span
+                              className="text-[10px] px-1.5 py-0.5 rounded font-medium"
+                              style={{
+                                backgroundColor: 'var(--primary-alpha-15)',
+                                color: 'var(--primary)',
+                              }}
+                            >
+                              {arb.gameTime}
+                            </span>
+                          )}
                         </div>
                       </div>
-                      <div className="flex gap-1">
-                        <button
-                          className="p-1.5 rounded transition-colors"
-                          style={{ color: 'var(--muted-foreground)' }}
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          className="p-1.5 rounded transition-colors"
-                          style={{ color: 'var(--muted-foreground)' }}
-                        >
-                          <Pin className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </div>
 
-                    {/* Outcomes */}
-                    {arb.outcomes.map((outcome, i) => (
+                      {/* Bet Type */}
                       <div
-                        key={i}
-                        className="px-4 py-3"
-                        style={{
-                          borderTop: '1px solid var(--border)',
-                          backgroundColor: 'var(--surface-inset)',
-                        }}
+                        className="px-3 py-1.5 text-[10px] font-medium"
+                        style={{ color: 'var(--muted-foreground)', borderBottom: '1px solid var(--border)' }}
                       >
-                        <div className="flex items-center justify-between">
-                          {/* Left: Book Logo + Label */}
-                          <div className="flex items-center gap-3 min-w-[160px]">
-                            <BookLogo bookKey={outcome.bookKey} size={32} />
-                            <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
-                              {outcome.label}
-                            </span>
+                        {arb.betType}
+                      </div>
+
+                      {/* Profit Row */}
+                      <div
+                        className="px-3 py-2 flex items-center justify-between"
+                        style={{ backgroundColor: 'var(--surface-inset)' }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className="text-xl font-bold" style={{ color: 'var(--success)' }}>
+                            {arb.profit.toFixed(1)}%
+                          </span>
+                          <div>
+                            <div className="text-[9px] uppercase tracking-wider" style={{ color: 'var(--muted-foreground)' }}>
+                              Guaranteed Profit
+                            </div>
+                            <div className="text-xs font-medium flex items-center gap-1" style={{ color: 'var(--success)' }}>
+                              <TrendingUp className="w-3 h-3" />
+                              +${arb.profitAmount}
+                            </div>
                           </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <button
+                            className="p-1.5 rounded transition-colors"
+                            style={{ color: 'var(--muted-foreground)' }}
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            className="p-1.5 rounded transition-colors"
+                            style={{ color: 'var(--muted-foreground)' }}
+                          >
+                            <Pin className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
 
-                          {/* Right: Stats row - ORDER: Line | Odds | EV | Stake */}
-                          <div className="flex items-center gap-3">
-                            {/* 1. Line */}
-                            <div className="w-[50px] text-right">
-                              {outcome.line !== undefined && (
-                                <span className="text-sm font-mono font-medium" style={{ color: 'var(--primary)' }}>
-                                  {outcome.line > 0 ? '+' : ''}
-                                  {outcome.line}
-                                </span>
-                              )}
-                            </div>
-
-                            {/* 2. Odds - show placeholder until region is resolved */}
-                            <div className="w-[55px] text-right">
-                              {regionResolved ? (
-                                <span className="text-sm font-mono font-bold" style={{ color: 'var(--success)' }}>
-                                  {formatOdds(outcome.odds)}
-                                </span>
-                              ) : (
-                                <span 
-                                  className="inline-block w-10 h-4 rounded animate-pulse" 
-                                  style={{ backgroundColor: 'var(--surface)' }} 
-                                />
-                              )}
-                            </div>
-
-                            {/* 3. EV Badge */}
-                            <div className="w-[70px] text-right">
-                              {outcome.ev && (
-                                <span
-                                  className="text-[10px] px-2 py-1 rounded"
-                                  style={{
-                                    backgroundColor: 'var(--primary-alpha-15)',
-                                    color: 'var(--primary)',
-                                  }}
-                                >
-                                  {outcome.ev.toFixed(1)}% EV
-                                </span>
-                              )}
-                            </div>
-
-                            {/* 4. Stake */}
-                            <div className="w-[50px] text-right">
-                              <span className="text-xs font-mono" style={{ color: 'var(--muted-foreground)' }}>
-                                ${outcome.stake}
+                      {/* Outcomes */}
+                      {arb.outcomes.map((outcome, i) => (
+                        <div
+                          key={i}
+                          className="px-4 py-3"
+                          style={{
+                            borderTop: '1px solid var(--border)',
+                            backgroundColor: 'var(--surface-inset)',
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            {/* Left: Book Logo + Label */}
+                            <div className="flex items-center gap-3 min-w-[160px]">
+                              <BookLogo bookKey={outcome.bookKey} size={32} />
+                              <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
+                                {outcome.label}
                               </span>
                             </div>
-                          </div>
-                        </div>
 
-                        {/* Alt Odds Row */}
-                        {outcome.altOdds && outcome.altOdds.length > 0 && (
-                          <div className="flex justify-end mt-2 gap-2">
-                            {outcome.altOdds.slice(0, 3).map((alt, j) => (
-                              <BookBadge 
-                                key={j} 
-                                bookKey={alt.bookKey} 
-                                odds={alt.odds} 
-                                region={userRegion} 
-                                isLoading={!regionResolved}
-                              />
-                            ))}
+                            {/* Right: Stats row - ORDER: Line | Odds | EV | Stake */}
+                            <div className="flex items-center gap-3">
+                              {/* 1. Line */}
+                              <div className="w-[50px] text-right">
+                                {outcome.line !== undefined && (
+                                  <span className="text-sm font-mono font-medium" style={{ color: 'var(--primary)' }}>
+                                    {outcome.line > 0 ? '+' : ''}
+                                    {outcome.line}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* 2. Odds - show placeholder until region is resolved */}
+                              <div className="w-[55px] text-right">
+                                {regionResolved ? (
+                                  <span className="text-sm font-mono font-bold" style={{ color: 'var(--success)' }}>
+                                    {formatOdds(outcome.odds)}
+                                  </span>
+                                ) : (
+                                  <span 
+                                    className="inline-block w-10 h-4 rounded animate-pulse" 
+                                    style={{ backgroundColor: 'var(--surface)' }} 
+                                  />
+                                )}
+                              </div>
+
+                              {/* 3. EV Badge */}
+                              <div className="w-[70px] text-right">
+                                {outcome.ev && (
+                                  <span
+                                    className="text-[10px] px-2 py-1 rounded"
+                                    style={{
+                                      backgroundColor: 'var(--primary-alpha-15)',
+                                      color: 'var(--primary)',
+                                    }}
+                                  >
+                                    {outcome.ev.toFixed(1)}% EV
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* 4. Stake */}
+                              <div className="w-[50px] text-right">
+                                <span className="text-xs font-mono" style={{ color: 'var(--muted-foreground)' }}>
+                                  ${outcome.stake}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ))}
+
+                          {/* Alt Odds Row */}
+                          {outcome.altOdds && outcome.altOdds.length > 0 && (
+                            <div className="flex justify-end mt-2 gap-2">
+                              {outcome.altOdds.slice(0, 3).map((alt, j) => (
+                                <BookBadge 
+                                  key={j} 
+                                  bookKey={alt.bookKey} 
+                                  odds={alt.odds} 
+                                  region={userRegion} 
+                                  isLoading={!regionResolved}
+                                />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Sidebar - pops out to the RIGHT, space is reserved via paddingRight on wrapper */}
-          <div
-            className="absolute top-1/2 left-full -translate-y-1/2 transition-all duration-300 ease-out overflow-hidden"
-            style={{
-              width: isHovered ? `${SIDEBAR_WIDTH}px` : '0px',
-              marginLeft: '0px', // Sits right against the main container
-              backgroundColor: 'var(--surface-deep)',
-              border: '1px solid var(--border)',
-              borderLeft: 'none',
-              borderTopRightRadius: '12px',
-              borderBottomRightRadius: '12px',
-            }}
-          >
-            <div className="p-4" style={{ width: `${SIDEBAR_WIDTH}px` }}>
-              <h3 className="text-[10px] font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--primary)' }}>
-                Key Features
-              </h3>
-              <div className="space-y-3">
-                {SIDEBAR_ITEMS.map((item, i) => (
-                  <div key={i} className="flex items-center gap-3">
-                    <div
-                      className="w-10 h-10 rounded-lg flex items-center justify-center"
-                      style={{ backgroundColor: 'var(--surface-secondary)', border: '1px solid var(--border)' }}
-                    >
-                      <item.icon className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+            {/* Sidebar - positioned at exact pixel location to the right of main container */}
+            <div
+              className="absolute top-1/2 -translate-y-1/2 transition-all duration-300 ease-out overflow-hidden"
+              style={{
+                left: `${PREVIEW_WIDTH}px`,
+                width: isHovered ? `${SIDEBAR_WIDTH}px` : '0px',
+                backgroundColor: 'var(--surface-deep)',
+                border: isHovered ? '1px solid var(--border)' : 'none',
+                borderLeft: 'none',
+                borderTopRightRadius: '12px',
+                borderBottomRightRadius: '12px',
+              }}
+            >
+              <div className="p-4" style={{ width: `${SIDEBAR_WIDTH}px` }}>
+                <h3 className="text-[10px] font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--primary)' }}>
+                  Key Features
+                </h3>
+                <div className="space-y-3">
+                  {SIDEBAR_ITEMS.map((item, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div
+                        className="w-10 h-10 rounded-lg flex items-center justify-center"
+                        style={{ backgroundColor: 'var(--surface-secondary)', border: '1px solid var(--border)' }}
+                      >
+                        <item.icon className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+                      </div>
+                      <span className="text-sm" style={{ color: 'var(--foreground)' }}>
+                        {item.label}
+                      </span>
                     </div>
-                    <span className="text-sm" style={{ color: 'var(--foreground)' }}>
-                      {item.label}
-                    </span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             </div>
           </div>
