@@ -239,7 +239,6 @@ function BookLogo({ bookKey, size = 28 }: { bookKey: string; size?: number }) {
   const abbr = bookmaker ? getBookmakerAbbr(bookmaker.name) : bookKey.slice(0, 2).toUpperCase();
 
   if (imgError || !bookmaker) {
-    // Fallback to colored box with abbreviation
     return (
       <div
         className="rounded flex items-center justify-center font-bold"
@@ -326,11 +325,9 @@ export function LiveFeedPreview() {
             setSavedRegion(data.region as UserRegion);
           }
         }
-        // If not ok (401/403), user is not logged in - that's fine, we'll use auto-detection
       } catch {
         // Network error or not logged in - use auto-detection
       } finally {
-        // Region is now resolved (either from API or we fall back to auto-detection)
         setRegionResolved(true);
       }
     };
@@ -342,7 +339,6 @@ export function LiveFeedPreview() {
     if (savedRegion) {
       return savedRegion;
     }
-    // Handle DisplayRegion 'ALL' case by defaulting to AU
     if (detectedRegion === 'ALL') {
       return 'AU';
     }
@@ -355,20 +351,17 @@ export function LiveFeedPreview() {
     setMounted(true);
   }, []);
 
-  // Responsive scaling: only scale down on smaller viewports
   useEffect(() => {
     if (typeof window === 'undefined') return;
     
     const updateScale = () => {
       const viewportWidth = window.innerWidth;
       
-      // On large screens (1280px+), always use full size
       if (viewportWidth >= 1280) {
         setScale(1);
         return;
       }
       
-      // On medium screens, scale based on available space
       let availableWidth: number;
       if (viewportWidth >= 1024 && containerRef.current) {
         availableWidth = containerRef.current.offsetWidth;
@@ -400,7 +393,6 @@ export function LiveFeedPreview() {
     ? '/mobilephone_light_version.png'
     : '/mobilephone_dark_version.png';
 
-  // Format odds based on user's region (only called when region is resolved)
   const formatOdds = (odds: number) => {
     return formatAmericanOddsForRegion(odds, userRegion);
   };
@@ -420,8 +412,6 @@ export function LiveFeedPreview() {
             priority
           />
         ) : (
-          // Skeleton placeholder with same aspect ratio to prevent layout shift
-          // Uses CSS variables so it automatically matches theme without flash
           <div 
             className="mx-auto rounded-[2rem] animate-pulse"
             style={{ 
@@ -432,7 +422,6 @@ export function LiveFeedPreview() {
               border: '1px solid var(--border)',
             }} 
           >
-            {/* Phone screen skeleton */}
             <div 
               className="mx-auto mt-[8%] rounded-lg"
               style={{
@@ -445,7 +434,7 @@ export function LiveFeedPreview() {
         )}
       </div>
 
-      {/* Desktop Version - Shows only on medium screens and up */}
+      {/* Desktop Version */}
       <div ref={containerRef} className="hidden md:block w-full">
         <div
           className="relative w-fit"
@@ -453,7 +442,6 @@ export function LiveFeedPreview() {
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
-          {/* Main Container - fixed width, doesn't change */}
           <div
             className="relative rounded-2xl overflow-hidden"
             style={{
@@ -490,12 +478,10 @@ export function LiveFeedPreview() {
               </div>
             </div>
 
-            {/* Scrollable Feed - Manual scroll only */}
+            {/* Scrollable Feed */}
             <div
               className="overflow-y-auto overflow-x-hidden custom-scrollbar"
-              style={{
-                height: '535px',
-              }}
+              style={{ height: '535px' }}
             >
               <div className="p-3 space-y-3">
                 {SAMPLE_ARBS.map((arb) => (
@@ -623,9 +609,33 @@ export function LiveFeedPreview() {
                             </span>
                           </div>
 
-                          {/* Right: Stats row */}
+                          {/* Right: Stats row - ORDER: Line | Odds | EV | Stake */}
                           <div className="flex items-center gap-3">
-                            {/* EV Badge */}
+                            {/* 1. Line */}
+                            <div className="w-[50px] text-right">
+                              {outcome.line !== undefined && (
+                                <span className="text-sm font-mono font-medium" style={{ color: 'var(--primary)' }}>
+                                  {outcome.line > 0 ? '+' : ''}
+                                  {outcome.line}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* 2. Odds - show placeholder until region is resolved */}
+                            <div className="w-[55px] text-right">
+                              {regionResolved ? (
+                                <span className="text-sm font-mono font-bold" style={{ color: 'var(--success)' }}>
+                                  {formatOdds(outcome.odds)}
+                                </span>
+                              ) : (
+                                <span 
+                                  className="inline-block w-10 h-4 rounded animate-pulse" 
+                                  style={{ backgroundColor: 'var(--surface)' }} 
+                                />
+                              )}
+                            </div>
+
+                            {/* 3. EV Badge */}
                             <div className="w-[70px] text-right">
                               {outcome.ev && (
                                 <span
@@ -640,31 +650,7 @@ export function LiveFeedPreview() {
                               )}
                             </div>
 
-                            {/* Line */}
-                            <div className="w-[50px] text-right">
-                              {outcome.line !== undefined && (
-                                <span className="text-sm font-mono font-medium" style={{ color: 'var(--primary)' }}>
-                                  {outcome.line > 0 ? '+' : ''}
-                                  {outcome.line}
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Odds - show placeholder until region is resolved */}
-                            <div className="w-[55px] text-right">
-                              {regionResolved ? (
-                                <span className="text-sm font-mono font-bold" style={{ color: 'var(--success)' }}>
-                                  {formatOdds(outcome.odds)}
-                                </span>
-                              ) : (
-                                <span 
-                                  className="inline-block w-10 h-4 rounded animate-pulse" 
-                                  style={{ backgroundColor: 'var(--surface)' }} 
-                                />
-                              )}
-                            </div>
-
-                            {/* Stake */}
+                            {/* 4. Stake */}
                             <div className="w-[50px] text-right">
                               <span className="text-xs font-mono" style={{ color: 'var(--muted-foreground)' }}>
                                 ${outcome.stake}
@@ -695,7 +681,7 @@ export function LiveFeedPreview() {
             </div>
           </div>
 
-          {/* Sidebar - extends outside the main container to the right, vertically centered */}
+          {/* Sidebar */}
           <div
             className="absolute top-1/2 left-full -translate-y-1/2 transition-all duration-300 ease-out overflow-hidden"
             style={{
