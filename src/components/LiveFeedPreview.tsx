@@ -270,7 +270,7 @@ function BookLogo({ bookKey, size = 28 }: { bookKey: string; size?: number }) {
 }
 
 // Small inline book badge for alt odds
-function BookBadge({ bookKey, odds, region }: { bookKey: string; odds: number; region: UserRegion }) {
+function BookBadge({ bookKey, odds, region, isLoading }: { bookKey: string; odds: number; region: UserRegion; isLoading: boolean }) {
   const bookmaker = getBookmaker(bookKey);
   const abbr = bookmaker ? getBookmakerAbbr(bookmaker.name) : bookKey.slice(0, 2).toUpperCase();
   const bgColor = bookmaker?.color || '#333';
@@ -290,7 +290,11 @@ function BookBadge({ bookKey, odds, region }: { bookKey: string; odds: number; r
       >
         {abbr.slice(0, 1)}
       </span>
-      {formatAmericanOddsForRegion(odds, region)}
+      {isLoading ? (
+        <span className="w-8 h-3 rounded animate-pulse" style={{ backgroundColor: 'var(--surface)' }} />
+      ) : (
+        formatAmericanOddsForRegion(odds, region)
+      )}
     </span>
   );
 }
@@ -308,6 +312,9 @@ export function LiveFeedPreview() {
   // User's saved region preference (if logged in)
   const [savedRegion, setSavedRegion] = useState<UserRegion | null>(null);
   
+  // Track whether we've finished determining the region
+  const [regionResolved, setRegionResolved] = useState(false);
+  
   // Fetch user's saved region preference if logged in
   useEffect(() => {
     const fetchUserRegion = async () => {
@@ -322,6 +329,9 @@ export function LiveFeedPreview() {
         // If not ok (401/403), user is not logged in - that's fine, we'll use auto-detection
       } catch {
         // Network error or not logged in - use auto-detection
+      } finally {
+        // Region is now resolved (either from API or we fall back to auto-detection)
+        setRegionResolved(true);
       }
     };
     fetchUserRegion();
@@ -390,7 +400,7 @@ export function LiveFeedPreview() {
     ? '/mobilephone_light_version.png'
     : '/mobilephone_dark_version.png';
 
-  // Format odds based on user's region
+  // Format odds based on user's region (only called when region is resolved)
   const formatOdds = (odds: number) => {
     return formatAmericanOddsForRegion(odds, userRegion);
   };
@@ -640,11 +650,18 @@ export function LiveFeedPreview() {
                               )}
                             </div>
 
-                            {/* Odds - formatted based on user's region */}
+                            {/* Odds - show placeholder until region is resolved */}
                             <div className="w-[55px] text-right">
-                              <span className="text-sm font-mono font-bold" style={{ color: 'var(--success)' }}>
-                                {formatOdds(outcome.odds)}
-                              </span>
+                              {regionResolved ? (
+                                <span className="text-sm font-mono font-bold" style={{ color: 'var(--success)' }}>
+                                  {formatOdds(outcome.odds)}
+                                </span>
+                              ) : (
+                                <span 
+                                  className="inline-block w-10 h-4 rounded animate-pulse" 
+                                  style={{ backgroundColor: 'var(--surface)' }} 
+                                />
+                              )}
                             </div>
 
                             {/* Stake */}
@@ -660,7 +677,13 @@ export function LiveFeedPreview() {
                         {outcome.altOdds && outcome.altOdds.length > 0 && (
                           <div className="flex justify-end mt-2 gap-2">
                             {outcome.altOdds.slice(0, 3).map((alt, j) => (
-                              <BookBadge key={j} bookKey={alt.bookKey} odds={alt.odds} region={userRegion} />
+                              <BookBadge 
+                                key={j} 
+                                bookKey={alt.bookKey} 
+                                odds={alt.odds} 
+                                region={userRegion} 
+                                isLoading={!regionResolved}
+                              />
                             ))}
                           </div>
                         )}
