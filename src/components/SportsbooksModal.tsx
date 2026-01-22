@@ -2,6 +2,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
 import Image from 'next/image';
 import { X, Zap } from 'lucide-react';
 import { 
@@ -206,58 +207,87 @@ export function SportsbooksModal({ isOpen, onClose, detectedRegion = 'US' }: Spo
   );
 }
 
-// Hook to detect user's region
+// Helper: Detect region from timezone/IP (for guests)
+async function detectGeoRegion(): Promise<DisplayRegion> {
+  try {
+    // First try timezone detection
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    
+    if (timezone.startsWith('Australia')) {
+      return 'AU';
+    }
+    if (timezone.startsWith('Europe/London') || timezone === 'GB') {
+      return 'UK';
+    }
+    if (timezone.startsWith('Europe')) {
+      return 'EU';
+    }
+    if (timezone.startsWith('America')) {
+      return 'US';
+    }
+
+    // Fallback: try IP geolocation (free service)
+    const res = await fetch('https://ipapi.co/json/', { 
+      signal: AbortSignal.timeout(3000) 
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const country = data.country_code;
+      
+      if (country === 'AU') return 'AU';
+      if (country === 'GB') return 'UK';
+      if (['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE'].includes(country)) {
+        return 'EU';
+      }
+      if (country === 'US') return 'US';
+    }
+  } catch (error) {
+    // Silently fail
+    console.log('Geo detection failed, defaulting to AU');
+  }
+  
+  // Default to AU (primary market)
+  return 'AU';
+}
+
+// Hook to get user's region (prioritizes saved preference, falls back to geo-detection)
 export function useGeoRegion(): DisplayRegion {
-  const [region, setRegion] = useState<DisplayRegion>('US');
+  const { data: session, status } = useSession();
+  const [region, setRegion] = useState<DisplayRegion>('AU');
+  const [hasCheckedUser, setHasCheckedUser] = useState(false);
 
   useEffect(() => {
-    // Try to detect region from timezone or fetch from IP
-    const detectRegion = async () => {
-      try {
-        // First try timezone detection
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        
-        if (timezone.startsWith('Australia')) {
-          setRegion('AU');
-          return;
-        }
-        if (timezone.startsWith('Europe/London') || timezone === 'GB') {
-          setRegion('UK');
-          return;
-        }
-        if (timezone.startsWith('Europe')) {
-          setRegion('EU');
-          return;
-        }
-        if (timezone.startsWith('America')) {
-          setRegion('US');
-          return;
-        }
-
-        // Fallback: try IP geolocation (free service)
-        const res = await fetch('https://ipapi.co/json/', { 
-          signal: AbortSignal.timeout(3000) 
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const country = data.country_code;
-          
-          if (country === 'AU') setRegion('AU');
-          else if (country === 'GB') setRegion('UK');
-          else if (['AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR', 'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL', 'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE'].includes(country)) {
-            setRegion('EU');
-          } else if (country === 'US') {
-            setRegion('US');
+    const determineRegion = async () => {
+      // If user is authenticated, try to fetch their saved region preference
+      if (status === 'authenticated' && session?.user) {
+        try {
+          const res = await fetch('/api/settings');
+          if (res.ok) {
+            const data = await res.json();
+            if (data.region && ['US', 'UK', 'EU', 'AU'].includes(data.region)) {
+              setRegion(data.region as DisplayRegion);
+              setHasCheckedUser(true);
+              return;
+            }
           }
+        } catch (error) {
+          console.log('Failed to fetch user region, falling back to geo-detection');
         }
-      } catch (error) {
-        // Silently fail - default to US
-        console.log('Geo detection failed, defaulting to US');
+      }
+
+      // If not authenticated or fetch failed, use geo-detection
+      if (status === 'unauthenticated' || (status === 'authenticated' && !hasCheckedUser)) {
+        const detectedRegion = await detectGeoRegion();
+        setRegion(detectedRegion);
+        setHasCheckedUser(true);
       }
     };
 
-    detectRegion();
-  }, []);
+    // Only run when session status is determined (not loading)
+    if (status !== 'loading') {
+      determineRegion();
+    }
+  }, [status, session, hasCheckedUser]);
 
   return region;
 }
