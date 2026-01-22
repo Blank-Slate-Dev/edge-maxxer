@@ -62,11 +62,11 @@ function SliderBookLogo({ bookmaker, compact }: { bookmaker: BookmakerConfig; co
   );
 }
 
-export function SportsbookSlider({ onViewAll, compact = false, region = 'US' }: SportsbookSliderProps) {
+export function SportsbookSlider({ onViewAll, compact = false, region = 'ALL' }: SportsbookSliderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [trackWidth, setTrackWidth] = useState(0);
   
-  // Get bookmakers for user's region only
+  // Get bookmakers for user's region (defaults to ALL if region is undefined)
   const regionBookmakers = getBookmakersByDisplayRegion(region);
   
   // Measure actual track width after render
