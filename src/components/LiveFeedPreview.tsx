@@ -17,11 +17,28 @@ import { useGeoRegion } from '@/components/SportsbooksModal';
 import { formatAmericanOddsForRegion } from '@/lib/oddsFormat';
 import type { UserRegion } from '@/lib/config';
 
+// =============================================================================
+// TYPES
+// =============================================================================
+
+// All supported sports across all regions
+type Sport = 
+  // US Sports
+  | 'NBA' | 'NFL' | 'NHL' | 'MLB' | 'MLS'
+  // AU Sports
+  | 'AFL' | 'NRL' | 'Cricket' | 'ALeague'
+  // UK Sports
+  | 'EPL' | 'Championship' | 'RugbyUnion' | 'RugbyLeague'
+  // EU Sports
+  | 'LaLiga' | 'Bundesliga' | 'SerieA' | 'Ligue1' | 'UCL'
+  // Shared
+  | 'Tennis';
+
 interface ArbOpportunity {
   id: string;
   matchup: string;
   league: string;
-  sport: 'NBA' | 'NFL' | 'NHL' | 'MLB' | 'EPL' | 'Tennis' | 'AFL' | 'NRL' | 'LaLiga' | 'Bundesliga';
+  sport: Sport;
   betType: string;
   profit: number;
   profitAmount: number;
@@ -37,26 +54,59 @@ interface ArbOpportunity {
     fairOdds?: number;
     ev?: number;
     stake?: number;
-    altOdds?: { book: string; bookKey: string; odds: number }[];
   }[];
 }
 
 // =============================================================================
+// SPORT ICON MAPPING
+// =============================================================================
+// Maps sport keys to their icon filenames in /public/sports/
+// 
+// Required icon files (place in /public/sports/):
+// - NBA.png, NFL.png, NHL.png, MLB.png, MLS.png (US)
+// - AFL.png, NRL.png, Cricket.png, ALeague.png (AU)
+// - EPL.png, Championship.png, RugbyUnion.png, RugbyLeague.png (UK)
+// - LaLiga.png, Bundesliga.png, SerieA.png, Ligue1.png, UCL.png (EU)
+// - Tennis.png (Shared)
+
+const SPORT_ICONS: Record<Sport, string> = {
+  // US Sports
+  NBA: 'NBA.png',
+  NFL: 'NFL.png',
+  NHL: 'NHL.png',
+  MLB: 'MLB.png',
+  MLS: 'MLS.png',
+  // AU Sports
+  AFL: 'AFL.png',
+  NRL: 'NRL.png',
+  Cricket: 'Cricket.png',
+  ALeague: 'ALeague.png',
+  // UK Sports
+  EPL: 'EPL.png',
+  Championship: 'Championship.png',
+  RugbyUnion: 'RugbyUnion.png',
+  RugbyLeague: 'RugbyLeague.png',
+  // EU Sports
+  LaLiga: 'LaLiga.png',
+  Bundesliga: 'Bundesliga.png',
+  SerieA: 'SerieA.png',
+  Ligue1: 'Ligue1.png',
+  UCL: 'UCL.png',
+  // Shared
+  Tennis: 'Tennis.png',
+};
+
+// =============================================================================
 // REGION-SPECIFIC BOOKMAKER CONFIGURATION
 // =============================================================================
-// These mappings define which bookmakers to show for each region.
-// Each region has primary bookmakers (used in main outcomes) and 
-// secondary bookmakers (used in altOdds badges).
 
 interface RegionBookmakers {
   primary: { name: string; key: string }[];
-  secondary: { abbr: string; key: string }[];
 }
 
 const REGION_BOOKMAKERS: Record<UserRegion, RegionBookmakers> = {
   AU: {
     // Ordered by popularity/recognition for Australian users
-    // Pairings in sample arbs: [0]+[1], [2]+[3], [4]+[5], [6]+[7], [8]+[0]
     primary: [
       { name: 'Sportsbet', key: 'sportsbet' },       // 0 - Most popular
       { name: 'TAB', key: 'tab' },                   // 1 - Very well known
@@ -68,130 +118,546 @@ const REGION_BOOKMAKERS: Record<UserRegion, RegionBookmakers> = {
       { name: 'Unibet', key: 'unibet' },             // 7 - Known
       { name: 'Betfair', key: 'betfair_ex_au' },     // 8 - For sharps
     ],
-    secondary: [
-      { abbr: 'TAB', key: 'tab' },
-      { abbr: 'SB', key: 'sportsbet' },
-      { abbr: '365', key: 'bet365_au' },
-      { abbr: 'LAD', key: 'ladbrokes_au' },
-      { abbr: 'PB', key: 'pointsbetau' },
-      { abbr: 'PU', key: 'playup' },
-      { abbr: 'NEDS', key: 'neds' },
-      { abbr: 'UNI', key: 'unibet' },
-      { abbr: 'BF', key: 'betfair_ex_au' },
-    ],
   },
   UK: {
     primary: [
-      { name: 'Bet365', key: 'williamhill' }, // Using williamhill as placeholder since bet365_uk doesn't exist
-      { name: 'William Hill', key: 'williamhill' },
-      { name: 'Paddy Power', key: 'paddypower' },
-      { name: 'Sky Bet', key: 'skybet' },
-      { name: 'Ladbrokes', key: 'ladbrokes_uk' },
-      { name: 'Betfair', key: 'betfair_ex_uk' },
-    ],
-    secondary: [
-      { abbr: 'WH', key: 'williamhill' },
-      { abbr: 'PP', key: 'paddypower' },
-      { abbr: 'SKY', key: 'skybet' },
-      { abbr: 'LAD', key: 'ladbrokes_uk' },
-      { abbr: 'BF', key: 'betfair_ex_uk' },
-      { abbr: '888', key: 'sport888' },
-      { abbr: 'COR', key: 'coral' },
+      { name: 'Bet365', key: 'williamhill' },        // 0 - Placeholder
+      { name: 'William Hill', key: 'williamhill' }, // 1 - Classic UK book
+      { name: 'Paddy Power', key: 'paddypower' },   // 2 - Very popular
+      { name: 'Sky Bet', key: 'skybet' },           // 3 - Big brand
+      { name: 'Ladbrokes', key: 'ladbrokes_uk' },   // 4 - Historic
+      { name: 'Betfair', key: 'betfair_ex_uk' },    // 5 - Exchange
+      { name: 'Coral', key: 'coral' },              // 6 - High street
+      { name: 'Betway', key: 'betway' },            // 7 - Modern
+      { name: '888sport', key: 'sport888' },        // 8 - Online
     ],
   },
   EU: {
     primary: [
-      { name: 'Pinnacle', key: 'pinnacle' },
-      { name: 'Unibet', key: 'unibet_fr' },
-      { name: 'Betsson', key: 'betsson' },
-      { name: '1xBet', key: 'onexbet' },
-      { name: 'Betclic', key: 'betclic_fr' },
-      { name: 'Winamax', key: 'winamax_fr' },
-    ],
-    secondary: [
-      { abbr: 'PIN', key: 'pinnacle' },
-      { abbr: 'UNI', key: 'unibet_fr' },
-      { abbr: 'BET', key: 'betsson' },
-      { abbr: '1X', key: 'onexbet' },
-      { abbr: 'BC', key: 'betclic_fr' },
-      { abbr: 'WIN', key: 'winamax_fr' },
-      { abbr: 'MAR', key: 'marathonbet' },
+      { name: 'Pinnacle', key: 'pinnacle' },        // 0 - Sharp book
+      { name: 'Unibet', key: 'unibet_fr' },         // 1 - Pan-European
+      { name: 'Betsson', key: 'betsson' },          // 2 - Scandinavian
+      { name: '1xBet', key: 'onexbet' },            // 3 - Eastern Europe
+      { name: 'Betclic', key: 'betclic_fr' },       // 4 - France
+      { name: 'Winamax', key: 'winamax_fr' },       // 5 - France
+      { name: 'Tipico', key: 'tipico_de' },         // 6 - Germany
+      { name: 'Marathonbet', key: 'marathonbet' }, // 7 - International
+      { name: 'NordicBet', key: 'nordicbet' },      // 8 - Scandinavia
     ],
   },
   US: {
     primary: [
-      { name: 'FanDuel', key: 'fanduel' },
-      { name: 'DraftKings', key: 'draftkings' },
-      { name: 'Caesars', key: 'williamhill_us' },
-      { name: 'BetMGM', key: 'betmgm' },
-      { name: 'BetOnline', key: 'betonlineag' },
-      { name: 'ESPN BET', key: 'espnbet' },
-    ],
-    secondary: [
-      { abbr: 'DK', key: 'draftkings' },
-      { abbr: 'FD', key: 'fanduel' },
-      { abbr: 'CZ', key: 'williamhill_us' },
-      { abbr: 'MGM', key: 'betmgm' },
-      { abbr: 'PIN', key: 'pinnacle' },
-      { abbr: 'PB', key: 'pointsbetau' },
-      { abbr: 'ESPN', key: 'espnbet' },
+      { name: 'FanDuel', key: 'fanduel' },          // 0 - Market leader
+      { name: 'DraftKings', key: 'draftkings' },    // 1 - Close second
+      { name: 'Caesars', key: 'williamhill_us' },   // 2 - Big brand
+      { name: 'BetMGM', key: 'betmgm' },            // 3 - Major player
+      { name: 'BetOnline', key: 'betonlineag' },    // 4 - Offshore
+      { name: 'ESPN BET', key: 'espnbet' },         // 5 - New major
+      { name: 'BetRivers', key: 'betrivers' },      // 6 - Regional
+      { name: 'PointsBet', key: 'pointsbetau' },    // 7 - Unique odds
+      { name: 'Hard Rock', key: 'hardrockbet' },    // 8 - Growing
     ],
   },
 };
 
 // =============================================================================
-// SAMPLE ARB DATA GENERATOR
+// REGION-SPECIFIC SAMPLE ARBS
 // =============================================================================
-// Generates sample arbitrage opportunities with region-appropriate bookmakers.
-// 
-// TODO (Option B - Region-specific sports/leagues):
-// When ready to implement fully localized previews, this function should also
-// accept region and return different matchups:
-//
-// AU: AFL (Collingwood vs Carlton), NRL (Broncos vs Storm), A-League
-// UK: EPL (Arsenal vs Chelsea), Championship, Scottish Premiership
-// EU: La Liga (Real Madrid vs Barcelona), Bundesliga, Serie A
-// US: NBA, NFL, MLB, NHL (current implementation)
-//
-// You would create separate SAMPLE_ARBS_AU, SAMPLE_ARBS_UK, etc. arrays
-// or a function like getSampleArbsForRegion(region: UserRegion)
 
-function getSampleArbs(region: UserRegion): ArbOpportunity[] {
-  const books = REGION_BOOKMAKERS[region];
-  
-  // Helper to get primary bookmaker by index (with wrapping)
-  const getPrimary = (index: number) => books.primary[index % books.primary.length];
-  
-  // Helper to get secondary bookmaker by index (with wrapping)
-  const getSecondary = (index: number) => books.secondary[index % books.secondary.length];
-
-  // =============================================================================
-  // TODO (Option B): Replace these US-centric matchups with region-specific ones
-  // 
-  // Example structure for AU:
-  // {
-  //   id: '1',
-  //   matchup: 'COLLINGWOOD @ CARLTON',
-  //   league: 'AFL',
-  //   sport: 'AFL',
-  //   betType: 'HEAD TO HEAD',
-  //   ...
-  // }
-  //
-  // Example structure for UK:
-  // {
-  //   id: '1',
-  //   matchup: 'ARSENAL @ CHELSEA',
-  //   league: 'EPL',
-  //   sport: 'EPL',
-  //   betType: 'MATCH RESULT',
-  //   ...
-  // }
-  // =============================================================================
-
+function getAustralianArbs(): ArbOpportunity[] {
+  const books = REGION_BOOKMAKERS.AU.primary;
   return [
     {
-      // Arb 1: Sportsbet + TAB (the two biggest AU books)
+      // Arb 1: Sportsbet + TAB - AFL Match
+      id: '1',
+      matchup: 'COLLINGWOOD @ CARLTON',
+      league: 'AFL',
+      sport: 'AFL',
+      betType: 'HEAD TO HEAD',
+      profit: 25.8,
+      profitAmount: 129,
+      tag: 'Middle',
+      status: 'pregame',
+      gameTime: 'Fri 7:50 PM',
+      outcomes: [
+        {
+          label: 'Collingwood',
+          book: books[0].name,
+          bookKey: books[0].key,
+          odds: 150,
+          ev: 26.2,
+          stake: 268,
+        },
+        {
+          label: 'Carlton',
+          book: books[1].name,
+          bookKey: books[1].key,
+          odds: 190,
+          ev: 21.8,
+          stake: 232,
+        },
+      ],
+    },
+    {
+      // Arb 2: Bet365 + Ladbrokes - NRL Match
+      id: '2',
+      matchup: 'BRONCOS @ STORM',
+      league: 'NRL',
+      sport: 'NRL',
+      betType: 'LINE BETTING',
+      profit: 22.5,
+      profitAmount: 112,
+      tag: 'Staying Power',
+      status: 'pregame',
+      gameTime: 'Sat 7:35 PM',
+      outcomes: [
+        {
+          label: 'Broncos +4.5',
+          book: books[2].name,
+          bookKey: books[2].key,
+          odds: 185,
+          ev: 24.5,
+          line: 4.5,
+          stake: 215,
+        },
+        {
+          label: 'Storm -3.5',
+          book: books[3].name,
+          bookKey: books[3].key,
+          odds: 115,
+          ev: 18.2,
+          line: -3.5,
+          stake: 285,
+        },
+      ],
+    },
+    {
+      // Arb 3: PointsBet + PlayUp - Cricket
+      id: '3',
+      matchup: 'AUSTRALIA @ ENGLAND',
+      league: 'The Ashes',
+      sport: 'Cricket',
+      betType: 'MATCH WINNER',
+      profit: 17.6,
+      profitAmount: 88,
+      tag: 'Staying Power',
+      status: 'pregame',
+      gameTime: 'Thu 10:30 AM',
+      outcomes: [
+        {
+          label: 'Australia',
+          book: books[4].name,
+          bookKey: books[4].key,
+          odds: 160,
+          ev: 16.1,
+          stake: 226,
+        },
+        {
+          label: 'England',
+          book: books[5].name,
+          bookKey: books[5].key,
+          odds: 115,
+          ev: 2.5,
+          stake: 274,
+        },
+      ],
+    },
+    {
+      // Arb 4: Neds + Unibet - A-League
+      id: '4',
+      matchup: 'SYDNEY FC @ MELBOURNE VICTORY',
+      league: 'A-League',
+      sport: 'ALeague',
+      betType: 'HEAD TO HEAD',
+      profit: 13.7,
+      profitAmount: 68,
+      status: 'pregame',
+      gameTime: 'Sun 5:00 PM',
+      outcomes: [
+        {
+          label: 'Sydney FC',
+          book: books[6].name,
+          bookKey: books[6].key,
+          odds: 130,
+          ev: 14.5,
+          stake: 247,
+        },
+        {
+          label: 'Melbourne Victory',
+          book: books[7].name,
+          bookKey: books[7].key,
+          odds: 125,
+          ev: 11.2,
+          stake: 253,
+        },
+      ],
+    },
+    {
+      // Arb 5: Betfair + Sportsbet - AFL
+      id: '5',
+      matchup: 'RICHMOND @ GEELONG',
+      league: 'AFL',
+      sport: 'AFL',
+      betType: 'TOTAL POINTS',
+      profit: 11.2,
+      profitAmount: 56,
+      status: 'pregame',
+      gameTime: 'Sat 4:35 PM',
+      outcomes: [
+        {
+          label: 'Over 165.5',
+          book: books[8].name,
+          bookKey: books[8].key,
+          odds: 125,
+          ev: 12.3,
+          line: 165.5,
+          stake: 247,
+        },
+        {
+          label: 'Under 168.5',
+          book: books[0].name,
+          bookKey: books[0].key,
+          odds: 120,
+          ev: 11.0,
+          line: 168.5,
+          stake: 253,
+        },
+      ],
+    },
+  ];
+}
+
+function getUKArbs(): ArbOpportunity[] {
+  const books = REGION_BOOKMAKERS.UK.primary;
+  return [
+    {
+      // Arb 1: Bet365 + William Hill - EPL
+      id: '1',
+      matchup: 'ARSENAL @ CHELSEA',
+      league: 'Premier League',
+      sport: 'EPL',
+      betType: 'MATCH RESULT',
+      profit: 25.8,
+      profitAmount: 129,
+      tag: 'Middle',
+      status: 'pregame',
+      gameTime: 'Sat 3:00 PM',
+      outcomes: [
+        {
+          label: 'Arsenal',
+          book: books[0].name,
+          bookKey: books[0].key,
+          odds: 150,
+          ev: 26.2,
+          stake: 268,
+        },
+        {
+          label: 'Chelsea',
+          book: books[1].name,
+          bookKey: books[1].key,
+          odds: 190,
+          ev: 21.8,
+          stake: 232,
+        },
+      ],
+    },
+    {
+      // Arb 2: Paddy Power + Sky Bet - EPL
+      id: '2',
+      matchup: 'LIVERPOOL @ MAN UNITED',
+      league: 'Premier League',
+      sport: 'EPL',
+      betType: 'ASIAN HANDICAP',
+      profit: 22.5,
+      profitAmount: 112,
+      tag: 'Staying Power',
+      status: 'pregame',
+      gameTime: 'Sun 4:30 PM',
+      outcomes: [
+        {
+          label: 'Liverpool -1.5',
+          book: books[2].name,
+          bookKey: books[2].key,
+          odds: 185,
+          ev: 24.5,
+          line: -1.5,
+          stake: 215,
+        },
+        {
+          label: 'Man United +2.5',
+          book: books[3].name,
+          bookKey: books[3].key,
+          odds: 115,
+          ev: 18.2,
+          line: 2.5,
+          stake: 285,
+        },
+      ],
+    },
+    {
+      // Arb 3: Ladbrokes + Betfair - Championship
+      id: '3',
+      matchup: 'LEEDS @ SHEFFIELD UTD',
+      league: 'Championship',
+      sport: 'Championship',
+      betType: 'MATCH RESULT',
+      profit: 17.6,
+      profitAmount: 88,
+      tag: 'Staying Power',
+      status: 'pregame',
+      gameTime: 'Sat 12:30 PM',
+      outcomes: [
+        {
+          label: 'Leeds',
+          book: books[4].name,
+          bookKey: books[4].key,
+          odds: 160,
+          ev: 16.1,
+          stake: 226,
+        },
+        {
+          label: 'Sheffield Utd',
+          book: books[5].name,
+          bookKey: books[5].key,
+          odds: 115,
+          ev: 2.5,
+          stake: 274,
+        },
+      ],
+    },
+    {
+      // Arb 4: Coral + Betway - Rugby Union
+      id: '4',
+      matchup: 'ENGLAND @ IRELAND',
+      league: 'Six Nations',
+      sport: 'RugbyUnion',
+      betType: 'MATCH WINNER',
+      profit: 13.7,
+      profitAmount: 68,
+      status: 'pregame',
+      gameTime: 'Sat 4:45 PM',
+      outcomes: [
+        {
+          label: 'England',
+          book: books[6].name,
+          bookKey: books[6].key,
+          odds: 130,
+          ev: 14.5,
+          stake: 247,
+        },
+        {
+          label: 'Ireland',
+          book: books[7].name,
+          bookKey: books[7].key,
+          odds: 125,
+          ev: 11.2,
+          stake: 253,
+        },
+      ],
+    },
+    {
+      // Arb 5: 888sport + Bet365 - EPL
+      id: '5',
+      matchup: 'MAN CITY @ TOTTENHAM',
+      league: 'Premier League',
+      sport: 'EPL',
+      betType: 'TOTAL GOALS',
+      profit: 11.2,
+      profitAmount: 56,
+      status: 'pregame',
+      gameTime: 'Sun 2:00 PM',
+      outcomes: [
+        {
+          label: 'Over 2.5',
+          book: books[8].name,
+          bookKey: books[8].key,
+          odds: 125,
+          ev: 12.3,
+          line: 2.5,
+          stake: 247,
+        },
+        {
+          label: 'Under 3.5',
+          book: books[0].name,
+          bookKey: books[0].key,
+          odds: 120,
+          ev: 11.0,
+          line: 3.5,
+          stake: 253,
+        },
+      ],
+    },
+  ];
+}
+
+function getEUArbs(): ArbOpportunity[] {
+  const books = REGION_BOOKMAKERS.EU.primary;
+  return [
+    {
+      // Arb 1: Pinnacle + Unibet - La Liga
+      id: '1',
+      matchup: 'REAL MADRID @ BARCELONA',
+      league: 'La Liga',
+      sport: 'LaLiga',
+      betType: 'MATCH RESULT',
+      profit: 25.8,
+      profitAmount: 129,
+      tag: 'Middle',
+      status: 'pregame',
+      gameTime: 'Sat 9:00 PM',
+      outcomes: [
+        {
+          label: 'Real Madrid',
+          book: books[0].name,
+          bookKey: books[0].key,
+          odds: 150,
+          ev: 26.2,
+          stake: 268,
+        },
+        {
+          label: 'Barcelona',
+          book: books[1].name,
+          bookKey: books[1].key,
+          odds: 190,
+          ev: 21.8,
+          stake: 232,
+        },
+      ],
+    },
+    {
+      // Arb 2: Betsson + 1xBet - Bundesliga
+      id: '2',
+      matchup: 'BAYERN @ DORTMUND',
+      league: 'Bundesliga',
+      sport: 'Bundesliga',
+      betType: 'ASIAN HANDICAP',
+      profit: 22.5,
+      profitAmount: 112,
+      tag: 'Staying Power',
+      status: 'pregame',
+      gameTime: 'Sat 6:30 PM',
+      outcomes: [
+        {
+          label: 'Bayern -1.5',
+          book: books[2].name,
+          bookKey: books[2].key,
+          odds: 185,
+          ev: 24.5,
+          line: -1.5,
+          stake: 215,
+        },
+        {
+          label: 'Dortmund +2.5',
+          book: books[3].name,
+          bookKey: books[3].key,
+          odds: 115,
+          ev: 18.2,
+          line: 2.5,
+          stake: 285,
+        },
+      ],
+    },
+    {
+      // Arb 3: Betclic + Winamax - Serie A
+      id: '3',
+      matchup: 'JUVENTUS @ AC MILAN',
+      league: 'Serie A',
+      sport: 'SerieA',
+      betType: 'MATCH RESULT',
+      profit: 17.6,
+      profitAmount: 88,
+      tag: 'Staying Power',
+      status: 'pregame',
+      gameTime: 'Sun 8:45 PM',
+      outcomes: [
+        {
+          label: 'Juventus',
+          book: books[4].name,
+          bookKey: books[4].key,
+          odds: 160,
+          ev: 16.1,
+          stake: 226,
+        },
+        {
+          label: 'AC Milan',
+          book: books[5].name,
+          bookKey: books[5].key,
+          odds: 115,
+          ev: 2.5,
+          stake: 274,
+        },
+      ],
+    },
+    {
+      // Arb 4: Tipico + Marathonbet - Ligue 1
+      id: '4',
+      matchup: 'PSG @ MARSEILLE',
+      league: 'Ligue 1',
+      sport: 'Ligue1',
+      betType: 'MATCH RESULT',
+      profit: 13.7,
+      profitAmount: 68,
+      status: 'pregame',
+      gameTime: 'Sun 8:45 PM',
+      outcomes: [
+        {
+          label: 'PSG',
+          book: books[6].name,
+          bookKey: books[6].key,
+          odds: 130,
+          ev: 14.5,
+          stake: 247,
+        },
+        {
+          label: 'Marseille',
+          book: books[7].name,
+          bookKey: books[7].key,
+          odds: 125,
+          ev: 11.2,
+          stake: 253,
+        },
+      ],
+    },
+    {
+      // Arb 5: NordicBet + Pinnacle - Champions League
+      id: '5',
+      matchup: 'INTER @ ATLETICO',
+      league: 'Champions League',
+      sport: 'UCL',
+      betType: 'TOTAL GOALS',
+      profit: 11.2,
+      profitAmount: 56,
+      status: 'pregame',
+      gameTime: 'Wed 9:00 PM',
+      outcomes: [
+        {
+          label: 'Over 2.5',
+          book: books[8].name,
+          bookKey: books[8].key,
+          odds: 125,
+          ev: 12.3,
+          line: 2.5,
+          stake: 247,
+        },
+        {
+          label: 'Under 3.5',
+          book: books[0].name,
+          bookKey: books[0].key,
+          odds: 120,
+          ev: 11.0,
+          line: 3.5,
+          stake: 253,
+        },
+      ],
+    },
+  ];
+}
+
+function getUSArbs(): ArbOpportunity[] {
+  const books = REGION_BOOKMAKERS.US.primary;
+  return [
+    {
+      // Arb 1: FanDuel + DraftKings - NBA
       id: '1',
       matchup: 'CELTICS @ KNICKS',
       league: 'NBA',
@@ -205,18 +671,17 @@ function getSampleArbs(region: UserRegion): ArbOpportunity[] {
       outcomes: [
         {
           label: 'Over 218.5',
-          book: getPrimary(0).name,
-          bookKey: getPrimary(0).key,
+          book: books[0].name,
+          bookKey: books[0].key,
           odds: 150,
           ev: 26.2,
           line: 218.5,
           stake: 268,
-          altOdds: [{ book: getSecondary(2).abbr, bookKey: getSecondary(2).key, odds: -110 }],
         },
         {
           label: 'Under 222.5',
-          book: getPrimary(1).name,
-          bookKey: getPrimary(1).key,
+          book: books[1].name,
+          bookKey: books[1].key,
           odds: 190,
           ev: 21.8,
           line: 222.5,
@@ -225,47 +690,42 @@ function getSampleArbs(region: UserRegion): ArbOpportunity[] {
       ],
     },
     {
-      // Arb 2: Bet365 + Ladbrokes (major international + local brand)
+      // Arb 2: Caesars + BetMGM - NFL
       id: '2',
-      matchup: 'SUNS @ LAKERS',
-      league: 'NBA',
-      sport: 'NBA',
+      matchup: 'CHIEFS @ BILLS',
+      league: 'NFL',
+      sport: 'NFL',
       betType: 'SPREAD',
       profit: 22.5,
       profitAmount: 112,
       tag: 'Staying Power',
       status: 'pregame',
-      gameTime: 'Today 10:00 PM',
+      gameTime: 'Sun 6:30 PM',
       outcomes: [
         {
-          label: 'Lakers -4.5',
-          book: getPrimary(2).name,
-          bookKey: getPrimary(2).key,
+          label: 'Chiefs -3.5',
+          book: books[2].name,
+          bookKey: books[2].key,
           odds: 185,
           ev: 24.5,
-          line: -4.5,
+          line: -3.5,
           stake: 215,
-          altOdds: [
-            { book: getSecondary(1).abbr, bookKey: getSecondary(1).key, odds: 135 },
-            { book: getSecondary(0).abbr, bookKey: getSecondary(0).key, odds: 140 },
-          ],
         },
         {
-          label: 'Suns +5.5',
-          book: getPrimary(3).name,
-          bookKey: getPrimary(3).key,
+          label: 'Bills +4.5',
+          book: books[3].name,
+          bookKey: books[3].key,
           odds: 115,
           ev: 18.2,
-          line: 5.5,
+          line: 4.5,
           stake: 285,
-          altOdds: [{ book: getSecondary(4).abbr, bookKey: getSecondary(4).key, odds: -160 }],
         },
       ],
     },
     {
-      // Arb 3: PointsBet + PlayUp (growing AU brands)
+      // Arb 3: BetOnline + ESPN BET - NHL
       id: '3',
-      matchup: 'FLAMES @ OILERS',
+      matchup: 'RANGERS @ BRUINS',
       league: 'NHL',
       sport: 'NHL',
       betType: 'TOTAL GOALS',
@@ -273,35 +733,30 @@ function getSampleArbs(region: UserRegion): ArbOpportunity[] {
       profitAmount: 88,
       tag: 'Staying Power',
       status: 'pregame',
-      gameTime: 'Tomorrow 9:00 PM',
+      gameTime: 'Tomorrow 7:00 PM',
       outcomes: [
         {
           label: 'Over 5.5',
-          book: getPrimary(4).name,
-          bookKey: getPrimary(4).key,
+          book: books[4].name,
+          bookKey: books[4].key,
           odds: 160,
           ev: 16.1,
           line: 5.5,
           stake: 226,
-          altOdds: [
-            { book: getSecondary(1).abbr, bookKey: getSecondary(1).key, odds: 125 },
-            { book: getSecondary(3).abbr, bookKey: getSecondary(3).key, odds: 130 },
-          ],
         },
         {
           label: 'Under 6.5',
-          book: getPrimary(5).name,
-          bookKey: getPrimary(5).key,
+          book: books[5].name,
+          bookKey: books[5].key,
           odds: 115,
           ev: 2.5,
           line: 6.5,
           stake: 274,
-          altOdds: [{ book: getSecondary(6).abbr, bookKey: getSecondary(6).key, odds: -145 }],
         },
       ],
     },
     {
-      // Arb 4: Neds + Unibet (popular + international)
+      // Arb 4: BetRivers + PointsBet - MLB
       id: '4',
       matchup: 'YANKEES @ RED SOX',
       league: 'MLB',
@@ -314,28 +769,26 @@ function getSampleArbs(region: UserRegion): ArbOpportunity[] {
       outcomes: [
         {
           label: 'Yankees',
-          book: getPrimary(6).name,
-          bookKey: getPrimary(6).key,
+          book: books[6].name,
+          bookKey: books[6].key,
           odds: 130,
           ev: 14.5,
           stake: 247,
-          altOdds: [{ book: getSecondary(8).abbr, bookKey: getSecondary(8).key, odds: -105 }],
         },
         {
           label: 'Red Sox',
-          book: getPrimary(7).name,
-          bookKey: getPrimary(7).key,
+          book: books[7].name,
+          bookKey: books[7].key,
           odds: 125,
           ev: 11.2,
           stake: 253,
-          altOdds: [{ book: getSecondary(0).abbr, bookKey: getSecondary(0).key, odds: -110 }],
         },
       ],
     },
     {
-      // Arb 5: Betfair + Sportsbet (exchange + biggest retail)
+      // Arb 5: Hard Rock + FanDuel - NBA
       id: '5',
-      matchup: 'KNICKS @ NUGGETS',
+      matchup: 'LAKERS @ WARRIORS',
       league: 'NBA',
       sport: 'NBA',
       betType: 'SPREAD',
@@ -345,22 +798,18 @@ function getSampleArbs(region: UserRegion): ArbOpportunity[] {
       gameTime: 'Sat 8:30 PM',
       outcomes: [
         {
-          label: 'Nuggets -5.5',
-          book: getPrimary(8).name,
-          bookKey: getPrimary(8).key,
+          label: 'Warriors -5.5',
+          book: books[8].name,
+          bookKey: books[8].key,
           odds: 125,
           ev: 12.3,
-          line: -4.5,
+          line: -5.5,
           stake: 247,
-          altOdds: [
-            { book: getSecondary(2).abbr, bookKey: getSecondary(2).key, odds: -105 },
-            { book: getSecondary(3).abbr, bookKey: getSecondary(3).key, odds: 100 },
-          ],
         },
         {
-          label: 'Knicks +6.5',
-          book: getPrimary(0).name,
-          bookKey: getPrimary(0).key,
+          label: 'Lakers +6.5',
+          book: books[0].name,
+          bookKey: books[0].key,
           odds: 120,
           ev: 11.0,
           line: 6.5,
@@ -371,7 +820,25 @@ function getSampleArbs(region: UserRegion): ArbOpportunity[] {
   ];
 }
 
-// Shortened labels to fit within viewport
+// Main function to get sample arbs based on region
+function getSampleArbs(region: UserRegion): ArbOpportunity[] {
+  switch (region) {
+    case 'AU':
+      return getAustralianArbs();
+    case 'UK':
+      return getUKArbs();
+    case 'EU':
+      return getEUArbs();
+    case 'US':
+    default:
+      return getUSArbs();
+  }
+}
+
+// =============================================================================
+// SIDEBAR CONFIG
+// =============================================================================
+
 const SIDEBAR_ITEMS = [
   { icon: TrendingUp, label: 'All Markets' },
   { icon: DollarSign, label: 'Profit %' },
@@ -381,6 +848,10 @@ const SIDEBAR_ITEMS = [
 
 const PREVIEW_WIDTH = 780;
 const SIDEBAR_WIDTH = 160;
+
+// =============================================================================
+// COMPONENTS
+// =============================================================================
 
 // BookLogo component with image fallback
 function BookLogo({ bookKey, size = 28 }: { bookKey: string; size?: number }) {
@@ -420,6 +891,39 @@ function BookLogo({ bookKey, size = 28 }: { bookKey: string; size?: number }) {
     />
   );
 }
+
+// Sport icon component with fallback
+function SportIcon({ sport }: { sport: Sport }) {
+  const [imgError, setImgError] = useState(false);
+  const iconFile = SPORT_ICONS[sport];
+
+  if (imgError) {
+    // Fallback to text abbreviation
+    return (
+      <span 
+        className="w-4 h-4 flex items-center justify-center text-[8px] font-bold rounded"
+        style={{ backgroundColor: 'var(--surface)', color: 'var(--muted)' }}
+      >
+        {sport.slice(0, 2)}
+      </span>
+    );
+  }
+
+  return (
+    <Image
+      src={`/sports/${iconFile}`}
+      alt={sport}
+      width={16}
+      height={16}
+      className="w-4 h-4 object-contain"
+      onError={() => setImgError(true)}
+    />
+  );
+}
+
+// =============================================================================
+// MAIN COMPONENT
+// =============================================================================
 
 export function LiveFeedPreview() {
   const { theme } = useTheme();
@@ -616,13 +1120,7 @@ export function LiveFeedPreview() {
                         style={{ borderBottom: '1px solid var(--border)' }}
                       >
                         <div className="flex items-center gap-2">
-                          <Image
-                            src={`/sports/${arb.sport}.png`}
-                            alt={arb.sport}
-                            width={16}
-                            height={16}
-                            className="w-4 h-4 object-contain"
-                          />
+                          <SportIcon sport={arb.sport} />
                           <span className="text-[10px] font-medium" style={{ color: 'var(--muted)' }}>
                             {arb.league}
                           </span>
@@ -775,7 +1273,6 @@ export function LiveFeedPreview() {
                               </div>
                             </div>
                           </div>
-
                         </div>
                       ))}
                     </div>
