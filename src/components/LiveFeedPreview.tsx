@@ -220,15 +220,16 @@ const SAMPLE_ARBS: ArbOpportunity[] = [
   },
 ];
 
+// Shortened labels to fit within viewport
 const SIDEBAR_ITEMS = [
-  { icon: TrendingUp, label: 'H2H, Spreads & Totals' },
-  { icon: DollarSign, label: 'Guaranteed Profit %' },
-  { icon: BarChart3, label: 'Expected Value (+EV)' },
-  { icon: LinkIcon, label: '1-Click Deep Links' },
+  { icon: TrendingUp, label: 'All Markets' },
+  { icon: DollarSign, label: 'Profit %' },
+  { icon: BarChart3, label: '+EV Bets' },
+  { icon: LinkIcon, label: 'Deep Links' },
 ];
 
 const PREVIEW_WIDTH = 780;
-const SIDEBAR_WIDTH = 200;
+const SIDEBAR_WIDTH = 160; // Reduced from 200
 
 // BookLogo component with image fallback
 function BookLogo({ bookKey, size = 28 }: { bookKey: string; size?: number }) {
@@ -444,7 +445,7 @@ export function LiveFeedPreview() {
           {/* Inner wrapper with fixed total width to reserve sidebar space */}
           <div 
             className="relative"
-            style={{ width: `${PREVIEW_WIDTH + SIDEBAR_WIDTH + 20}px` }}
+            style={{ width: `${PREVIEW_WIDTH + SIDEBAR_WIDTH + 10}px` }}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
           >
@@ -701,20 +702,20 @@ export function LiveFeedPreview() {
                 borderBottomRightRadius: '12px',
               }}
             >
-              <div className="p-4" style={{ width: `${SIDEBAR_WIDTH}px` }}>
-                <h3 className="text-[10px] font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--primary)' }}>
+              <div className="p-3" style={{ width: `${SIDEBAR_WIDTH}px` }}>
+                <h3 className="text-[10px] font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--primary)' }}>
                   Key Features
                 </h3>
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {SIDEBAR_ITEMS.map((item, i) => (
-                    <div key={i} className="flex items-center gap-3">
+                    <div key={i} className="flex items-center gap-2">
                       <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center"
+                        className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
                         style={{ backgroundColor: 'var(--surface-secondary)', border: '1px solid var(--border)' }}
                       >
-                        <item.icon className="w-5 h-5" style={{ color: 'var(--primary)' }} />
+                        <item.icon className="w-4 h-4" style={{ color: 'var(--primary)' }} />
                       </div>
-                      <span className="text-sm" style={{ color: 'var(--foreground)' }}>
+                      <span className="text-xs" style={{ color: 'var(--foreground)' }}>
                         {item.label}
                       </span>
                     </div>
