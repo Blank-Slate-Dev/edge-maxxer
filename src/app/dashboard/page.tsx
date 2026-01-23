@@ -3,6 +3,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { Globe, Loader2 } from 'lucide-react';
+import { useSession } from 'next-auth/react';
 import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal, Flag, SubscriptionRequiredModal } from '@/components';
 import { useBets } from '@/hooks/useBets';
 import { useAccounts } from '@/hooks/useAccounts';
@@ -154,6 +155,7 @@ function getBookmakersFromArb(opp: ArbOpportunity): string[] {
 }
 
 export default function DashboardPage() {
+  const { data: session } = useSession();
   const [opportunities, setOpportunities] = useState<ArbOpportunity[]>([]);
   const [valueBets, setValueBets] = useState<ValueBet[]>([]);
   const [spreadArbs, setSpreadArbs] = useState<SpreadArb[]>([]);
@@ -201,6 +203,9 @@ export default function DashboardPage() {
   } = useAccounts();
 
   const hasFetched = hasFetchedArbs;
+
+  // Get hasAccess from session (computed server-side in auth.ts)
+  const hasAccess = (session?.user as { hasAccess?: boolean } | undefined)?.hasAccess ?? false;
 
   // Load user's default region from settings
   useEffect(() => {
@@ -256,6 +261,12 @@ export default function DashboardPage() {
   }, []);
 
   const fetchArbs = useCallback(async (quickScan: boolean = false) => {
+    // ✅ CHECK SUBSCRIPTION BEFORE ANY SCAN ATTEMPT
+    if (!hasAccess) {
+      setShowSubscriptionModal(true);
+      return; // Don't proceed with scan
+    }
+
     setError(null);
     setLinesError(null);
     
@@ -294,7 +305,7 @@ export default function DashboardPage() {
       setArbsProgress('Processing H2H results...');
       const arbsData: ArbsResponse = await arbsRes.json();
 
-      // Check for subscription required
+      // Check for subscription required (fallback - API also checks)
       if (arbsData.subscriptionRequired) {
         setIsLoadingArbs(false);
         setArbsProgress('');
@@ -418,7 +429,7 @@ export default function DashboardPage() {
       setIsLoadingArbs(false);
       setArbsProgress('');
     }
-  }, [filters, sports, fetchSports, showMiddles, selectedRegions]);
+  }, [filters, sports, fetchSports, showMiddles, selectedRegions, hasAccess]);
 
   const handleLogBet = (bet: Omit<PlacedBet, 'id' | 'createdAt'>) => {
     addBet(bet);
