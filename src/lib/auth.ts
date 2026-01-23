@@ -10,6 +10,9 @@ import User from '@/lib/models/User';
 const SESSION_MAX_AGE_REMEMBER = 63072000; // 24 months
 const SESSION_MAX_AGE_DEFAULT = 5184000;   // 60 days (2 months)
 
+// How often to refresh user data from DB (in seconds)
+const USER_DATA_REFRESH_INTERVAL = 300; // 5 minutes
+
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
@@ -71,45 +74,69 @@ export const authOptions: NextAuthOptions = {
       }
       return true;
     },
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
+      // Initial sign in - user object is available
       if (user) {
         token.id = user.id;
         // Set token expiration based on rememberMe preference
-        // For Google OAuth users, default to the longer session
         const rememberMe = (user as { rememberMe?: boolean }).rememberMe ?? true;
         const maxAge = rememberMe ? SESSION_MAX_AGE_REMEMBER : SESSION_MAX_AGE_DEFAULT;
         token.exp = Math.floor(Date.now() / 1000) + maxAge;
+        
+        // Fetch and cache user data on initial sign in
+        await dbConnect();
+        const dbUser = await User.findById(user.id);
+        if (dbUser) {
+          token.plan = dbUser.plan;
+          token.subscriptionStatus = dbUser.subscriptionStatus;
+          token.subscriptionEndsAt = dbUser.subscriptionEndsAt?.toISOString();
+          token.region = dbUser.region;
+          token.userDataFetchedAt = Date.now();
+        }
       }
+      
+      // Refresh user data periodically (every 5 minutes) or on manual trigger
+      const shouldRefresh = 
+        trigger === 'update' || 
+        !token.userDataFetchedAt ||
+        (Date.now() - (token.userDataFetchedAt as number)) > USER_DATA_REFRESH_INTERVAL * 1000;
+      
+      if (shouldRefresh && token.id) {
+        try {
+          await dbConnect();
+          const dbUser = await User.findById(token.id);
+          if (dbUser) {
+            token.plan = dbUser.plan;
+            token.subscriptionStatus = dbUser.subscriptionStatus;
+            token.subscriptionEndsAt = dbUser.subscriptionEndsAt?.toISOString();
+            token.region = dbUser.region;
+            token.userDataFetchedAt = Date.now();
+          }
+        } catch (error) {
+          // If refresh fails, keep using cached data
+          console.error('Failed to refresh user data:', error);
+        }
+      }
+      
       return token;
     },
     async session({ session, token }) {
+      // This callback now just maps token data to session - NO database calls
       if (session.user) {
         (session.user as { id: string }).id = token.id as string;
+        (session.user as { plan: string }).plan = (token.plan as string) || 'none';
+        (session.user as { subscriptionStatus: string }).subscriptionStatus = 
+          (token.subscriptionStatus as string) || 'inactive';
+        (session.user as { subscriptionEndsAt?: string }).subscriptionEndsAt = 
+          token.subscriptionEndsAt as string | undefined;
+        (session.user as { region: string }).region = (token.region as string) || 'AU';
         
-        await dbConnect();
-        const user = await User.findById(token.id);
-        
-        if (user) {
-          // Add subscription info to session
-          (session.user as { plan: string }).plan = user.plan;
-          (session.user as { subscriptionStatus: string }).subscriptionStatus = user.subscriptionStatus;
-          (session.user as { subscriptionEndsAt?: Date }).subscriptionEndsAt = user.subscriptionEndsAt;
-          (session.user as { region: string }).region = user.region;
-          
-          // Helper flag for easy access check - explicit boolean
-          const hasActiveSubscription = 
-            user.subscriptionStatus === 'active' && 
-            user.subscriptionEndsAt !== undefined &&
-            user.subscriptionEndsAt !== null &&
-            new Date(user.subscriptionEndsAt) > new Date();
-          (session.user as { hasAccess: boolean }).hasAccess = hasActiveSubscription;
-        } else {
-          // User not found in DB - set defaults
-          (session.user as { plan: string }).plan = 'none';
-          (session.user as { subscriptionStatus: string }).subscriptionStatus = 'inactive';
-          (session.user as { region: string }).region = 'AU';
-          (session.user as { hasAccess: boolean }).hasAccess = false;
-        }
+        // Calculate hasAccess from cached token data
+        const hasActiveSubscription: boolean = 
+          token.subscriptionStatus === 'active' && 
+          typeof token.subscriptionEndsAt === 'string' &&
+          new Date(token.subscriptionEndsAt) > new Date();
+        (session.user as { hasAccess: boolean }).hasAccess = hasActiveSubscription;
       }
       return session;
     },
@@ -120,7 +147,7 @@ export const authOptions: NextAuthOptions = {
   },
   session: {
     strategy: 'jwt',
-    maxAge: SESSION_MAX_AGE_REMEMBER, // Set to maximum; actual expiry controlled by JWT
+    maxAge: SESSION_MAX_AGE_REMEMBER,
   },
   secret: process.env.NEXTAUTH_SECRET,
 };
