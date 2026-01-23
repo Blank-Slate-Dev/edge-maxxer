@@ -58,6 +58,7 @@ const BOOKMAKER_URLS: Record<string, string> = {
   ladbrokes_au: "https://www.ladbrokes.com.au",
   neds: "https://www.neds.com.au",
   playup: "https://www.playup.com.au",
+  pointsbetau: "https://www.pointsbet.com.au",
   pointsbet_au: "https://www.pointsbet.com.au",
   sportsbet: "https://www.sportsbet.com.au",
   tab: "https://www.tab.com.au",
