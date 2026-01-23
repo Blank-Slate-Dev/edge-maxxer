@@ -6,24 +6,24 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useSession } from 'next-auth/react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { 
-  AuthModals, 
-  SportsbooksModal, 
+import {
+  AuthModals,
+  SportsbooksModal,
   useGeoRegion,
   LiveFeedPreview,
   StepsSection,
   FeaturesShowcase,
   TestimonialsSection,
   SportsbookSlider,
-  ProfitCounter
+  ProfitCounter,
 } from '@/components';
 import { CheckoutModal } from '@/components/CheckoutModal';
 import { ResponsibleGambling } from '@/components/ResponsibleGambling';
-import { 
-  Sun, 
-  Moon, 
-  ArrowRight, 
-  Check, 
+import {
+  Sun,
+  Moon,
+  ArrowRight,
+  Check,
   ChevronDown,
   Menu,
   X,
@@ -87,15 +87,19 @@ const FEATURES = [
 
 export default function LandingPage() {
   const { theme, toggleTheme } = useTheme();
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const [authModal, setAuthModal] = useState<AuthModalType>(null);
   const [sportsbooksOpen, setSportsbooksOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [pendingPlan, setPendingPlan] = useState<PlanType | null>(null);
   const [checkoutPlan, setCheckoutPlan] = useState<PlanType | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  
+
   const detectedRegion = useGeoRegion();
+
+  // Check if session is authenticated (handles both loaded and loading states gracefully)
+  const isAuthenticated = status === 'authenticated' && !!session;
+  const isLoading = status === 'loading';
 
   const handleSelectPlan = async (planId: PlanType) => {
     if (!session) {
@@ -108,7 +112,7 @@ export default function LandingPage() {
 
   const handleAuthClose = () => {
     setAuthModal(null);
-    
+
     if (pendingPlan && session) {
       setCheckoutPlan(pendingPlan);
       setPendingPlan(null);
@@ -125,16 +129,16 @@ export default function LandingPage() {
   };
 
   return (
-    <div 
+    <div
       className="min-h-screen overflow-x-hidden"
       style={{ backgroundColor: 'var(--background)' }}
     >
       {/* Navigation */}
-      <nav 
+      <nav
         className="fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-md"
-        style={{ 
+        style={{
           backgroundColor: 'color-mix(in srgb, var(--background) 80%, transparent)',
-          borderColor: 'var(--border)'
+          borderColor: 'var(--border)',
         }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
@@ -163,22 +167,22 @@ export default function LandingPage() {
 
             {/* Desktop Nav Links */}
             <div className="hidden md:flex items-center gap-6 lg:gap-8">
-              <a 
-                href="#features" 
+              <a
+                href="#features"
                 className="text-sm transition-colors hover:opacity-70"
                 style={{ color: 'var(--muted)' }}
               >
                 How it Works
               </a>
-              <a 
-                href="#pricing" 
+              <a
+                href="#pricing"
                 className="text-sm transition-colors hover:opacity-70"
                 style={{ color: 'var(--muted)' }}
               >
                 Pricing
               </a>
-              <a 
-                href="#faq" 
+              <a
+                href="#faq"
                 className="text-sm transition-colors hover:opacity-70"
                 style={{ color: 'var(--muted)' }}
               >
@@ -194,16 +198,35 @@ export default function LandingPage() {
                 style={{ color: 'var(--muted)' }}
                 aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
               >
-                {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                {theme === 'dark' ? (
+                  <Sun className="w-4 h-4" />
+                ) : (
+                  <Moon className="w-4 h-4" />
+                )}
               </button>
-              
-              {session ? (
+
+              {/* Auth buttons with loading state handling */}
+              {isLoading ? (
+                // Subtle placeholder during rare loading state - same size as Dashboard button
+                <div
+                  className="px-4 sm:px-5 py-2 sm:py-2.5 rounded-lg"
+                  style={{
+                    backgroundColor: 'var(--surface)',
+                    minWidth: '100px',
+                  }}
+                >
+                  <div
+                    className="h-5 w-16 animate-pulse rounded"
+                    style={{ backgroundColor: 'var(--border)' }}
+                  />
+                </div>
+              ) : isAuthenticated ? (
                 <Link
                   href="/dashboard"
                   className="px-4 sm:px-5 py-2 sm:py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
-                  style={{ 
+                  style={{
                     backgroundColor: '#14b8a6',
-                    color: '#fff'
+                    color: '#fff',
                   }}
                 >
                   Dashboard
@@ -220,9 +243,9 @@ export default function LandingPage() {
                   <button
                     onClick={() => setAuthModal('signup')}
                     className="px-4 sm:px-5 py-2 sm:py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
-                    style={{ 
+                    style={{
                       backgroundColor: '#14b8a6',
-                      color: '#fff'
+                      color: '#fff',
                     }}
                   >
                     <span className="hidden sm:inline">Join Now</span>
@@ -247,23 +270,23 @@ export default function LandingPage() {
 
       {/* Mobile Navigation Overlay */}
       {mobileNavOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-[60] md:hidden"
           onClick={() => setMobileNavOpen(false)}
         >
-          <div 
-            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-          />
-          <div 
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
             className="absolute top-0 right-0 bottom-0 w-[75%] max-w-xs"
             style={{ backgroundColor: 'var(--background)' }}
             onClick={(e) => e.stopPropagation()}
           >
-            <div 
+            <div
               className="flex items-center justify-between px-4 py-4 border-b"
               style={{ borderColor: 'var(--border)' }}
             >
-              <span className="font-medium" style={{ color: 'var(--foreground)' }}>Menu</span>
+              <span className="font-medium" style={{ color: 'var(--foreground)' }}>
+                Menu
+              </span>
               <button
                 onClick={() => setMobileNavOpen(false)}
                 className="p-2 rounded-lg"
@@ -295,7 +318,7 @@ export default function LandingPage() {
               >
                 FAQ
               </button>
-              {!session && (
+              {!isAuthenticated && !isLoading && (
                 <button
                   onClick={() => {
                     setMobileNavOpen(false);
@@ -315,21 +338,21 @@ export default function LandingPage() {
       {/* Hero Section */}
       <section className="pt-24 sm:pt-28 pb-12 sm:pb-16 relative overflow-x-hidden">
         <div className="absolute inset-0 hero-grid-pattern" />
-        
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 relative">
           <div className="grid lg:grid-cols-2 gap-8 lg:gap-8 items-start max-w-full lg:min-h-[700px]">
             {/* Left: Text Content */}
             <div className="w-full sm:max-w-xl lg:max-w-lg overflow-hidden">
               {/* Live badge */}
-              <div 
+              <div
                 className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-[9px] sm:text-[10px] md:text-xs font-medium mb-4 sm:mb-6 max-w-full"
-                style={{ 
+                style={{
                   backgroundColor: 'var(--surface)',
                   color: 'var(--muted)',
-                  border: '1px solid var(--border)'
+                  border: '1px solid var(--border)',
                 }}
               >
-                <span 
+                <span
                   className="w-2 h-2 rounded-full animate-pulse shrink-0"
                   style={{ backgroundColor: '#22c55e' }}
                 />
@@ -337,27 +360,28 @@ export default function LandingPage() {
               </div>
 
               {/* Headline - SEO optimized with H1 */}
-              <h1 
+              <h1
                 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold tracking-tight leading-[1.1] mb-4 sm:mb-6"
                 style={{ color: 'var(--foreground)' }}
               >
-                Beat the{' '}
-                <span className="gradient-text">House.</span>
+                Beat the <span className="gradient-text">House.</span>
               </h1>
-              
+
               {/* Subheadline */}
-              <p 
+              <p
                 className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold mb-3 sm:mb-4"
                 style={{ color: 'var(--foreground)' }}
               >
                 Stop Guessing. Start Profiting. Bet both sides—profit no matter the outcome.
               </p>
 
-              <p 
+              <p
                 className="text-sm sm:text-base mb-6 sm:mb-8 leading-relaxed"
                 style={{ color: 'var(--muted)' }}
               >
-                We spent years mastering arbitrage betting. We built the tool we always needed, now we&apos;re sharing it with you. Our software scans over 80 sportsbooks for profitable discrepancies 24/7.
+                We spent years mastering arbitrage betting. We built the tool we always needed,
+                now we&apos;re sharing it with you. Our software scans over 80 sportsbooks for
+                profitable discrepancies 24/7.
               </p>
 
               {/* CTA Buttons */}
@@ -365,19 +389,21 @@ export default function LandingPage() {
                 <button
                   onClick={() => handleSelectPlan('trial')}
                   className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-lg text-sm font-medium transition-all hover:opacity-90"
-                  style={{ 
+                  style={{
                     backgroundColor: '#14b8a6',
-                    color: '#fff'
+                    color: '#fff',
                   }}
                 >
                   Try for $2.99
                 </button>
+
+                {/* ✅ FIX: missing opening <a ...> caused the whole JSX to break */}
                 <a
                   href="#pricing"
                   className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-lg text-sm font-medium border transition-colors hover:bg-[var(--surface)]"
-                  style={{ 
+                  style={{
                     borderColor: 'var(--border)',
-                    color: 'var(--foreground)'
+                    color: 'var(--foreground)',
                   }}
                 >
                   View pricing
@@ -386,14 +412,14 @@ export default function LandingPage() {
               </div>
 
               {/* Profit Counter */}
-              <div 
+              <div
                 className="inline-flex flex-wrap items-center gap-1.5 sm:gap-2 md:gap-3 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg mb-8 sm:mb-10 max-w-full"
-                style={{ 
+                style={{
                   backgroundColor: 'var(--surface)',
-                  border: '1px solid var(--border)'
+                  border: '1px solid var(--border)',
                 }}
               >
-                <div 
+                <div
                   className="w-2 h-2 rounded-full animate-pulse shrink-0"
                   style={{ backgroundColor: '#22c55e' }}
                 />
@@ -414,13 +440,13 @@ export default function LandingPage() {
                   { value: '24/7', label: 'UPTIME' },
                 ].map((stat, i) => (
                   <div key={i}>
-                    <div 
+                    <div
                       className="text-lg sm:text-xl md:text-2xl lg:text-3xl font-bold mb-0.5"
                       style={{ color: 'var(--foreground)' }}
                     >
                       {stat.value}
                     </div>
-                    <div 
+                    <div
                       className="text-[8px] sm:text-[9px] md:text-[10px] tracking-wider"
                       style={{ color: 'var(--muted)' }}
                     >
@@ -432,11 +458,7 @@ export default function LandingPage() {
 
               {/* Sportsbook logos slider */}
               <div className="mb-4 overflow-hidden">
-                <SportsbookSlider 
-                  onViewAll={() => setSportsbooksOpen(true)} 
-                  compact 
-                  region={detectedRegion}
-                />
+                <SportsbookSlider onViewAll={() => setSportsbooksOpen(true)} compact region={detectedRegion} />
               </div>
             </div>
 
@@ -463,10 +485,7 @@ export default function LandingPage() {
       <section className="py-16 sm:py-20 px-4 sm:px-6 border-t" style={{ borderColor: 'var(--border)' }}>
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8 sm:mb-12">
-            <h2 
-              className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4"
-              style={{ color: 'var(--foreground)' }}
-            >
+            <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4" style={{ color: 'var(--foreground)' }}>
               Stop overpaying for arb software
             </h2>
             <p className="text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
@@ -476,11 +495,11 @@ export default function LandingPage() {
 
           <div className="grid sm:grid-cols-2 gap-4 sm:gap-6">
             {/* Competitors */}
-            <div 
+            <div
               className="p-4 sm:p-6 rounded-xl border"
-              style={{ 
+              style={{
                 backgroundColor: 'var(--surface)',
-                borderColor: 'var(--border)'
+                borderColor: 'var(--border)',
               }}
             >
               <div className="text-xs sm:text-sm font-medium mb-3 sm:mb-4" style={{ color: 'var(--muted)' }}>
@@ -488,33 +507,45 @@ export default function LandingPage() {
               </div>
               <div className="space-y-3 sm:space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>Monthly cost</span>
-                  <span className="font-medium line-through text-sm" style={{ color: 'var(--foreground)' }}>$150 - $350</span>
+                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
+                    Monthly cost
+                  </span>
+                  <span className="font-medium line-through text-sm" style={{ color: 'var(--foreground)' }}>
+                    $150 - $350
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>Typical arbs</span>
-                  <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>1-2% profit</span>
+                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
+                    Typical arbs
+                  </span>
+                  <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
+                    1-2% profit
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>Hidden API fees</span>
-                  <span className="font-medium text-sm" style={{ color: 'var(--danger)' }}>Always</span>
+                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
+                    Hidden API fees
+                  </span>
+                  <span className="font-medium text-sm" style={{ color: 'var(--danger)' }}>
+                    Always
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* Edge Maxxer */}
-            <div 
+            <div
               className="p-4 sm:p-6 rounded-xl border-2"
-              style={{ 
+              style={{
                 backgroundColor: 'var(--surface)',
-                borderColor: '#14b8a6'
+                borderColor: '#14b8a6',
               }}
             >
               <div className="flex items-center justify-between mb-3 sm:mb-4">
                 <div className="text-xs sm:text-sm font-medium" style={{ color: '#14b8a6' }}>
                   Edge Maxxer
                 </div>
-                <span 
+                <span
                   className="text-[10px] sm:text-xs px-2 py-0.5 rounded-full font-medium"
                   style={{ backgroundColor: '#14b8a6', color: '#fff' }}
                 >
@@ -523,16 +554,28 @@ export default function LandingPage() {
               </div>
               <div className="space-y-3 sm:space-y-4">
                 <div className="flex justify-between items-center">
-                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>Monthly cost</span>
-                  <span className="text-lg sm:text-xl font-semibold" style={{ color: '#22c55e' }}>$9.99</span>
+                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
+                    Monthly cost
+                  </span>
+                  <span className="text-lg sm:text-xl font-semibold" style={{ color: '#22c55e' }}>
+                    $9.99
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>Typical arbs</span>
-                  <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>5-7% profit</span>
+                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
+                    Typical arbs
+                  </span>
+                  <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
+                    5-7% profit
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>Hidden fees</span>
-                  <span className="font-medium text-sm" style={{ color: '#22c55e' }}>Never</span>
+                  <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
+                    Hidden fees
+                  </span>
+                  <span className="font-medium text-sm" style={{ color: '#22c55e' }}>
+                    Never
+                  </span>
                 </div>
               </div>
             </div>
@@ -541,13 +584,14 @@ export default function LandingPage() {
       </section>
 
       {/* Pricing */}
-      <section id="pricing" className="py-16 sm:py-20 px-4 sm:px-6 border-t" style={{ borderColor: 'var(--border)' }}>
+      <section
+        id="pricing"
+        className="py-16 sm:py-20 px-4 sm:px-6 border-t"
+        style={{ borderColor: 'var(--border)' }}
+      >
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-8 sm:mb-12">
-            <h2 
-              className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4"
-              style={{ color: 'var(--foreground)' }}
-            >
+            <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4" style={{ color: 'var(--foreground)' }}>
               Choose your plan
             </h2>
             <p className="text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
@@ -563,17 +607,17 @@ export default function LandingPage() {
                 className={`relative rounded-xl border overflow-hidden transition-all flex flex-col ${
                   plan.popular ? 'ring-2 ring-[#14b8a6]' : ''
                 }`}
-                style={{ 
+                style={{
                   backgroundColor: 'var(--surface)',
-                  borderColor: plan.popular ? '#14b8a6' : 'var(--border)'
+                  borderColor: plan.popular ? '#14b8a6' : 'var(--border)',
                 }}
               >
                 {plan.badge && (
-                  <div 
+                  <div
                     className="absolute top-3 sm:top-4 right-3 sm:right-4 px-2 py-0.5 sm:py-1 rounded-full text-[10px] sm:text-xs font-semibold z-10"
-                    style={{ 
+                    style={{
                       backgroundColor: plan.badgeColor || '#14b8a6',
-                      color: '#fff'
+                      color: '#fff',
                     }}
                   >
                     {plan.badge}
@@ -581,7 +625,7 @@ export default function LandingPage() {
                 )}
 
                 {plan.popular && (
-                  <div 
+                  <div
                     className="text-center py-1.5 sm:py-2 text-[10px] sm:text-xs font-medium"
                     style={{ backgroundColor: '#14b8a6', color: '#fff' }}
                   >
@@ -590,27 +634,18 @@ export default function LandingPage() {
                 )}
 
                 <div className="p-4 sm:p-6 flex flex-col flex-1">
-                  <h3 
-                    className="text-base sm:text-lg font-semibold mb-3 sm:mb-4"
-                    style={{ color: 'var(--foreground)' }}
-                  >
+                  <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4" style={{ color: 'var(--foreground)' }}>
                     {plan.name}
                   </h3>
 
                   <div className="mb-3 sm:mb-4">
                     <div className="flex items-baseline gap-1">
                       {plan.originalPrice && (
-                        <span 
-                          className="text-base sm:text-lg line-through"
-                          style={{ color: 'var(--muted)' }}
-                        >
+                        <span className="text-base sm:text-lg line-through" style={{ color: 'var(--muted)' }}>
                           ${plan.originalPrice}
                         </span>
                       )}
-                      <span 
-                        className="text-3xl sm:text-4xl font-bold"
-                        style={{ color: 'var(--foreground)' }}
-                      >
+                      <span className="text-3xl sm:text-4xl font-bold" style={{ color: 'var(--foreground)' }}>
                         ${plan.price}
                       </span>
                       <span className="text-sm" style={{ color: 'var(--muted)' }}>
@@ -624,10 +659,7 @@ export default function LandingPage() {
                     )}
                   </div>
 
-                  <p 
-                    className="text-xs sm:text-sm mb-4 sm:mb-6"
-                    style={{ color: 'var(--muted)' }}
-                  >
+                  <p className="text-xs sm:text-sm mb-4 sm:mb-6" style={{ color: 'var(--muted)' }}>
                     {plan.description}
                   </p>
 
@@ -636,10 +668,10 @@ export default function LandingPage() {
                   <button
                     onClick={() => handleSelectPlan(plan.id)}
                     className="w-full py-2.5 sm:py-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 hover:opacity-90"
-                    style={{ 
+                    style={{
                       backgroundColor: plan.popular ? '#14b8a6' : 'var(--background)',
                       color: plan.popular ? '#fff' : 'var(--foreground)',
-                      border: plan.popular ? 'none' : '1px solid var(--border)'
+                      border: plan.popular ? 'none' : '1px solid var(--border)',
                     }}
                   >
                     Get {plan.name}
@@ -650,17 +682,14 @@ export default function LandingPage() {
           </div>
 
           {/* Features list */}
-          <div 
+          <div
             className="rounded-xl border p-4 sm:p-6 lg:p-8"
-            style={{ 
+            style={{
               backgroundColor: 'var(--surface)',
-              borderColor: 'var(--border)'
+              borderColor: 'var(--border)',
             }}
           >
-            <h3 
-              className="text-base sm:text-lg font-semibold mb-4 sm:mb-6 text-center"
-              style={{ color: 'var(--foreground)' }}
-            >
+            <h3 className="text-base sm:text-lg font-semibold mb-4 sm:mb-6 text-center" style={{ color: 'var(--foreground)' }}>
               All plans include
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -675,10 +704,7 @@ export default function LandingPage() {
             </div>
           </div>
 
-          <p 
-            className="text-center text-xs sm:text-sm mt-4 sm:mt-6"
-            style={{ color: 'var(--muted)' }}
-          >
+          <p className="text-center text-xs sm:text-sm mt-4 sm:mt-6" style={{ color: 'var(--muted)' }}>
             Cancel anytime • Instant access • Secure payment via Stripe
           </p>
         </div>
@@ -688,10 +714,7 @@ export default function LandingPage() {
       <section id="faq" className="py-16 sm:py-20 px-4 sm:px-6 border-t" style={{ borderColor: 'var(--border)' }}>
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-8 sm:mb-12">
-            <h2 
-              className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4"
-              style={{ color: 'var(--foreground)' }}
-            >
+            <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4" style={{ color: 'var(--foreground)' }}>
               Frequently asked questions
             </h2>
           </div>
@@ -700,35 +723,35 @@ export default function LandingPage() {
             {[
               {
                 q: 'What is sports arbitrage?',
-                a: 'Arbitrage betting exploits odds differences between bookmakers to guarantee profit regardless of outcome. When bookmakers disagree on odds, you can bet both sides and lock in a profit.'
+                a: 'Arbitrage betting exploits odds differences between bookmakers to guarantee profit regardless of outcome. When bookmakers disagree on odds, you can bet both sides and lock in a profit.',
               },
               {
                 q: 'How much can I realistically make?',
-                a: 'Returns depend on your bankroll and activity. With a $1,000 bankroll, users typically see 3-5% monthly returns from arbitrage opportunities.'
+                a: 'Returns depend on your bankroll and activity. With a $1,000 bankroll, users typically see 3-5% monthly returns from arbitrage opportunities.',
               },
               {
                 q: 'Will I get limited by bookmakers?',
-                a: 'All profitable bettors face limiting eventually. Our stealth mode helps you stay under the radar longer by randomizing stakes and suggesting distribution strategies.'
+                a: 'All profitable bettors face limiting eventually. Our stealth mode helps you stay under the radar longer by randomizing stakes and suggesting distribution strategies.',
               },
               {
                 q: 'What is the BYOK model?',
-                a: 'Bring Your Own Key. You get a free API key from The Odds API, which lets us keep prices 10x lower than competitors who charge for API costs.'
+                a: 'Bring Your Own Key. You get a free API key from The Odds API, which lets us keep prices 10x lower than competitors who charge for API costs.',
               },
               {
                 q: 'Which bookmakers do you support?',
-                a: 'We scan 80+ bookmakers across Australia, UK, US, and EU including Sportsbet, TAB, Bet365, Ladbrokes, DraftKings, FanDuel, and many more.'
+                a: 'We scan 80+ bookmakers across Australia, UK, US, and EU including Sportsbet, TAB, Bet365, Ladbrokes, DraftKings, FanDuel, and many more.',
               },
               {
                 q: 'What happens after my 3-day trial?',
-                a: 'The 3-day trial is a one-time payment with no automatic renewal. After 3 days, you can choose to subscribe to our monthly or yearly plan to continue using the service.'
+                a: "The 3-day trial is a one-time payment with no automatic renewal. After 3 days, you can choose to subscribe to our monthly or yearly plan to continue using the service.",
               },
             ].map((faq, i) => (
-              <div 
+              <div
                 key={i}
                 className="rounded-lg border overflow-hidden"
-                style={{ 
+                style={{
                   backgroundColor: openFaq === i ? 'var(--surface)' : 'transparent',
-                  borderColor: 'var(--border)'
+                  borderColor: 'var(--border)',
                 }}
               >
                 <button
@@ -739,13 +762,13 @@ export default function LandingPage() {
                   <span className="font-medium text-sm sm:text-base pr-4" style={{ color: 'var(--foreground)' }}>
                     {faq.q}
                   </span>
-                  <ChevronDown 
+                  <ChevronDown
                     className={`w-4 h-4 shrink-0 transition-transform ${openFaq === i ? 'rotate-180' : ''}`}
                     style={{ color: 'var(--muted)' }}
                   />
                 </button>
                 {openFaq === i && (
-                  <div 
+                  <div
                     className="px-3 sm:px-4 pb-3 sm:pb-4 text-xs sm:text-sm leading-relaxed"
                     style={{ color: 'var(--muted)' }}
                   >
@@ -759,15 +782,9 @@ export default function LandingPage() {
       </section>
 
       {/* CTA */}
-      <section 
-        className="py-16 sm:py-20 px-4 sm:px-6 border-t"
-        style={{ borderColor: 'var(--border)' }}
-      >
+      <section className="py-16 sm:py-20 px-4 sm:px-6 border-t" style={{ borderColor: 'var(--border)' }}>
         <div className="max-w-2xl mx-auto text-center">
-          <h2 
-            className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4"
-            style={{ color: 'var(--foreground)' }}
-          >
+          <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4" style={{ color: 'var(--foreground)' }}>
             Ready to find your edge?
           </h2>
           <p className="mb-6 sm:mb-8 text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
@@ -776,9 +793,9 @@ export default function LandingPage() {
           <button
             onClick={() => handleSelectPlan('trial')}
             className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-lg text-sm font-medium transition-all hover:opacity-90 hover:gap-3"
-            style={{ 
+            style={{
               backgroundColor: '#14b8a6',
-              color: '#fff'
+              color: '#fff',
             }}
           >
             Try for $2.99
@@ -788,10 +805,7 @@ export default function LandingPage() {
       </section>
 
       {/* Footer */}
-      <footer 
-        className="py-8 sm:py-12 px-4 sm:px-6 border-t"
-        style={{ borderColor: 'var(--border)' }}
-      >
+      <footer className="py-8 sm:py-12 px-4 sm:px-6 border-t" style={{ borderColor: 'var(--border)' }}>
         <div className="max-w-6xl mx-auto">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
             <div className="flex items-center">
@@ -811,9 +825,15 @@ export default function LandingPage() {
               />
             </div>
             <div className="flex items-center gap-4 sm:gap-6 text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
-              <Link href="/terms" className="hover:opacity-70 transition-opacity">Terms</Link>
-              <Link href="/privacy" className="hover:opacity-70 transition-opacity">Privacy</Link>
-              <a href="mailto:support@edgemaxxer.com" className="hover:opacity-70 transition-opacity">Contact</a>
+              <Link href="/terms" className="hover:opacity-70 transition-opacity">
+                Terms
+              </Link>
+              <Link href="/privacy" className="hover:opacity-70 transition-opacity">
+                Privacy
+              </Link>
+              <a href="mailto:support@edgemaxxer.com" className="hover:opacity-70 transition-opacity">
+                Contact
+              </a>
             </div>
           </div>
           <div className="text-center mt-6 sm:mt-8">
@@ -828,8 +848,8 @@ export default function LandingPage() {
       <ResponsibleGambling />
 
       {/* Modals */}
-      <AuthModals 
-        isOpen={authModal} 
+      <AuthModals
+        isOpen={authModal}
         onClose={handleAuthClose}
         onSwitch={setAuthModal}
         onAuthSuccess={() => {
@@ -841,18 +861,14 @@ export default function LandingPage() {
           }
         }}
       />
-      
-      <SportsbooksModal 
+
+      <SportsbooksModal
         isOpen={sportsbooksOpen}
         onClose={() => setSportsbooksOpen(false)}
         detectedRegion={detectedRegion}
       />
 
-      <CheckoutModal
-        isOpen={checkoutPlan !== null}
-        onClose={handleCheckoutClose}
-        plan={checkoutPlan}
-      />
+      <CheckoutModal isOpen={checkoutPlan !== null} onClose={handleCheckoutClose} plan={checkoutPlan} />
     </div>
   );
 }

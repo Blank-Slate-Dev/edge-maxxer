@@ -1,6 +1,8 @@
 // src/app/layout.tsx
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import AuthProvider from '@/components/AuthProvider';
 import './globals.css';
@@ -290,11 +292,14 @@ const faqSchema = {
   ],
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  // Prefetch session server-side to avoid client-side loading delay
+  const session = await getServerSession(authOptions);
+
   return (
     <html lang="en-AU" className={inter.variable} suppressHydrationWarning>
       <head>
@@ -332,7 +337,7 @@ export default function RootLayout({
         />
       </head>
       <body className={`${inter.className} antialiased overflow-x-hidden`}>
-        <AuthProvider>
+        <AuthProvider session={session}>
           <ThemeProvider>
             {children}
           </ThemeProvider>
