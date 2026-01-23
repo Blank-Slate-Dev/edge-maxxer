@@ -4,7 +4,8 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronUp, Plus, Trash2, Wallet, ArrowUpRight, ArrowDownLeft, Gift } from 'lucide-react';
 import type { BookmakerAccount, Transaction, AccountSummary } from '@/lib/accounts';
-import { BOOKMAKERS, generateTransactionId, calculateAccountSummaries, getTotalBankroll } from '@/lib/accounts';
+import { getBookmakersForRegion, getBookmakerName, generateTransactionId, calculateAccountSummaries, getTotalBankroll } from '@/lib/accounts';
+import type { DisplayRegion } from '@/lib/bookmakers';
 
 interface AccountsManagerProps {
   accounts: BookmakerAccount[];
@@ -12,6 +13,7 @@ interface AccountsManagerProps {
   onToggleAccount: (bookmaker: string) => void;
   onAddTransaction: (transaction: Transaction) => void;
   onDeleteTransaction: (id: string) => void;
+  region?: DisplayRegion;
 }
 
 export function AccountsManager({
@@ -20,6 +22,7 @@ export function AccountsManager({
   onToggleAccount,
   onAddTransaction,
   onDeleteTransaction,
+  region = 'AU',
 }: AccountsManagerProps) {
   const [isAccountsExpanded, setIsAccountsExpanded] = useState(false);
   const [isAddingTransaction, setIsAddingTransaction] = useState(false);
@@ -34,6 +37,9 @@ export function AccountsManager({
     amount: '',
     note: '',
   });
+
+  // Get bookmakers for the user's selected region
+  const regionBookmakers = getBookmakersForRegion(region);
 
   const activeAccounts = accounts.filter(a => a.isActive);
   const summaries = calculateAccountSummaries(accounts, transactions);
@@ -125,10 +131,10 @@ export function AccountsManager({
             style={{ borderColor: 'var(--border)' }}
           >
             <p className="text-xs py-3" style={{ color: 'var(--muted)' }}>
-              Select the bookmakers you have accounts with. This helps track your bankroll across platforms.
+              Select the bookmakers you have accounts with ({region} region). This helps track your bankroll across platforms.
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
-              {BOOKMAKERS.map(bookie => {
+              {regionBookmakers.map(bookie => {
                 const isActive = accounts.find(a => a.bookmaker === bookie.key)?.isActive ?? false;
                 return (
                   <button
@@ -177,7 +183,7 @@ export function AccountsManager({
               >
                 <div>
                   <div className="font-medium" style={{ color: 'var(--foreground)' }}>
-                    {BOOKMAKERS.find(b => b.key === summary.bookmaker)?.name || summary.bookmaker}
+                    {getBookmakerName(summary.bookmaker)}
                   </div>
                   <div className="text-xs" style={{ color: 'var(--muted)' }}>
                     {summary.transactionCount} transactions
@@ -255,7 +261,7 @@ export function AccountsManager({
                   <option value="">Select...</option>
                   {activeAccounts.map(acc => (
                     <option key={acc.bookmaker} value={acc.bookmaker}>
-                      {BOOKMAKERS.find(b => b.key === acc.bookmaker)?.name || acc.bookmaker}
+                      {getBookmakerName(acc.bookmaker)}
                     </option>
                   ))}
                 </select>
@@ -269,7 +275,7 @@ export function AccountsManager({
                 </label>
                 <select
                   value={newTransaction.type}
-                  onChange={e => setNewTransaction(prev => ({ ...prev, type: e.target.value as any }))}
+                  onChange={e => setNewTransaction(prev => ({ ...prev, type: e.target.value as 'deposit' | 'withdrawal' | 'bonus' }))}
                   className="w-full px-3 py-2 text-sm focus:outline-none rounded"
                   style={{
                     backgroundColor: 'var(--surface)',
@@ -399,7 +405,7 @@ export function AccountsManager({
                   </div>
                   <div>
                     <div className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
-                      {BOOKMAKERS.find(b => b.key === txn.bookmaker)?.name || txn.bookmaker}
+                      {getBookmakerName(txn.bookmaker)}
                     </div>
                     <div className="text-xs" style={{ color: 'var(--muted)' }}>
                       {txn.type.charAt(0).toUpperCase() + txn.type.slice(1)}

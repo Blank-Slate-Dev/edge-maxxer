@@ -1,5 +1,7 @@
 // src/lib/accounts.ts
 
+import { BOOKMAKERS as ALL_BOOKMAKERS, getBookmakersByDisplayRegion, type DisplayRegion } from './bookmakers';
+
 export interface BookmakerAccount {
   id: string;
   bookmaker: string;
@@ -26,30 +28,29 @@ export interface AccountSummary {
   transactionCount: number;
 }
 
-// All Australian bookmakers
-export const BOOKMAKERS = [
-  { key: 'sportsbet', name: 'Sportsbet' },
-  { key: 'tab', name: 'TAB' },
-  { key: 'pointsbet', name: 'PointsBet' },
-  { key: 'unibet', name: 'Unibet' },
-  { key: 'neds', name: 'Neds' },
-  { key: 'ladbrokes', name: 'Ladbrokes' },
-  { key: 'betfair', name: 'Betfair' },
-  { key: 'bet365', name: 'Bet365' },
-  { key: 'bluebet', name: 'BlueBet' },
-  { key: 'topsport', name: 'TopSport' },
-  { key: 'betr', name: 'Betr' },
-  { key: 'playup', name: 'PlayUp' },
-  { key: 'betright', name: 'BetRight' },
-  { key: 'palmerbet', name: 'Palmerbet' },
-  { key: 'boombet', name: 'Boombet' },
-  { key: 'betm', name: 'BetM' },
-  { key: 'dabble', name: 'Dabble' },
-  { key: 'picklebet', name: 'Picklebet' },
-  { key: '1xbet', name: '1xBet' },
-  { key: 'matchbook', name: 'Matchbook' },
-  { key: 'pinnacle', name: 'Pinnacle' },
-] as const;
+// Legacy BOOKMAKERS export for backward compatibility (defaults to AU)
+// Components should prefer getBookmakersForRegion() for region-aware lists
+export const BOOKMAKERS = ALL_BOOKMAKERS
+  .filter(b => b.region === 'AU')
+  .map(b => ({ key: b.key, name: b.name }));
+
+/**
+ * Get bookmakers for a specific region
+ * Returns array of { key, name } for use in AccountsManager
+ */
+export function getBookmakersForRegion(region: DisplayRegion): { key: string; name: string }[] {
+  const bookmakers = getBookmakersByDisplayRegion(region);
+  return bookmakers.map(b => ({ key: b.key, name: b.name }));
+}
+
+/**
+ * Get bookmaker display name by key
+ * Searches all bookmakers regardless of region
+ */
+export function getBookmakerName(key: string): string {
+  const bookmaker = ALL_BOOKMAKERS.find(b => b.key === key);
+  return bookmaker?.name || key;
+}
 
 export function generateTransactionId(): string {
   return `txn_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;

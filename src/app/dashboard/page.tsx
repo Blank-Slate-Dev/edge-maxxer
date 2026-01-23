@@ -841,6 +841,7 @@ export default function DashboardPage() {
             onToggleAccount={toggleAccount}
             onAddTransaction={addTransaction}
             onDeleteTransaction={deleteTransaction}
+            region={userDefaultRegion}
           />
         )}
       </main>
