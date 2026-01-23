@@ -4,6 +4,7 @@
 import type { SpreadArb, MiddleOpportunity } from '@/lib/types';
 import { getBookmakerName, getBookmakerRegion } from '@/lib/config';
 import { buildBookmakerSearchUrl } from '@/lib/bookmakerLinks';
+import { BookLogo } from './BookLogo';
 
 interface SpreadsTableProps {
   spreads: SpreadArb[];
@@ -339,20 +340,26 @@ function MiddleCard({ middle, onSelect, globalMode }: { middle: MiddleOpportunit
 
       {/* Bets */}
       <div className="px-3 py-2 space-y-2 text-xs">
-        <div className="flex items-center justify-between flex-wrap gap-1">
-          <div className="flex items-center gap-1">
-            <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side1.point > 0 ? '+' : ''}{middle.side1.point}</span>
-            <span style={{ color: 'var(--muted)' }}>@ {middle.side1.odds.toFixed(2)}</span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <BookLogo bookKey={middle.side1.bookmaker} size={20} />
+            <div className="flex items-center gap-1">
+              <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side1.point > 0 ? '+' : ''}{middle.side1.point}</span>
+              <span style={{ color: 'var(--muted)' }}>@ {middle.side1.odds.toFixed(2)}</span>
+            </div>
           </div>
           <div className="flex items-center gap-1">
             <span style={{ color: 'var(--muted-foreground)' }}>{getBookmakerName(middle.side1.bookmaker)}</span>
             {globalMode && <RegionBadge bookmaker={middle.side1.bookmaker} />}
           </div>
         </div>
-        <div className="flex items-center justify-between flex-wrap gap-1">
-          <div className="flex items-center gap-1">
-            <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side2.point > 0 ? '+' : ''}{middle.side2.point}</span>
-            <span style={{ color: 'var(--muted)' }}>@ {middle.side2.odds.toFixed(2)}</span>
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <BookLogo bookKey={middle.side2.bookmaker} size={20} />
+            <div className="flex items-center gap-1">
+              <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side2.point > 0 ? '+' : ''}{middle.side2.point}</span>
+              <span style={{ color: 'var(--muted)' }}>@ {middle.side2.odds.toFixed(2)}</span>
+            </div>
           </div>
           <div className="flex items-center gap-1">
             <span style={{ color: 'var(--muted-foreground)' }}>{getBookmakerName(middle.side2.bookmaker)}</span>
@@ -413,25 +420,28 @@ function BetLineMobile({
   }) ?? undefined;
 
   return (
-    <div className="flex items-center justify-between">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span className="font-mono text-sm" style={{ color: 'var(--foreground)' }}>{point > 0 ? '+' : ''}{point}</span>
-          <span className="text-sm truncate" style={{ color: 'var(--muted)' }}>{name}</span>
-        </div>
-        <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:underline"
-          >
-            {getBookmakerName(bookmaker)}
-          </a>
-          {showRegion && <RegionBadge bookmaker={bookmaker} />}
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2 min-w-0 flex-1">
+        <BookLogo bookKey={bookmaker} size={24} />
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-sm" style={{ color: 'var(--foreground)' }}>{point > 0 ? '+' : ''}{point}</span>
+            <span className="text-sm truncate" style={{ color: 'var(--muted)' }}>{name}</span>
+          </div>
+          <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:underline"
+            >
+              {getBookmakerName(bookmaker)}
+            </a>
+            {showRegion && <RegionBadge bookmaker={bookmaker} />}
+          </div>
         </div>
       </div>
-      <span className="font-mono text-sm shrink-0 ml-2" style={{ color: 'var(--muted)' }}>@ {odds.toFixed(2)}</span>
+      <span className="font-mono text-sm shrink-0" style={{ color: 'var(--muted)' }}>@ {odds.toFixed(2)}</span>
     </div>
   );
 }
@@ -539,18 +549,24 @@ function MiddleRow({ middle, onSelect, globalMode }: { middle: MiddleOpportunity
         </div>
       </td>
       <td className="px-4 py-3">
-        <div className="space-y-1 text-xs">
-          <div className="flex items-center gap-1 flex-wrap">
-            <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side1.point > 0 ? '+' : ''}{middle.side1.point}</span>
-            <span style={{ color: 'var(--muted)' }}>@ {middle.side1.odds.toFixed(2)}</span>
-            <span style={{ color: 'var(--muted-foreground)' }}>({getBookmakerName(middle.side1.bookmaker)})</span>
-            {globalMode && <RegionBadge bookmaker={middle.side1.bookmaker} />}
+        <div className="space-y-2 text-xs">
+          <div className="flex items-center gap-2">
+            <BookLogo bookKey={middle.side1.bookmaker} size={24} />
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side1.point > 0 ? '+' : ''}{middle.side1.point}</span>
+              <span style={{ color: 'var(--muted)' }}>@ {middle.side1.odds.toFixed(2)}</span>
+              <span style={{ color: 'var(--muted-foreground)' }}>({getBookmakerName(middle.side1.bookmaker)})</span>
+              {globalMode && <RegionBadge bookmaker={middle.side1.bookmaker} />}
+            </div>
           </div>
-          <div className="flex items-center gap-1 flex-wrap">
-            <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side2.point > 0 ? '+' : ''}{middle.side2.point}</span>
-            <span style={{ color: 'var(--muted)' }}>@ {middle.side2.odds.toFixed(2)}</span>
-            <span style={{ color: 'var(--muted-foreground)' }}>({getBookmakerName(middle.side2.bookmaker)})</span>
-            {globalMode && <RegionBadge bookmaker={middle.side2.bookmaker} />}
+          <div className="flex items-center gap-2">
+            <BookLogo bookKey={middle.side2.bookmaker} size={24} />
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side2.point > 0 ? '+' : ''}{middle.side2.point}</span>
+              <span style={{ color: 'var(--muted)' }}>@ {middle.side2.odds.toFixed(2)}</span>
+              <span style={{ color: 'var(--muted-foreground)' }}>({getBookmakerName(middle.side2.bookmaker)})</span>
+              {globalMode && <RegionBadge bookmaker={middle.side2.bookmaker} />}
+            </div>
           </div>
         </div>
       </td>
@@ -603,23 +619,26 @@ function BetLine({
   }) ?? undefined;
 
   return (
-    <div>
-      <div className="flex items-center gap-2">
-        <span className="font-mono" style={{ color: 'var(--foreground)' }}>{point > 0 ? '+' : ''}{point}</span>
-        <span style={{ color: 'var(--muted)' }}>@ {odds.toFixed(2)}</span>
-      </div>
-      <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-        <span>{name}</span>
-        <a
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline decoration-dotted underline-offset-2 hover:opacity-80"
-          title="Open bookmaker search in new tab"
-        >
-          ({getBookmakerName(bookmaker)})
-        </a>
-        {showRegion && <RegionBadge bookmaker={bookmaker} />}
+    <div className="flex items-center gap-2">
+      <BookLogo bookKey={bookmaker} size={28} />
+      <div>
+        <div className="flex items-center gap-2">
+          <span className="font-mono" style={{ color: 'var(--foreground)' }}>{point > 0 ? '+' : ''}{point}</span>
+          <span style={{ color: 'var(--muted)' }}>@ {odds.toFixed(2)}</span>
+        </div>
+        <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+          <span>{name}</span>
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline decoration-dotted underline-offset-2 hover:opacity-80"
+            title="Open bookmaker search in new tab"
+          >
+            ({getBookmakerName(bookmaker)})
+          </a>
+          {showRegion && <RegionBadge bookmaker={bookmaker} />}
+        </div>
       </div>
     </div>
   );

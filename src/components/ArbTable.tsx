@@ -4,6 +4,7 @@
 import type { ArbOpportunity } from '@/lib/types';
 import { getBookmakerName, getBookmakerRegion } from '@/lib/config';
 import { buildBookmakerSearchUrl } from '@/lib/bookmakerLinks';
+import { BookLogo } from './BookLogo';
 
 interface ArbTableProps {
   opportunities: ArbOpportunity[];
@@ -230,9 +231,12 @@ function ArbCard({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect:
               event={opp.event}
             />
             <div className="flex items-center justify-between">
-              <div>
-                <span className="text-purple-400 text-xs">Lay</span>
-                <span className="text-[10px] ml-1" style={{ color: 'var(--muted-foreground)' }}>Betfair</span>
+              <div className="flex items-center gap-2">
+                <BookLogo bookKey="betfair_ex_au" size={20} />
+                <div>
+                  <span className="text-purple-400 text-xs">Lay</span>
+                  <span className="text-[10px] ml-1" style={{ color: 'var(--muted-foreground)' }}>Betfair</span>
+                </div>
               </div>
               <span className="font-mono text-sm" style={{ color: 'var(--foreground)' }}>{opp.layOutcome.odds.toFixed(2)}</span>
             </div>
@@ -279,17 +283,20 @@ function BetLineMobile({
   }) ?? undefined;
 
   return (
-    <div className="flex items-center justify-between">
-      <div className="min-w-0">
-        <div className="font-medium text-sm truncate" style={{ color: 'var(--foreground)' }}>{name}</div>
-        <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
-          <a href={href} target="_blank" rel="noreferrer" className="hover:underline truncate">
-            {getBookmakerName(bookmaker)}
-          </a>
-          {showRegion && <RegionBadge bookmaker={bookmaker} />}
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2 min-w-0">
+        <BookLogo bookKey={bookmaker} size={24} />
+        <div className="min-w-0">
+          <div className="font-medium text-sm truncate" style={{ color: 'var(--foreground)' }}>{name}</div>
+          <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+            <a href={href} target="_blank" rel="noreferrer" className="hover:underline truncate">
+              {getBookmakerName(bookmaker)}
+            </a>
+            {showRegion && <RegionBadge bookmaker={bookmaker} />}
+          </div>
         </div>
       </div>
-      <span className="font-mono text-sm font-medium shrink-0 ml-2" style={{ color: 'var(--foreground)' }}>{odds.toFixed(2)}</span>
+      <span className="font-mono text-sm font-medium shrink-0" style={{ color: 'var(--foreground)' }}>{odds.toFixed(2)}</span>
     </div>
   );
 }
@@ -362,12 +369,15 @@ function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: 
               showRegion={globalMode}
               event={opp.event}
             />
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-purple-400">Lay</span>
-                <span className="font-mono" style={{ color: 'var(--foreground)' }}>{opp.layOutcome.odds.toFixed(2)}</span>
+            <div className="flex items-center gap-2">
+              <BookLogo bookKey="betfair_ex_au" size={24} />
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-purple-400">Lay</span>
+                  <span className="font-mono" style={{ color: 'var(--foreground)' }}>{opp.layOutcome.odds.toFixed(2)}</span>
+                </div>
+                <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Betfair Exchange</div>
               </div>
-              <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Betfair Exchange</div>
             </div>
           </div>
         )}
@@ -418,22 +428,25 @@ function BetLine({
   }) ?? undefined;
 
   return (
-    <div>
-      <div className="flex items-center gap-2">
-        <span className="font-medium" style={{ color: 'var(--foreground)' }}>{name}</span>
-        <span className="font-mono" style={{ color: 'var(--foreground)' }}>{odds.toFixed(2)}</span>
-      </div>
-      <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-        <a
-          href={href}
-          target="_blank"
-          rel="noreferrer"
-          className="hover:underline"
-          title="Open bookmaker search for this event"
-        >
-          {getBookmakerName(bookmaker)}
-        </a>
-        {showRegion && <RegionBadge bookmaker={bookmaker} />}
+    <div className="flex items-center gap-2">
+      <BookLogo bookKey={bookmaker} size={28} />
+      <div>
+        <div className="flex items-center gap-2">
+          <span className="font-medium" style={{ color: 'var(--foreground)' }}>{name}</span>
+          <span className="font-mono" style={{ color: 'var(--foreground)' }}>{odds.toFixed(2)}</span>
+        </div>
+        <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+          <a
+            href={href}
+            target="_blank"
+            rel="noreferrer"
+            className="hover:underline"
+            title="Open bookmaker search for this event"
+          >
+            {getBookmakerName(bookmaker)}
+          </a>
+          {showRegion && <RegionBadge bookmaker={bookmaker} />}
+        </div>
       </div>
     </div>
   );

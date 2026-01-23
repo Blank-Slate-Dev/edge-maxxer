@@ -6,6 +6,7 @@ export { ArbTable } from './ArbTable';
 export { AuthModals } from './AuthModals';
 export { default as AuthProvider } from './AuthProvider';
 export { BetTracker } from './BetTracker';
+export { BookLogo } from './BookLogo';
 export { FeaturesShowcase } from './FeaturesShowcase';
 export { Flag } from './Flag';
 export { Header } from './Header';

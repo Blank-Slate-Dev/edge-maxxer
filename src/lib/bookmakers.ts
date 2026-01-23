@@ -128,9 +128,89 @@ export const BOOKMAKER_MAP: Record<string, BookmakerConfig> = BOOKMAKERS.reduce(
   {} as Record<string, BookmakerConfig>
 );
 
+// Create a reverse lookup map by display name (lowercase)
+const BOOKMAKER_BY_NAME: Record<string, BookmakerConfig> = BOOKMAKERS.reduce(
+  (acc, book) => {
+    acc[book.name.toLowerCase()] = book;
+    return acc;
+  },
+  {} as Record<string, BookmakerConfig>
+);
+
+// Additional name aliases for common variations from the API
+const NAME_ALIASES: Record<string, string> = {
+  // AU variations
+  'pointsbet (au)': 'pointsbetau',
+  'pointsbet': 'pointsbetau',
+  'ladbrokes': 'ladbrokes_au',
+  'betfair': 'betfair_ex_au',
+  'betfair exchange': 'betfair_ex_au',
+  'bet365': 'bet365_au',
+  'unibet': 'unibet',
+  'tab': 'tab',
+  'neds': 'neds',
+  'sportsbet': 'sportsbet',
+  'betr': 'betr_au',
+  'playup': 'playup',
+  'betright': 'betright',
+  'bet right': 'betright',
+  'boombet': 'boombet',
+  'tabtouch': 'tabtouch',
+  'dabble': 'dabble_au',
+  // UK
+  'william hill': 'williamhill',
+  'paddy power': 'paddypower',
+  'sky bet': 'skybet',
+  '888sport': 'sport888',
+  // US
+  'draftkings': 'draftkings',
+  'fanduel': 'fanduel',
+  'betmgm': 'betmgm',
+  'caesars': 'williamhill_us',
+  'espn bet': 'espnbet',
+  'hard rock bet': 'hardrockbet',
+  // EU
+  'pinnacle': 'pinnacle',
+  '1xbet': 'onexbet',
+  'marathon bet': 'marathonbet',
+  'marathonbet': 'marathonbet',
+};
+
 // Get bookmaker by key with fallback
 export function getBookmaker(key: string): BookmakerConfig | undefined {
   return BOOKMAKER_MAP[key];
+}
+
+/**
+ * Get bookmaker by key OR display name
+ * Handles both API keys (e.g., 'tab') and display names (e.g., 'TAB', 'PointsBet (AU)')
+ */
+export function getBookmakerByKeyOrName(keyOrName: string): BookmakerConfig | undefined {
+  // First try direct key lookup
+  if (BOOKMAKER_MAP[keyOrName]) {
+    return BOOKMAKER_MAP[keyOrName];
+  }
+  
+  // Normalize to lowercase
+  const normalized = keyOrName.toLowerCase().trim();
+  
+  // Try alias lookup
+  if (NAME_ALIASES[normalized] && BOOKMAKER_MAP[NAME_ALIASES[normalized]]) {
+    return BOOKMAKER_MAP[NAME_ALIASES[normalized]];
+  }
+  
+  // Try name lookup
+  if (BOOKMAKER_BY_NAME[normalized]) {
+    return BOOKMAKER_BY_NAME[normalized];
+  }
+  
+  // Try partial match on key (e.g., 'tab' matches 'tab')
+  const keyMatch = BOOKMAKERS.find(b => b.key.toLowerCase() === normalized);
+  if (keyMatch) {
+    return keyMatch;
+  }
+  
+  return undefined;
 }
 
 // Get bookmakers by display region (for UI grouping)
