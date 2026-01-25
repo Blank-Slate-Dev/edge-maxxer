@@ -374,6 +374,7 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {/* No active plan - show View Plans */}
               {!subscriptionInfo.hasAccess && (
                 <Link
                   href="/#pricing"
@@ -386,6 +387,33 @@ export default function SettingsPage() {
                   View Plans
                   <ExternalLink className="w-4 h-4" />
                 </Link>
+              )}
+
+              {/* Trial user - show Upgrade option */}
+              {subscriptionInfo.hasAccess && user?.plan === 'trial' && (
+                <div className="space-y-3">
+                  <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                    Enjoying your trial? Upgrade now to keep access.
+                  </p>
+                  <Link
+                    href="/#pricing"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
+                    style={{
+                      backgroundColor: '#14b8a6',
+                      color: '#fff'
+                    }}
+                  >
+                    Upgrade Plan
+                    <ExternalLink className="w-4 h-4" />
+                  </Link>
+                </div>
+              )}
+
+              {/* Active monthly/yearly subscriber - show manage option */}
+              {subscriptionInfo.hasAccess && (user?.plan === 'monthly' || user?.plan === 'yearly') && (
+                <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                  To manage your subscription or update payment details, contact support.
+                </p>
               )}
             </div>
           </section>

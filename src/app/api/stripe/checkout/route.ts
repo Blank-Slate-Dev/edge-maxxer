@@ -59,12 +59,28 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if user already has an active subscription
-    if (user.subscriptionStatus === 'active' && user.subscriptionEndsAt && new Date(user.subscriptionEndsAt) > new Date()) {
-      return NextResponse.json(
-        { error: 'You already have an active subscription' },
-        { status: 400 }
-      );
+    // Check subscription status and handle upgrades
+    const hasActiveSubscription = user.subscriptionStatus === 'active' && 
+      user.subscriptionEndsAt && 
+      new Date(user.subscriptionEndsAt) > new Date();
+
+    if (hasActiveSubscription) {
+      // Trial users can upgrade to monthly/yearly, but not buy another trial
+      if (user.plan === 'trial') {
+        if (plan === 'trial') {
+          return NextResponse.json(
+            { error: 'You already have an active trial' },
+            { status: 400 }
+          );
+        }
+        // Allow trial users to upgrade - continue with checkout
+      } else {
+        // Monthly/yearly subscribers cannot purchase another subscription
+        return NextResponse.json(
+          { error: 'You already have an active subscription. Manage it in your account settings.' },
+          { status: 400 }
+        );
+      }
     }
 
     const selectedPlan = PLANS[plan];
