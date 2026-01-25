@@ -1,8 +1,8 @@
 // src/app/dashboard/page.tsx
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
-import { Globe, Loader2 } from 'lucide-react';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { Globe, Loader2, X } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal, Flag, SubscriptionRequiredModal } from '@/components';
 import { useBets } from '@/hooks/useBets';
@@ -192,6 +192,9 @@ export default function DashboardPage() {
   // Subscription modal state
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
 
+  // AbortController for canceling scans
+  const abortControllerRef = useRef<AbortController | null>(null);
+
   const { bets, isLoaded: betsLoaded, addBet, updateBet, deleteBet, clearAllBets } = useBets();
   const { 
     accounts, 
@@ -260,12 +263,33 @@ export default function DashboardPage() {
     }
   }, []);
 
+  // Cancel scan function
+  const cancelScan = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+    setIsLoadingArbs(false);
+    setIsLoadingLines(false);
+    setArbsProgress('');
+    setLinesProgress('');
+  }, []);
+
   const fetchArbs = useCallback(async (quickScan: boolean = false) => {
     // ✅ CHECK SUBSCRIPTION BEFORE ANY SCAN ATTEMPT
     if (!hasAccess) {
       setShowSubscriptionModal(true);
       return; // Don't proceed with scan
     }
+
+    // Cancel any existing scan
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    // Create new AbortController for this scan
+    abortControllerRef.current = new AbortController();
+    const signal = abortControllerRef.current.signal;
 
     setError(null);
     setLinesError(null);
@@ -279,6 +303,11 @@ export default function DashboardPage() {
       if (sports.length === 0) {
         setArbsProgress('Fetching available sports...');
         await fetchSports();
+      }
+
+      // Check if aborted
+      if (signal.aborted) {
+        return;
       }
 
       const apiRegions = getApiRegionsForUserRegions(selectedRegions);
@@ -301,7 +330,13 @@ export default function DashboardPage() {
       const sportCount = quickScan ? `${QUICK_SCAN_SPORTS.length} priority sports` : 'all sports';
       setArbsProgress(`${scanType} ${selectedRegions.join(', ')} - ${sportCount}...`);
 
-      const arbsRes = await fetch(`/api/arbs?${params}`);
+      const arbsRes = await fetch(`/api/arbs?${params}`, { signal });
+      
+      // Check if aborted
+      if (signal.aborted) {
+        return;
+      }
+
       setArbsProgress('Processing H2H results...');
       const arbsData: ArbsResponse = await arbsRes.json();
 
@@ -361,11 +396,21 @@ export default function DashboardPage() {
 
       console.log(`[Dashboard] H2H complete: ${parsed.length} opportunities`);
 
+      // Check if aborted before starting lines scan
+      if (signal.aborted) {
+        return;
+      }
+
       setIsLoadingLines(true);
       setLinesProgress('Scanning spreads & totals...');
 
-      fetch(`/api/lines?${params}&middles=${showMiddles}`)
+      fetch(`/api/lines?${params}&middles=${showMiddles}`, { signal })
         .then(async (linesRes) => {
+          // Check if aborted
+          if (signal.aborted) {
+            return;
+          }
+
           setLinesProgress('Processing spreads & totals...');
           const linesData: LinesResponse = await linesRes.json();
 
@@ -415,6 +460,11 @@ export default function DashboardPage() {
           console.log(`[Dashboard] Lines complete: ${parsedSpreads.length} spreads, ${parsedTotals.length} totals, ${parsedMiddles.length} middles`);
         })
         .catch(err => {
+          // Ignore abort errors
+          if (err.name === 'AbortError') {
+            console.log('[Dashboard] Lines scan cancelled');
+            return;
+          }
           console.error('Failed to fetch lines:', err);
           setLinesError(err instanceof Error ? err.message : 'Failed to scan lines');
         })
@@ -424,12 +474,26 @@ export default function DashboardPage() {
         });
 
     } catch (err) {
+      // Ignore abort errors
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.log('[Dashboard] Scan cancelled');
+        return;
+      }
       console.error('Failed to fetch arbs:', err);
       setError(err instanceof Error ? err.message : 'Failed to scan H2H');
       setIsLoadingArbs(false);
       setArbsProgress('');
     }
   }, [filters, sports, fetchSports, showMiddles, selectedRegions, hasAccess]);
+
+  // Cleanup abort controller on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
 
   const handleLogBet = (bet: Omit<PlacedBet, 'id' | 'createdAt'>) => {
     addBet(bet);
@@ -562,6 +626,19 @@ export default function DashboardPage() {
               <Globe className="w-3 h-3 shrink-0" />
               <span className="truncate">{selectedRegions.join(', ')} ({selectedBookmakerCount} books)</span>
             </div>
+
+            {/* Cancel Button */}
+            <button
+              onClick={cancelScan}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-[var(--background)]"
+              style={{
+                borderColor: 'var(--border)',
+                color: 'var(--muted)'
+              }}
+            >
+              <X className="w-4 h-4" />
+              Cancel
+            </button>
           </div>
         </div>
       )}

@@ -5,12 +5,13 @@ import { useState, useEffect } from 'react';
 import { useSession, signOut } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useTheme } from '@/contexts/ThemeContext';
+import { Flag } from '@/components';
+import { config, type UserRegion } from '@/lib/config';
 import Image from 'next/image';
 import Link from 'next/link';
 import { 
   Sun, 
   Moon, 
-  ArrowLeft, 
   Key, 
   User, 
   LogOut, 
@@ -25,16 +26,8 @@ import {
   CreditCard
 } from 'lucide-react';
 
-type UserRegion = 'US' | 'EU' | 'UK' | 'AU';
 type UserPlan = 'none' | 'trial' | 'monthly' | 'yearly';
 type SubscriptionStatus = 'inactive' | 'active' | 'past_due' | 'canceled' | 'expired';
-
-const REGIONS: { value: UserRegion; label: string; flag: string }[] = [
-  { value: 'AU', label: 'Australia', flag: '🇦🇺' },
-  { value: 'US', label: 'United States', flag: '🇺🇸' },
-  { value: 'UK', label: 'United Kingdom', flag: '🇬🇧' },
-  { value: 'EU', label: 'Europe', flag: '🇪🇺' },
-];
 
 const PLAN_LABELS: Record<UserPlan, string> = {
   none: 'No Plan',
@@ -222,69 +215,77 @@ export default function SettingsPage() {
       className="min-h-screen"
       style={{ backgroundColor: 'var(--background)' }}
     >
-      {/* Header */}
+      {/* Header - matches dashboard style */}
       <header 
-        className="border-b"
-        style={{ borderColor: 'var(--border)' }}
+        className="border-b sticky top-0 z-50 transition-colors"
+        style={{ 
+          borderColor: 'var(--border)',
+          backgroundColor: 'var(--background)'
+        }}
       >
-        <div className="max-w-3xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/dashboard">
-                {theme === 'dark' ? (
-                  <Image
-                    src="/logo_thin_dark_version.png"
-                    alt="Edge Maxxer"
-                    width={120}
-                    height={29}
-                    priority
-                    className="h-6 w-auto"
-                  />
-                ) : (
-                  <Image
-                    src="/logo_thin_light_version.png"
-                    alt="Edge Maxxer"
-                    width={120}
-                    height={29}
-                    priority
-                    className="h-6 w-auto"
-                  />
-                )}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+          <div className="flex items-center justify-between gap-4">
+            {/* Logo */}
+            <Link href="/" className="flex items-center shrink-0">
+              <Image
+                src="/logo_thin_dark_version.png"
+                alt="Edge Maxxer"
+                width={300}
+                height={72}
+                priority
+                className="h-10 sm:h-12 lg:h-16 w-auto logo-dark"
+              />
+              <Image
+                src="/logo_thin_light_version.png"
+                alt="Edge Maxxer"
+                width={300}
+                height={72}
+                priority
+                className="h-10 sm:h-12 lg:h-16 w-auto logo-light"
+              />
+            </Link>
+
+            {/* Right Side Actions */}
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                className="p-2 rounded-lg transition-colors hover:bg-[var(--surface)]"
+                style={{ color: 'var(--muted)' }}
+                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              >
+                {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+              </button>
+
+              {/* Dashboard Button */}
+              <Link
+                href="/dashboard"
+                className="px-4 sm:px-5 py-2 sm:py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
+                style={{ 
+                  backgroundColor: '#14b8a6',
+                  color: '#fff'
+                }}
+              >
+                Dashboard
               </Link>
             </div>
-            <button
-              onClick={toggleTheme}
-              className="p-2 rounded-lg transition-colors hover:bg-[var(--surface)]"
-              style={{ color: 'var(--muted)' }}
-            >
-              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            </button>
           </div>
         </div>
       </header>
 
-      <main className="max-w-3xl mx-auto px-6 py-8">
-        {/* Back Link */}
-        <Link 
-          href="/dashboard"
-          className="inline-flex items-center gap-2 text-sm mb-8 hover:opacity-70 transition-opacity"
-          style={{ color: 'var(--muted)' }}
-        >
-          <ArrowLeft className="w-4 h-4" />
-          Back to dashboard
-        </Link>
-
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         <h1 
-          className="text-2xl font-semibold mb-8"
+          className="text-xl sm:text-2xl font-semibold mb-6 sm:mb-8"
           style={{ color: 'var(--foreground)' }}
         >
           Settings
         </h1>
 
-        <div className="space-y-6">
+        {/* Two-column grid on desktop, single column on mobile - equal height rows */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:auto-rows-fr">
           {/* Account Section */}
           <section 
-            className="p-6 rounded-xl border"
+            className="p-6 rounded-xl border flex flex-col"
             style={{ 
               backgroundColor: 'var(--surface)',
               borderColor: 'var(--border)'
@@ -307,7 +308,7 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 flex-1">
               <div>
                 <label className="text-sm" style={{ color: 'var(--muted)' }}>
                   Email
@@ -327,7 +328,7 @@ export default function SettingsPage() {
 
           {/* Subscription Section */}
           <section 
-            className="p-6 rounded-xl border"
+            className="p-6 rounded-xl border flex flex-col"
             style={{ 
               backgroundColor: 'var(--surface)',
               borderColor: 'var(--border)'
@@ -350,12 +351,12 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 flex-1">
               <div>
                 <label className="text-sm" style={{ color: 'var(--muted)' }}>
                   Current Plan
                 </label>
-                <div className="mt-2 flex items-center gap-3">
+                <div className="mt-2 flex flex-wrap items-center gap-3">
                   <span 
                     className="px-3 py-1.5 rounded-lg text-sm font-medium"
                     style={{ 
@@ -391,7 +392,7 @@ export default function SettingsPage() {
 
           {/* Region Section */}
           <section 
-            className="p-6 rounded-xl border"
+            className="p-6 rounded-xl border flex flex-col"
             style={{ 
               backgroundColor: 'var(--surface)',
               borderColor: 'var(--border)'
@@ -409,12 +410,12 @@ export default function SettingsPage() {
                   Default Region
                 </h2>
                 <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                  Your home region for bookmaker scanning
+                  Your home region for scanning
                 </p>
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-4 flex-1">
               <div>
                 <label 
                   className="block text-sm font-medium mb-1.5"
@@ -423,20 +424,25 @@ export default function SettingsPage() {
                   Region
                 </label>
                 <div className="relative">
+                  <div 
+                    className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                  >
+                    <Flag code={config.regionInfo[region].flagCode} size="sm" />
+                  </div>
                   <select
                     value={region}
                     onChange={(e) => handleSaveRegion(e.target.value as UserRegion)}
                     disabled={isSavingRegion}
-                    className="w-full px-3 py-2.5 text-sm rounded-lg transition-colors disabled:opacity-50 appearance-none cursor-pointer"
+                    className="w-full pl-10 pr-10 py-2.5 text-sm rounded-lg transition-colors disabled:opacity-50 appearance-none cursor-pointer"
                     style={{
                       backgroundColor: 'var(--background)',
                       border: '1px solid var(--border)',
                       color: 'var(--foreground)',
                     }}
                   >
-                    {REGIONS.map((r) => (
-                      <option key={r.value} value={r.value}>
-                        {r.flag} {r.label}
+                    {config.regionOrder.map((r) => (
+                      <option key={r} value={r}>
+                        {config.regionInfo[r].label}
                       </option>
                     ))}
                   </select>
@@ -447,7 +453,7 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <p className="text-xs mt-1.5" style={{ color: 'var(--muted)' }}>
-                  This sets your default region on the dashboard. You can still scan other regions.
+                  Sets your default dashboard region.
                 </p>
               </div>
 
@@ -465,7 +471,7 @@ export default function SettingsPage() {
 
           {/* API Key Section */}
           <section 
-            className="p-6 rounded-xl border"
+            className="p-6 rounded-xl border flex flex-col"
             style={{ 
               backgroundColor: 'var(--surface)',
               borderColor: 'var(--border)'
@@ -483,37 +489,13 @@ export default function SettingsPage() {
                   Odds API Key
                 </h2>
                 <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                  Your personal API key for live odds data
+                  Your key for live odds data
                 </p>
               </div>
             </div>
 
-            {/* Info Box */}
-            <div 
-              className="p-4 rounded-lg mb-6"
-              style={{ 
-                backgroundColor: 'var(--background)',
-                border: '1px solid var(--border)'
-              }}
-            >
-              <p className="text-sm mb-3" style={{ color: 'var(--muted)' }}>
-                We use a <strong style={{ color: 'var(--foreground)' }}>Bring Your Own Key (BYOK)</strong> model. 
-                Get a free API key from The Odds API to scan live odds.
-              </p>
-              <a 
-                href="https://the-odds-api.com/#get-access"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm font-medium hover:opacity-70 transition-opacity"
-                style={{ color: '#22c55e' }}
-              >
-                Get your free API key
-                <ExternalLink className="w-4 h-4" />
-              </a>
-            </div>
-
             {/* API Key Input */}
-            <div className="space-y-4">
+            <div className="space-y-4 flex-1">
               <div>
                 <label 
                   className="block text-sm font-medium mb-1.5"
@@ -543,6 +525,26 @@ export default function SettingsPage() {
                     {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+                <p className="text-xs mt-1.5 space-x-3" style={{ color: 'var(--muted)' }}>
+                  <a 
+                    href="https://the-odds-api.com/#get-access"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline"
+                    style={{ color: '#22c55e' }}
+                  >
+                    Get a free API key →
+                  </a>
+                  <a 
+                    href="https://tempmailo.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline"
+                    style={{ color: '#22c55e' }}
+                  >
+                    Get a temporary email →
+                  </a>
+                </p>
               </div>
 
               {error && (
@@ -580,45 +582,45 @@ export default function SettingsPage() {
               </button>
             </div>
           </section>
-
-          {/* Sign Out Section */}
-          <section 
-            className="p-6 rounded-xl border"
-            style={{ 
-              backgroundColor: 'var(--surface)',
-              borderColor: 'var(--border)'
-            }}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div 
-                  className="w-10 h-10 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: 'var(--background)' }}
-                >
-                  <LogOut className="w-5 h-5" style={{ color: 'var(--danger)' }} />
-                </div>
-                <div>
-                  <h2 className="font-medium" style={{ color: 'var(--foreground)' }}>
-                    Sign Out
-                  </h2>
-                  <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                    Sign out of your account
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={handleSignOut}
-                className="px-4 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-[var(--background)]"
-                style={{
-                  borderColor: 'var(--danger)',
-                  color: 'var(--danger)'
-                }}
-              >
-                Sign Out
-              </button>
-            </div>
-          </section>
         </div>
+
+        {/* Sign Out Section - Separate from grid */}
+        <section 
+          className="p-6 rounded-xl border mt-6"
+          style={{ 
+            backgroundColor: 'var(--surface)',
+            borderColor: 'var(--border)'
+          }}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div 
+                className="w-10 h-10 rounded-lg flex items-center justify-center"
+                style={{ backgroundColor: 'var(--background)' }}
+              >
+                <LogOut className="w-5 h-5" style={{ color: 'var(--danger)' }} />
+              </div>
+              <div>
+                <h2 className="font-medium" style={{ color: 'var(--foreground)' }}>
+                  Sign Out
+                </h2>
+                <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                  Sign out of your account
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleSignOut}
+              className="px-4 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-[var(--background)]"
+              style={{
+                borderColor: 'var(--danger)',
+                color: 'var(--danger)'
+              }}
+            >
+              Sign Out
+            </button>
+          </div>
+        </section>
       </main>
     </div>
   );
