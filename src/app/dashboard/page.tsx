@@ -2,7 +2,8 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Globe, Loader2, X } from 'lucide-react';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { Globe, Loader2, X, CheckCircle } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal, Flag, SubscriptionRequiredModal } from '@/components';
 import { useBets } from '@/hooks/useBets';
@@ -155,7 +156,10 @@ function getBookmakersFromArb(opp: ArbOpportunity): string[] {
 }
 
 export default function DashboardPage() {
-  const { data: session } = useSession();
+  const { data: session, update: updateSession } = useSession();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  
   const [opportunities, setOpportunities] = useState<ArbOpportunity[]>([]);
   const [valueBets, setValueBets] = useState<ValueBet[]>([]);
   const [spreadArbs, setSpreadArbs] = useState<SpreadArb[]>([]);
@@ -191,6 +195,10 @@ export default function DashboardPage() {
   
   // Subscription modal state
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  
+  // Checkout success state
+  const [checkoutSuccess, setCheckoutSuccess] = useState<string | null>(null);
+  const [isRefreshingSession, setIsRefreshingSession] = useState(false);
 
   // AbortController for canceling scans
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -209,6 +217,42 @@ export default function DashboardPage() {
 
   // Get hasAccess from session (computed server-side in auth.ts)
   const hasAccess = (session?.user as { hasAccess?: boolean } | undefined)?.hasAccess ?? false;
+
+  // Handle checkout success - refresh session to get updated subscription status
+  useEffect(() => {
+    const checkoutParam = searchParams.get('checkout');
+    const planParam = searchParams.get('plan');
+    
+    if (checkoutParam === 'success' && planParam) {
+      setIsRefreshingSession(true);
+      setCheckoutSuccess(planParam);
+      
+      // Force session refresh to get updated subscription data from database
+      const refreshSession = async () => {
+        try {
+          // Trigger JWT refresh which will fetch latest user data
+          await updateSession();
+          
+          // Small delay to ensure session is fully updated
+          await new Promise(resolve => setTimeout(resolve, 500));
+          
+          // Clear URL params without full page reload
+          router.replace('/dashboard', { scroll: false });
+        } catch (err) {
+          console.error('Failed to refresh session:', err);
+        } finally {
+          setIsRefreshingSession(false);
+          
+          // Auto-hide success message after 5 seconds
+          setTimeout(() => {
+            setCheckoutSuccess(null);
+          }, 5000);
+        }
+      };
+      
+      refreshSession();
+    }
+  }, [searchParams, updateSession, router]);
 
   // Load user's default region from settings
   useEffect(() => {
@@ -538,6 +582,15 @@ export default function DashboardPage() {
     return 'Please wait...';
   };
 
+  const getPlanDisplayName = (plan: string) => {
+    switch (plan) {
+      case 'trial': return '3-Day Trial';
+      case 'monthly': return 'Monthly';
+      case 'yearly': return 'Yearly';
+      default: return plan;
+    }
+  };
+
   return (
     <div 
       className="min-h-screen transition-colors"
@@ -551,6 +604,32 @@ export default function DashboardPage() {
         onRefresh={() => fetchArbs(false)}
         onQuickScan={() => fetchArbs(true)}
       />
+
+      {/* Session Refresh Overlay (after checkout) */}
+      {isRefreshingSession && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
+        >
+          <div 
+            className="flex flex-col items-center gap-4 p-8 rounded-xl border"
+            style={{ 
+              backgroundColor: 'var(--surface)',
+              borderColor: 'var(--border)'
+            }}
+          >
+            <Loader2 className="w-10 h-10 animate-spin" style={{ color: 'var(--success)' }} />
+            <div className="text-center">
+              <h3 className="text-lg font-medium mb-1" style={{ color: 'var(--foreground)' }}>
+                Activating Subscription...
+              </h3>
+              <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                Please wait while we set up your account
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Scanning Overlay */}
       {isLoadingArbs && (
@@ -644,6 +723,36 @@ export default function DashboardPage() {
       )}
 
       <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6">
+        {/* Checkout Success Banner */}
+        {checkoutSuccess && !isRefreshingSession && (
+          <div 
+            className="border px-4 py-3 rounded-lg animate-fade-in"
+            style={{
+              borderColor: 'var(--success)',
+              backgroundColor: 'color-mix(in srgb, var(--success) 10%, transparent)'
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <CheckCircle className="w-5 h-5 shrink-0" style={{ color: 'var(--success)' }} />
+              <div className="flex-1">
+                <div className="font-medium" style={{ color: 'var(--success)' }}>
+                  🎉 {getPlanDisplayName(checkoutSuccess)} Activated!
+                </div>
+                <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                  Your subscription is now active. Start scanning for arbitrage opportunities!
+                </div>
+              </div>
+              <button
+                onClick={() => setCheckoutSuccess(null)}
+                className="p-1 rounded hover:bg-[var(--background)] transition-colors"
+                style={{ color: 'var(--muted)' }}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Region Tabs */}
         {settingsLoaded && (
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
