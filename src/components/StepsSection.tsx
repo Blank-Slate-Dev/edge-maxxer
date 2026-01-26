@@ -1,7 +1,7 @@
 // src/components/StepsSection.tsx
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Search, Smartphone, Trophy, Zap } from 'lucide-react';
 import Image from 'next/image';
 import { getLogoPath, getBookmaker, getBookmakerAbbr } from '@/lib/bookmakers';
@@ -133,7 +133,9 @@ function BookLogo({ bookKey, size = 40, highlighted = false }: { bookKey: string
 
 // Animated scanning visualization - shows bookmakers on left and right with connecting lines
 function ScanningAnimation() {
+  const containerRef = useRef<HTMLDivElement>(null);
   const [activeConnection, setActiveConnection] = useState(0);
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   const leftBooks = ['fanduel', 'draftkings', 'betmgm'];
   const rightBooks = ['williamhill_us', 'pointsbetau', 'betonlineag'];
@@ -147,6 +149,26 @@ function ScanningAnimation() {
     { from: 2, to: 0 }, // diagonal up steep
   ];
 
+  // Measure container dimensions
+  const updateDimensions = useCallback(() => {
+    if (containerRef.current) {
+      const { width, height } = containerRef.current.getBoundingClientRect();
+      setDimensions({ width, height });
+    }
+  }, []);
+
+  useEffect(() => {
+    updateDimensions();
+    
+    // Update on resize
+    const resizeObserver = new ResizeObserver(updateDimensions);
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    return () => resizeObserver.disconnect();
+  }, [updateDimensions]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setActiveConnection(prev => (prev + 1) % connections.length);
@@ -157,12 +179,30 @@ function ScanningAnimation() {
 
   const currentConnection = connections[activeConnection];
   
-  // Calculate Y positions (top of container + offset for each book)
-  const leftY = 76 + currentConnection.from * 52;
-  const rightY = 76 + currentConnection.to * 52;
+  // Layout constants
+  const bookSize = 40;
+  const bookGap = 12; // gap-3 = 12px
+  const padding = 24; // left-6 / right-6 = 24px
+  const topOffset = 56; // top-14 = 56px
+  
+  // Calculate dynamic positions based on container width
+  // Left books: padding (24px) from left edge, line starts at right edge of book
+  const leftX = padding + bookSize + 6; // 6px offset from book edge
+  
+  // Right books: padding (24px) from right edge, line ends at left edge of book
+  const rightX = dimensions.width - padding - bookSize - 6; // 6px offset from book edge
+  
+  // Y positions: topOffset + (bookIndex * (bookSize + gap)) + (bookSize / 2) for center
+  const getYPosition = (index: number) => topOffset + (index * (bookSize + bookGap)) + (bookSize / 2);
+  
+  const leftY = getYPosition(currentConnection.from);
+  const rightY = getYPosition(currentConnection.to);
+
+  // Only render SVG lines when we have valid dimensions
+  const hasValidDimensions = dimensions.width > 0;
 
   return (
-    <div className="absolute inset-0">
+    <div ref={containerRef} className="absolute inset-0">
       {/* Grid background */}
       <div 
         className="absolute inset-0 opacity-30"
@@ -192,7 +232,7 @@ function ScanningAnimation() {
           <BookLogo 
             key={book} 
             bookKey={book} 
-            size={40} 
+            size={bookSize} 
             highlighted={currentConnection.from === i}
           />
         ))}
@@ -204,44 +244,46 @@ function ScanningAnimation() {
           <BookLogo 
             key={book} 
             bookKey={book} 
-            size={40} 
+            size={bookSize} 
             highlighted={currentConnection.to === i}
           />
         ))}
       </div>
 
-      {/* Connection line SVG */}
-      <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
-        {/* Line from active left to active right */}
-        <line 
-          x1="70" 
-          y1={leftY} 
-          x2="280" 
-          y2={rightY}
-          stroke="#14b8a6" 
-          strokeWidth="2"
-          strokeDasharray="8,4"
-          style={{
-            filter: 'drop-shadow(0 0 6px rgba(20, 184, 166, 0.5))',
-            transition: 'all 0.3s ease'
-          }}
-        />
-        {/* Animated dot on the line */}
-        <circle 
-          r="5" 
-          fill="#14b8a6"
-          style={{
-            filter: 'drop-shadow(0 0 10px rgba(20, 184, 166, 0.8))'
-          }}
-        >
-          <animateMotion
-            dur="1.2s"
-            repeatCount="indefinite"
-            path={`M70,${leftY} L280,${rightY}`}
-            key={activeConnection}
+      {/* Connection line SVG - only render when dimensions are available */}
+      {hasValidDimensions && (
+        <svg className="absolute inset-0 w-full h-full" style={{ pointerEvents: 'none' }}>
+          {/* Line from active left to active right */}
+          <line 
+            x1={leftX} 
+            y1={leftY} 
+            x2={rightX} 
+            y2={rightY}
+            stroke="#14b8a6" 
+            strokeWidth="2"
+            strokeDasharray="8,4"
+            style={{
+              filter: 'drop-shadow(0 0 6px rgba(20, 184, 166, 0.5))',
+              transition: 'all 0.3s ease'
+            }}
           />
-        </circle>
-      </svg>
+          {/* Animated dot on the line */}
+          <circle 
+            r="5" 
+            fill="#14b8a6"
+            style={{
+              filter: 'drop-shadow(0 0 10px rgba(20, 184, 166, 0.8))'
+            }}
+          >
+            <animateMotion
+              dur="1.2s"
+              repeatCount="indefinite"
+              path={`M${leftX},${leftY} L${rightX},${rightY}`}
+              key={`${activeConnection}-${dimensions.width}`}
+            />
+          </circle>
+        </svg>
+      )}
 
       {/* Label */}
       <div 

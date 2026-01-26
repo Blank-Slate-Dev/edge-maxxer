@@ -625,6 +625,17 @@ iframe[name^="embedded-checkout"] {
   display: block;
 }
 
+/* Footer logo - matches muted text color */
+.logo-footer {
+  /* Dark mode: #888888 (--muted) */
+  filter: brightness(0) invert(0.53);
+}
+
+.light .logo-footer {
+  /* Light mode: #6b7280 (--muted) */
+  filter: brightness(0) invert(0.42);
+}
+
 /* Flag icon size utilities (prefixed to avoid conflict with country codes like fi-sm = San Marino) */
 .flag-size-sm {
   width: 1rem;

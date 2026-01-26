@@ -921,7 +921,7 @@ export default function DashboardPage() {
             count={isLoadingLines ? undefined : filteredSpreads.length + spreadMiddles.length}
             loading={isLoadingLines}
           >
-            Spreads
+            Lines
           </TabButton>
           <TabButton 
             active={activeTab === 'totals'} 

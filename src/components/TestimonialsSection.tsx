@@ -64,7 +64,7 @@ const TESTIMONIALS: Testimonial[] = [
   },
 ];
 
-function TestimonialCard({ testimonial, delay }: { testimonial: Testimonial; delay: number }) {
+function TestimonialCard({ testimonial, delay, className = '' }: { testimonial: Testimonial; delay: number; className?: string }) {
   const [isVisible, setIsVisible] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -88,17 +88,17 @@ function TestimonialCard({ testimonial, delay }: { testimonial: Testimonial; del
   return (
     <div 
       ref={cardRef}
-      className={`p-6 rounded-xl border transition-all duration-500 ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'}`}
+      className={`p-4 sm:p-6 rounded-xl border transition-all duration-500 flex flex-col ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'} ${className}`}
       style={{ 
         backgroundColor: 'var(--surface)',
         borderColor: 'var(--border)'
       }}
     >
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex items-center gap-3">
+      <div className="flex items-start justify-between mb-3 sm:mb-4">
+        <div className="flex items-center gap-2 sm:gap-3">
           <div 
-            className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium"
+            className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs sm:text-sm font-medium"
             style={{ 
               backgroundColor: 'var(--background)',
               color: 'var(--foreground)'
@@ -107,48 +107,51 @@ function TestimonialCard({ testimonial, delay }: { testimonial: Testimonial; del
             {testimonial.avatar}
           </div>
           <div>
-            <div className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
+            <div className="font-medium text-xs sm:text-sm" style={{ color: 'var(--foreground)' }}>
               {testimonial.name}
             </div>
-            <div className="text-xs" style={{ color: 'var(--muted)' }}>
+            <div className="text-[10px] sm:text-xs" style={{ color: 'var(--muted)' }}>
               {testimonial.handle}
             </div>
           </div>
         </div>
-        <Quote className="w-5 h-5" style={{ color: 'var(--border)' }} />
+        <Quote className="w-4 h-4 sm:w-5 sm:h-5 hidden sm:block" style={{ color: 'var(--border)' }} />
       </div>
 
       {/* Stars */}
-      <div className="flex gap-0.5 mb-3">
+      <div className="flex gap-0.5 mb-2 sm:mb-3">
         {Array.from({ length: testimonial.rating }).map((_, i) => (
           <Star 
             key={i} 
-            className="w-4 h-4" 
+            className="w-3 h-3 sm:w-4 sm:h-4" 
             fill="#eab308" 
             style={{ color: '#eab308' }} 
           />
         ))}
       </div>
 
-      {/* Content */}
+      {/* Content - flex-1 to fill available space and push profit to bottom */}
       <p 
-        className="text-sm leading-relaxed mb-4"
+        className="text-xs sm:text-sm leading-relaxed flex-1"
         style={{ color: 'var(--foreground)' }}
       >
         "{testimonial.content}"
       </p>
 
-      {/* Profit badge */}
+      {/* Profit badge - always at bottom with consistent top margin */}
       {testimonial.profit && (
-        <div 
-          className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium"
-          style={{ 
-            backgroundColor: 'rgba(34, 197, 94, 0.15)',
-            color: '#22c55e'
-          }}
-        >
-          <span>Reported profit:</span>
-          <span className="font-mono">{testimonial.profit}</span>
+        <div className="mt-4 pt-3 sm:pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
+          <div 
+            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] sm:text-xs font-medium"
+            style={{ 
+              backgroundColor: 'rgba(34, 197, 94, 0.15)',
+              color: '#22c55e'
+            }}
+          >
+            <span className="hidden sm:inline">Reported profit:</span>
+            <span className="sm:hidden">Profit:</span>
+            <span className="font-mono">{testimonial.profit}</span>
+          </div>
         </div>
       )}
     </div>
@@ -158,43 +161,46 @@ function TestimonialCard({ testimonial, delay }: { testimonial: Testimonial; del
 export function TestimonialsSection() {
   return (
     <section 
-      className="py-24 px-6 border-t"
+      className="py-16 sm:py-24 px-4 sm:px-6 border-t"
       style={{ borderColor: 'var(--border)' }}
     >
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-16">
+        <div className="text-center mb-10 sm:mb-16">
           <h2 
-            className="text-3xl md:text-4xl font-bold mb-4"
+            className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4"
             style={{ color: 'var(--foreground)' }}
           >
             Trusted by 1,200+ Bettors
           </h2>
-          <p style={{ color: 'var(--muted)' }}>
+          <p className="text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
             See what our users are saying about Edge Maxxer
           </p>
         </div>
 
-        {/* Testimonials Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {/* Testimonials Grid - 2 cols on mobile (first 4 only), 3 cols lg (all 6) */}
+        {/* Using grid with items-stretch ensures cards in each row have equal height */}
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 items-stretch">
           {TESTIMONIALS.map((testimonial, i) => (
             <TestimonialCard 
               key={i} 
               testimonial={testimonial} 
-              delay={i * 100} 
+              delay={i * 100}
+              // Hide 5th and 6th testimonials on mobile/tablet, show on lg+
+              className={i >= 4 ? 'hidden lg:flex' : ''}
             />
           ))}
         </div>
 
-        {/* Social proof stats */}
+        {/* Social proof stats - increased top margin for better spacing */}
         <div 
-          className="mt-16 p-8 rounded-2xl border"
+          className="mt-12 sm:mt-20 p-4 sm:p-8 rounded-2xl border"
           style={{ 
             backgroundColor: 'var(--surface)',
             borderColor: 'var(--border)'
           }}
         >
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8 text-center">
             {[
               { value: '12,000+', label: 'Active Users' },
               { value: '$2.6M+', label: 'User Profits' },
@@ -203,12 +209,12 @@ export function TestimonialsSection() {
             ].map((stat, i) => (
               <div key={i}>
                 <div 
-                  className="text-3xl font-bold mb-1"
+                  className="text-xl sm:text-3xl font-bold mb-1"
                   style={{ color: 'var(--foreground)' }}
                 >
                   {stat.value}
                 </div>
-                <div className="text-sm" style={{ color: 'var(--muted)' }}>
+                <div className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
                   {stat.label}
                 </div>
               </div>

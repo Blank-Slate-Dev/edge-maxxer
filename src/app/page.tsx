@@ -471,7 +471,7 @@ export default function LandingPage() {
       </section>
 
       {/* Steps Section */}
-      <div id="features">
+      <div id="features" className="scroll-mt-20 sm:scroll-mt-24">
         <StepsSection />
       </div>
 
@@ -586,7 +586,7 @@ export default function LandingPage() {
       {/* Pricing */}
       <section
         id="pricing"
-        className="py-16 sm:py-20 px-4 sm:px-6 border-t"
+        className="py-16 sm:py-20 px-4 sm:px-6 border-t scroll-mt-20 sm:scroll-mt-24"
         style={{ borderColor: 'var(--border)' }}
       >
         <div className="max-w-5xl mx-auto">
@@ -711,7 +711,7 @@ export default function LandingPage() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="py-16 sm:py-20 px-4 sm:px-6 border-t" style={{ borderColor: 'var(--border)' }}>
+      <section id="faq" className="py-16 sm:py-20 px-4 sm:px-6 border-t scroll-mt-20 sm:scroll-mt-24" style={{ borderColor: 'var(--border)' }}>
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-8 sm:mb-12">
             <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4" style={{ color: 'var(--foreground)' }}>
@@ -814,14 +814,7 @@ export default function LandingPage() {
                 alt="Edge Maxxer"
                 width={100}
                 height={24}
-                className="h-4 sm:h-5 w-auto opacity-50 logo-dark"
-              />
-              <Image
-                src="/logo_thin_light_version.png"
-                alt="Edge Maxxer"
-                width={100}
-                height={24}
-                className="h-4 sm:h-5 w-auto opacity-50 logo-light"
+                className="h-4 sm:h-5 w-auto logo-footer"
               />
             </div>
             <div className="flex items-center gap-4 sm:gap-6 text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
