@@ -232,7 +232,7 @@ export function Header({
                       {remainingRequests} left
                     </span>
                   ) : isKeyEmpty ? (
-                    <a
+                    
                       href="https://the-odds-api.com/#get-access"
                       target="_blank"
                       rel="noopener noreferrer"
@@ -385,7 +385,9 @@ export function Header({
                   }}
                   title="Quick scan: NBA, NFL, NHL, MLB, EPL, Tennis, AFL, NRL"
                 >
-                  <Zap className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isLoading ? 'animate-pulse' : ''}`} />
+                  <span className={isLoading ? 'animate-pulse' : ''}>
+                    <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  </span>
                   <span className="hidden sm:inline">Quick Scan</span>
                 </button>
               )}
@@ -400,9 +402,11 @@ export function Header({
                   color: 'var(--background)'
                 }}
               >
-                <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${isLoading ? 'animate-spin' : ''}`} />
-                <span className="hidden xs:inline">{isLoading ? 'Scanning...' : 'Scan'}</span>
-                <span className="hidden sm:inline">Full Scan</span>
+                <span className={isLoading ? 'animate-spin' : ''}>
+                  <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                </span>
+                <span className="hidden sm:inline">{isLoading ? 'Scanning...' : 'Full Scan'}</span>
+                <span className="sm:hidden">{isLoading ? '...' : 'Scan'}</span>
               </button>
 
               {/* Mobile Menu Button */}
@@ -539,7 +543,7 @@ export function Header({
                     {isSavingKey ? 'Saving...' : keySaveSuccess ? 'Saved!' : 'Save Key'}
                   </button>
                   {isKeyEmpty && (
-                    <a
+                    
                       href="https://the-odds-api.com/#get-access"
                       target="_blank"
                       rel="noopener noreferrer"
