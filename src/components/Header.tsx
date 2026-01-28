@@ -1,7 +1,22 @@
 // src/components/Header.tsx
 'use client';
 
-import { RefreshCw, Sun, Moon, LogOut, Settings, Key, Eye, EyeOff, Check, Loader2, ExternalLink, Zap, Menu, X } from 'lucide-react';
+import {
+  RefreshCw,
+  Sun,
+  Moon,
+  LogOut,
+  Settings,
+  Key,
+  Eye,
+  EyeOff,
+  Check,
+  Loader2,
+  ExternalLink,
+  Zap,
+  Menu,
+  X,
+} from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSession, signOut } from 'next-auth/react';
@@ -133,11 +148,11 @@ export function Header({
 
   return (
     <>
-      <header 
+      <header
         className="border-b sticky top-0 z-50 transition-colors"
-        style={{ 
-          borderColor: 'var(--border)', 
-          backgroundColor: 'var(--background)' 
+        style={{
+          borderColor: 'var(--border)',
+          backgroundColor: 'var(--background)',
         }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
@@ -174,11 +189,13 @@ export function Header({
             {hasLoadedKey && (
               <div className="hidden lg:flex items-center gap-2 flex-1 max-w-md">
                 <div className="flex items-center gap-2 flex-1">
-                  <div 
+                  <div
                     className="flex items-center gap-2 px-3 py-1.5 rounded-lg flex-1"
-                    style={{ 
+                    style={{
                       backgroundColor: 'var(--surface)',
-                      border: `1px solid ${keyError ? 'var(--danger)' : keySaveSuccess ? '#22c55e' : 'var(--border)'}`,
+                      border: `1px solid ${
+                        keyError ? 'var(--danger)' : keySaveSuccess ? '#22c55e' : 'var(--border)'
+                      }`,
                     }}
                   >
                     <Key className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--muted)' }} />
@@ -199,14 +216,14 @@ export function Header({
                       {showApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                     </button>
                   </div>
-                  
+
                   <button
                     onClick={handleSaveApiKey}
                     disabled={isSavingKey}
                     className="shrink-0 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all hover:opacity-90 disabled:opacity-50"
                     style={{
                       backgroundColor: keySaveSuccess ? '#22c55e' : 'var(--foreground)',
-                      color: 'var(--background)'
+                      color: 'var(--background)',
                     }}
                   >
                     {isSavingKey ? (
@@ -222,24 +239,24 @@ export function Header({
                 {/* API Calls Remaining / Get Key Link */}
                 <div className="shrink-0 flex items-center gap-2">
                   {remainingRequests !== undefined && !isKeyEmpty ? (
-                    <span 
+                    <span
                       className="text-xs font-mono px-2 py-1 rounded whitespace-nowrap"
-                      style={{ 
+                      style={{
                         backgroundColor: remainingRequests < 100 ? 'var(--warning-muted)' : 'var(--surface)',
-                        color: remainingRequests < 100 ? 'var(--warning)' : 'var(--muted)'
+                        color: remainingRequests < 100 ? 'var(--warning)' : 'var(--muted)',
                       }}
                     >
                       {remainingRequests} left
                     </span>
                   ) : isKeyEmpty ? (
-                    
+                    <a
                       href="https://the-odds-api.com/#get-access"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded whitespace-nowrap transition-opacity hover:opacity-70"
-                      style={{ 
+                      style={{
                         backgroundColor: 'color-mix(in srgb, #22c55e 15%, transparent)',
-                        color: '#22c55e'
+                        color: '#22c55e',
                       }}
                     >
                       Get free key
@@ -254,11 +271,11 @@ export function Header({
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
               {/* Mock Data Indicator - hide on mobile */}
               {isUsingMockData && (
-                <span 
+                <span
                   className="text-xs px-2 py-1 rounded hidden sm:block"
-                  style={{ 
+                  style={{
                     backgroundColor: 'var(--warning-muted)',
-                    color: 'var(--warning)'
+                    color: 'var(--warning)',
                   }}
                 >
                   Demo
@@ -267,11 +284,11 @@ export function Header({
 
               {/* API Remaining - Mobile only (compact) */}
               {remainingRequests !== undefined && !isKeyEmpty && (
-                <span 
+                <span
                   className="text-[10px] sm:text-xs font-mono px-1.5 sm:px-2 py-1 rounded lg:hidden"
-                  style={{ 
+                  style={{
                     backgroundColor: remainingRequests < 100 ? 'var(--warning-muted)' : 'var(--surface)',
-                    color: remainingRequests < 100 ? 'var(--warning)' : 'var(--muted)'
+                    color: remainingRequests < 100 ? 'var(--warning)' : 'var(--muted)',
                   }}
                 >
                   {remainingRequests}
@@ -285,11 +302,7 @@ export function Header({
                 style={{ color: 'var(--muted)' }}
                 title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
               >
-                {theme === 'dark' ? (
-                  <Sun className="w-4 h-4" />
-                ) : (
-                  <Moon className="w-4 h-4" />
-                )}
+                {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
 
               {/* User Menu - Desktop */}
@@ -300,26 +313,25 @@ export function Header({
                     className="flex items-center gap-2 px-2 sm:px-3 py-2 rounded-lg transition-colors hover:bg-[var(--surface)]"
                     style={{ color: 'var(--foreground)' }}
                   >
-                    <div 
+                    <div
                       className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium"
-                      style={{ 
+                      style={{
                         backgroundColor: 'var(--surface)',
-                        color: 'var(--muted)'
+                        color: 'var(--muted)',
                       }}
                     >
                       {session.user.name?.charAt(0).toUpperCase() || 'U'}
                     </div>
-                    <span className="text-sm hidden lg:block">
-                      {session.user.name?.split(' ')[0] || 'User'}
-                    </span>
+                    <span className="text-sm hidden lg:block">{session.user.name?.split(' ')[0] || 'User'}</span>
                     {subscription && (
-                      <span 
+                      <span
                         className="text-xs px-1.5 py-0.5 rounded font-medium hidden md:block"
-                        style={{ 
-                          backgroundColor: subscription === 'active' 
-                            ? 'color-mix(in srgb, #22c55e 15%, transparent)'
-                            : 'color-mix(in srgb, var(--warning) 15%, transparent)',
-                          color: subscription === 'active' ? '#22c55e' : 'var(--warning)'
+                        style={{
+                          backgroundColor:
+                            subscription === 'active'
+                              ? 'color-mix(in srgb, #22c55e 15%, transparent)'
+                              : 'color-mix(in srgb, var(--warning) 15%, transparent)',
+                          color: subscription === 'active' ? '#22c55e' : 'var(--warning)',
                         }}
                       >
                         {subscription === 'active' ? 'PRO' : 'TRIAL'}
@@ -329,17 +341,14 @@ export function Header({
 
                   {/* Dropdown Menu */}
                   {showUserMenu && (
-                    <div 
+                    <div
                       className="absolute right-0 mt-2 w-56 rounded-lg border shadow-lg overflow-hidden"
-                      style={{ 
+                      style={{
                         backgroundColor: 'var(--surface)',
-                        borderColor: 'var(--border)'
+                        borderColor: 'var(--border)',
                       }}
                     >
-                      <div 
-                        className="px-4 py-3 border-b"
-                        style={{ borderColor: 'var(--border)' }}
-                      >
+                      <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
                         <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                           {session.user.name}
                         </p>
@@ -347,7 +356,7 @@ export function Header({
                           {session.user.email}
                         </p>
                       </div>
-                      
+
                       <div className="py-1">
                         <Link
                           href="/settings"
@@ -381,7 +390,7 @@ export function Header({
                   style={{
                     backgroundColor: 'transparent',
                     borderColor: '#7ac875',
-                    color: '#7ac875'
+                    color: '#7ac875',
                   }}
                   title="Quick scan: NBA, NFL, NHL, MLB, EPL, Tennis, AFL, NRL"
                 >
@@ -399,7 +408,7 @@ export function Header({
                 className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
                 style={{
                   backgroundColor: 'var(--foreground)',
-                  color: 'var(--background)'
+                  color: 'var(--background)',
                 }}
               >
                 <span className={isLoading ? 'animate-spin' : ''}>
@@ -424,28 +433,24 @@ export function Header({
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div 
-          className="fixed inset-0 z-50 sm:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-        >
+        <div className="fixed inset-0 z-50 sm:hidden" onClick={() => setMobileMenuOpen(false)}>
           {/* Backdrop */}
-          <div 
+          <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
             style={{ backgroundColor: 'rgba(0, 0, 0, 0.6)' }}
           />
-          
+
           {/* Drawer */}
-          <div 
+          <div
             className="absolute top-0 right-0 bottom-0 w-[85%] max-w-sm overflow-y-auto"
             style={{ backgroundColor: 'var(--background)' }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Drawer Header */}
-            <div 
-              className="flex items-center justify-between px-4 py-4 border-b"
-              style={{ borderColor: 'var(--border)' }}
-            >
-              <span className="font-medium" style={{ color: 'var(--foreground)' }}>Menu</span>
+            <div className="flex items-center justify-between px-4 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <span className="font-medium" style={{ color: 'var(--foreground)' }}>
+                Menu
+              </span>
               <button
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-2 rounded-lg transition-colors hover:bg-[var(--surface)]"
@@ -457,16 +462,13 @@ export function Header({
 
             {/* User Info */}
             {session?.user && (
-              <div 
-                className="px-4 py-4 border-b"
-                style={{ borderColor: 'var(--border)' }}
-              >
+              <div className="px-4 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
                 <div className="flex items-center gap-3">
-                  <div 
+                  <div
                     className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium"
-                    style={{ 
+                    style={{
                       backgroundColor: 'var(--surface)',
-                      color: 'var(--muted)'
+                      color: 'var(--muted)',
                     }}
                   >
                     {session.user.name?.charAt(0).toUpperCase() || 'U'}
@@ -480,13 +482,14 @@ export function Header({
                     </p>
                   </div>
                   {subscription && (
-                    <span 
+                    <span
                       className="text-xs px-2 py-1 rounded font-medium shrink-0"
-                      style={{ 
-                        backgroundColor: subscription === 'active' 
-                          ? 'color-mix(in srgb, #22c55e 15%, transparent)'
-                          : 'color-mix(in srgb, var(--warning) 15%, transparent)',
-                        color: subscription === 'active' ? '#22c55e' : 'var(--warning)'
+                      style={{
+                        backgroundColor:
+                          subscription === 'active'
+                            ? 'color-mix(in srgb, #22c55e 15%, transparent)'
+                            : 'color-mix(in srgb, var(--warning) 15%, transparent)',
+                        color: subscription === 'active' ? '#22c55e' : 'var(--warning)',
                       }}
                     >
                       {subscription === 'active' ? 'PRO' : 'TRIAL'}
@@ -498,18 +501,17 @@ export function Header({
 
             {/* API Key Section */}
             {hasLoadedKey && (
-              <div 
-                className="px-4 py-4 border-b"
-                style={{ borderColor: 'var(--border)' }}
-              >
+              <div className="px-4 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
                 <label className="block text-xs font-medium mb-2" style={{ color: 'var(--muted)' }}>
                   Odds API Key
                 </label>
-                <div 
+                <div
                   className="flex items-center gap-2 px-3 py-2 rounded-lg mb-2"
-                  style={{ 
+                  style={{
                     backgroundColor: 'var(--surface)',
-                    border: `1px solid ${keyError ? 'var(--danger)' : keySaveSuccess ? '#22c55e' : 'var(--border)'}`,
+                    border: `1px solid ${
+                      keyError ? 'var(--danger)' : keySaveSuccess ? '#22c55e' : 'var(--border)'
+                    }`,
                   }}
                 >
                   <Key className="w-4 h-4 shrink-0" style={{ color: 'var(--muted)' }} />
@@ -537,20 +539,21 @@ export function Header({
                     className="flex-1 py-2 text-sm font-medium rounded-lg transition-all hover:opacity-90 disabled:opacity-50"
                     style={{
                       backgroundColor: keySaveSuccess ? '#22c55e' : 'var(--foreground)',
-                      color: 'var(--background)'
+                      color: 'var(--background)',
                     }}
                   >
                     {isSavingKey ? 'Saving...' : keySaveSuccess ? 'Saved!' : 'Save Key'}
                   </button>
+
                   {isKeyEmpty && (
-                    
+                    <a
                       href="https://the-odds-api.com/#get-access"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-1 text-xs font-medium px-3 py-2 rounded-lg"
-                      style={{ 
+                      style={{
                         backgroundColor: 'color-mix(in srgb, #22c55e 15%, transparent)',
-                        color: '#22c55e'
+                        color: '#22c55e',
                       }}
                     >
                       Get key
@@ -558,6 +561,7 @@ export function Header({
                     </a>
                   )}
                 </div>
+
                 {remainingRequests !== undefined && !isKeyEmpty && (
                   <p className="text-xs mt-2" style={{ color: 'var(--muted)' }}>
                     {remainingRequests} API calls remaining
@@ -568,10 +572,7 @@ export function Header({
 
             {/* Last Updated */}
             {lastUpdated && (
-              <div 
-                className="px-4 py-3 border-b"
-                style={{ borderColor: 'var(--border)' }}
-              >
+              <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
                 <p className="text-xs" style={{ color: 'var(--muted)' }}>
                   Last updated {formatDistanceToNow(lastUpdated, { addSuffix: true })}
                 </p>
@@ -601,11 +602,11 @@ export function Header({
 
             {/* Demo Mode Notice */}
             {isUsingMockData && (
-              <div 
+              <div
                 className="mx-4 mb-4 px-3 py-2 rounded-lg text-xs"
-                style={{ 
+                style={{
                   backgroundColor: 'var(--warning-muted)',
-                  color: 'var(--warning)'
+                  color: 'var(--warning)',
                 }}
               >
                 Demo mode — add API key for live data
