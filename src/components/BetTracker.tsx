@@ -27,6 +27,19 @@ function formatEventTime(dateString: string): string {
   });
 }
 
+// Format date shorter for mobile
+function formatEventTimeShort(dateString: string): string {
+  const date = new Date(dateString);
+  return date.toLocaleString('en-AU', {
+    timeZone: 'Australia/Sydney',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 // Check if event is in the past
 function isEventPast(dateString: string): boolean {
   return new Date(dateString) < new Date();
@@ -73,8 +86,8 @@ export function BetTracker({ bets, onUpdateBet, onDeleteBet, onClearAll }: BetTr
           backgroundColor: 'var(--surface)'
         }}
       >
-        <div className="px-6 py-8 text-center">
-          <p style={{ color: 'var(--muted)' }} className="mb-2">No bets logged yet</p>
+        <div className="px-4 sm:px-6 py-6 sm:py-8 text-center">
+          <p style={{ color: 'var(--muted)' }} className="mb-2 text-sm">No bets logged yet</p>
           <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
             Use the calculator to log your bets and track performance
           </p>
@@ -94,13 +107,13 @@ export function BetTracker({ bets, onUpdateBet, onDeleteBet, onClearAll }: BetTr
       {/* Header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-[var(--surface-hover)] transition-colors border-b"
+        className="w-full px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between text-left hover:bg-[var(--surface-hover)] transition-colors border-b"
         style={{ borderColor: 'var(--border)' }}
       >
-        <div className="flex items-center gap-3">
-          <span className="font-medium" style={{ color: 'var(--foreground)' }}>Bet History</span>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <span className="font-medium text-sm sm:text-base" style={{ color: 'var(--foreground)' }}>Bet History</span>
           <span 
-            className="text-xs px-2 py-0.5 rounded"
+            className="text-xs px-1.5 sm:px-2 py-0.5 rounded"
             style={{
               backgroundColor: 'var(--surface-secondary)',
               color: 'var(--muted)'
@@ -120,31 +133,31 @@ export function BetTracker({ bets, onUpdateBet, onDeleteBet, onClearAll }: BetTr
         <>
           {/* Stats Grid */}
           <div 
-            className="grid grid-cols-2 md:grid-cols-4 gap-px border-b"
+            className="grid grid-cols-2 sm:grid-cols-4 gap-px border-b"
             style={{ 
               backgroundColor: 'var(--border)',
               borderColor: 'var(--border)'
             }}
           >
             <StatCard
-              icon={<Target className="w-4 h-4" />}
+              icon={<Target className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
               label="Total Bets"
               value={stats.totalBets.toString()}
             />
             <StatCard
-              icon={<DollarSign className="w-4 h-4" />}
+              icon={<DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
               label="Total Staked"
               value={`$${stats.totalStaked.toFixed(0)}`}
             />
             <StatCard
-              icon={<TrendingUp className="w-4 h-4" />}
+              icon={<TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
               label="Actual Profit"
               value={`$${stats.totalActualProfit.toFixed(2)}`}
               highlight={stats.totalActualProfit > 0}
               negative={stats.totalActualProfit < 0}
             />
             <StatCard
-              icon={<Percent className="w-4 h-4" />}
+              icon={<Percent className="w-3.5 h-3.5 sm:w-4 sm:h-4" />}
               label="ROI"
               value={`${stats.roi.toFixed(1)}%`}
               highlight={stats.roi > 0}
@@ -154,7 +167,7 @@ export function BetTracker({ bets, onUpdateBet, onDeleteBet, onClearAll }: BetTr
 
           {/* Bet List */}
           <div 
-            className="divide-y max-h-96 overflow-y-auto"
+            className="divide-y max-h-[60vh] sm:max-h-96 overflow-y-auto"
             style={{ borderColor: 'var(--border)' }}
           >
             {bets.map(bet => (
@@ -169,28 +182,28 @@ export function BetTracker({ bets, onUpdateBet, onDeleteBet, onClearAll }: BetTr
 
           {/* Footer Actions */}
           <div 
-            className="px-6 py-3 border-t flex justify-end"
+            className="px-4 sm:px-6 py-3 border-t flex justify-end"
             style={{ borderColor: 'var(--border)' }}
           >
             {showConfirmClear ? (
-              <div className="flex items-center gap-3">
-                <span className="text-xs" style={{ color: 'var(--muted)' }}>Clear all bets?</span>
+              <div className="flex items-center gap-2 sm:gap-3">
+                <span className="text-xs" style={{ color: 'var(--muted)' }}>Clear all?</span>
                 <button
                   onClick={() => {
                     onClearAll();
                     setShowConfirmClear(false);
                   }}
-                  className="text-xs px-3 py-1 transition-colors rounded"
+                  className="text-xs px-2 sm:px-3 py-1 transition-colors rounded"
                   style={{
                     backgroundColor: 'var(--foreground)',
                     color: 'var(--background)'
                   }}
                 >
-                  Yes, clear
+                  Yes
                 </button>
                 <button
                   onClick={() => setShowConfirmClear(false)}
-                  className="text-xs px-3 py-1 border transition-colors rounded"
+                  className="text-xs px-2 sm:px-3 py-1 border transition-colors rounded"
                   style={{
                     borderColor: 'var(--border)',
                     color: 'var(--muted)'
@@ -229,13 +242,13 @@ function StatCard({
   negative?: boolean;
 }) {
   return (
-    <div className="px-4 py-3" style={{ backgroundColor: 'var(--surface)' }}>
-      <div className="flex items-center gap-2 mb-1" style={{ color: 'var(--muted)' }}>
+    <div className="px-3 sm:px-4 py-2.5 sm:py-3" style={{ backgroundColor: 'var(--surface)' }}>
+      <div className="flex items-center gap-1.5 sm:gap-2 mb-0.5 sm:mb-1" style={{ color: 'var(--muted)' }}>
         {icon}
-        <span className="text-xs uppercase tracking-wide">{label}</span>
+        <span className="text-[10px] sm:text-xs uppercase tracking-wide">{label}</span>
       </div>
       <div 
-        className="text-lg font-mono font-medium"
+        className="text-base sm:text-lg font-mono font-medium"
         style={{ 
           color: highlight 
             ? 'var(--success)' 
@@ -477,150 +490,168 @@ function BetRow({
 
   return (
     <div 
-      className="px-6 py-4 hover:bg-[var(--surface-hover)] transition-colors"
+      className="px-3 sm:px-6 py-3 sm:py-4 hover:bg-[var(--surface-hover)] transition-colors"
       style={{ borderColor: 'var(--border)' }}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          {/* Event Title */}
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className="font-medium truncate" style={{ color: 'var(--foreground)' }}>
-              {bet.event.homeTeam} vs {bet.event.awayTeam}
-            </span>
-            <ModeBadge mode={bet.mode} />
-            {is3Way && (
-              <span 
-                className="text-xs px-1.5 py-0.5 rounded"
-                style={{
-                  backgroundColor: 'var(--surface-secondary)',
-                  color: 'var(--muted)'
-                }}
-              >
-                3-way
+      {/* Mobile Layout: Stack vertically */}
+      <div className="flex flex-col gap-3">
+        {/* Row 1: Event Title + Mode Badge + Delete (mobile: title truncates, delete on right) */}
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex-1 min-w-0">
+            {/* Event Title */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium text-sm sm:text-base truncate" style={{ color: 'var(--foreground)' }}>
+                {bet.event.homeTeam} vs {bet.event.awayTeam}
               </span>
-            )}
-          </div>
-          
-          {/* Event Time */}
-          <div className="flex items-center gap-3 mb-2 text-xs flex-wrap">
-            <div 
-              className={`flex items-center gap-1 ${eventSoon ? 'text-yellow-500' : ''}`}
-              style={!eventPast && !eventSoon ? { color: 'var(--muted)' } : eventPast ? { color: 'var(--muted)' } : {}}
-            >
-              <Clock className="w-3 h-3" />
-              <span>{formatEventTime(bet.event.commenceTime)}</span>
-              {eventPast && <span style={{ color: 'var(--muted-foreground)' }}>(finished)</span>}
-              {eventSoon && <span className="text-yellow-500">(soon!)</span>}
             </div>
-            <div className="flex items-center gap-1" style={{ color: 'var(--muted-foreground)' }}>
-              <Calendar className="w-3 h-3" />
-              <span>Placed {format(new Date(bet.createdAt), 'MMM d, h:mm a')}</span>
+            {/* Badges */}
+            <div className="flex items-center gap-1.5 mt-1">
+              <ModeBadge mode={bet.mode} />
+              {is3Way && (
+                <span 
+                  className="text-[10px] sm:text-xs px-1.5 py-0.5 rounded"
+                  style={{
+                    backgroundColor: 'var(--surface-secondary)',
+                    color: 'var(--muted)'
+                  }}
+                >
+                  3-way
+                </span>
+              )}
             </div>
           </div>
           
-          {/* Individual Bets */}
-          <div className="text-xs space-y-1 mb-2">
-            {/* Value Bet */}
-            {bet.mode === 'value-bet' && bet.bet1 && (
+          {/* Delete button - always visible on right */}
+          <button
+            onClick={onDelete}
+            className="p-1.5 transition-colors shrink-0"
+            style={{ color: 'var(--muted)' }}
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Row 2: Event Time & Placed Time */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3 text-xs">
+          <div 
+            className={`flex items-center gap-1 ${eventSoon ? 'text-yellow-500' : ''}`}
+            style={!eventPast && !eventSoon ? { color: 'var(--muted)' } : eventPast ? { color: 'var(--muted)' } : {}}
+          >
+            <Clock className="w-3 h-3 shrink-0" />
+            <span className="sm:hidden">{formatEventTimeShort(bet.event.commenceTime)}</span>
+            <span className="hidden sm:inline">{formatEventTime(bet.event.commenceTime)}</span>
+            {eventPast && <span style={{ color: 'var(--muted-foreground)' }}>(finished)</span>}
+            {eventSoon && <span className="text-yellow-500">(soon!)</span>}
+          </div>
+          <div className="flex items-center gap-1" style={{ color: 'var(--muted-foreground)' }}>
+            <Calendar className="w-3 h-3 shrink-0" />
+            <span>Placed {format(new Date(bet.createdAt), 'MMM d, h:mm a')}</span>
+          </div>
+        </div>
+        
+        {/* Row 3: Individual Bets - Stacked on mobile */}
+        <div className="text-xs space-y-1.5">
+          {/* Value Bet */}
+          {bet.mode === 'value-bet' && bet.bet1 && (
+            <BetLine 
+              stake={bet.bet1.stake} 
+              outcome={bet.bet1.outcome} 
+              odds={bet.bet1.odds} 
+              bookmaker={bet.bet1.bookmaker} 
+            />
+          )}
+          
+          {/* Spread/Totals/Middle/Book-vs-Book */}
+          {(bet.mode === 'book-vs-book' || bet.mode === 'spread' || bet.mode === 'totals' || bet.mode === 'middle') && bet.bet1 && bet.bet2 && (
+            <>
               <BetLine 
                 stake={bet.bet1.stake} 
                 outcome={bet.bet1.outcome} 
                 odds={bet.bet1.odds} 
-                bookmaker={bet.bet1.bookmaker} 
+                bookmaker={bet.bet1.bookmaker}
+                point={bet.bet1.point}
               />
-            )}
-            
-            {/* Spread/Totals/Middle/Book-vs-Book */}
-            {(bet.mode === 'book-vs-book' || bet.mode === 'spread' || bet.mode === 'totals' || bet.mode === 'middle') && bet.bet1 && bet.bet2 && (
-              <>
+              <BetLine 
+                stake={bet.bet2.stake} 
+                outcome={bet.bet2.outcome} 
+                odds={bet.bet2.odds} 
+                bookmaker={bet.bet2.bookmaker}
+                point={bet.bet2.point}
+              />
+              {bet.bet3 && (
                 <BetLine 
-                  stake={bet.bet1.stake} 
-                  outcome={bet.bet1.outcome} 
-                  odds={bet.bet1.odds} 
-                  bookmaker={bet.bet1.bookmaker}
-                  point={bet.bet1.point}
+                  stake={bet.bet3.stake} 
+                  outcome={bet.bet3.outcome} 
+                  odds={bet.bet3.odds} 
+                  bookmaker={bet.bet3.bookmaker} 
                 />
-                <BetLine 
-                  stake={bet.bet2.stake} 
-                  outcome={bet.bet2.outcome} 
-                  odds={bet.bet2.odds} 
-                  bookmaker={bet.bet2.bookmaker}
-                  point={bet.bet2.point}
-                />
-                {bet.bet3 && (
-                  <BetLine 
-                    stake={bet.bet3.stake} 
-                    outcome={bet.bet3.outcome} 
-                    odds={bet.bet3.odds} 
-                    bookmaker={bet.bet3.bookmaker} 
-                  />
-                )}
-              </>
-            )}
-            
-            {/* Book vs Betfair */}
-            {bet.mode === 'book-vs-betfair' && bet.backBet && bet.layBet && (
-              <>
-                <BetLine 
-                  stake={bet.backBet.stake} 
-                  outcome={bet.backBet.outcome} 
-                  odds={bet.backBet.odds} 
-                  bookmaker={bet.backBet.bookmaker}
-                  prefix="Back"
-                />
-                <div className="flex justify-between" style={{ color: 'var(--muted)' }}>
-                  <span>
-                    Lay ${bet.layBet.stake.toFixed(2)} @ {bet.layBet.odds} (liability: ${bet.layBet.liability.toFixed(2)})
-                  </span>
-                  <span style={{ color: 'var(--muted)' }}>
-                    Return: ${(bet.layBet.stake + bet.layBet.liability).toFixed(2)}
-                  </span>
-                </div>
-              </>
-            )}
-
-            {/* Middle Range */}
-            {bet.mode === 'middle' && bet.middleRange && (
-              <div className="text-yellow-400 mt-1">
-                🎯 {bet.middleRange.description}
+              )}
+            </>
+          )}
+          
+          {/* Book vs Betfair */}
+          {bet.mode === 'book-vs-betfair' && bet.backBet && bet.layBet && (
+            <>
+              <BetLine 
+                stake={bet.backBet.stake} 
+                outcome={bet.backBet.outcome} 
+                odds={bet.backBet.odds} 
+                bookmaker={bet.backBet.bookmaker}
+                prefix="Back"
+              />
+              <div className="flex flex-col sm:flex-row sm:justify-between gap-0.5" style={{ color: 'var(--muted)' }}>
+                <span>
+                  Lay ${bet.layBet.stake.toFixed(2)} @ {bet.layBet.odds} (liability: ${bet.layBet.liability.toFixed(2)})
+                </span>
+                <span style={{ color: 'var(--muted)' }}>
+                  Return: ${(bet.layBet.stake + bet.layBet.liability).toFixed(2)}
+                </span>
               </div>
-            )}
-          </div>
+            </>
+          )}
 
-          {/* Summary Line */}
-          <div 
-            className="flex items-center gap-4 text-xs pt-1 border-t flex-wrap"
-            style={{ borderColor: 'var(--border-light)' }}
-          >
-            <span style={{ color: 'var(--muted-foreground)' }}>
-              Total: ${totalStake.toFixed(2)}
-            </span>
-            {isValueBet ? (
-              <span className="text-blue-400">
-                EV: +${bet.expectedProfit.toFixed(2)} · If win: +${maxProfit.toFixed(2)}
-              </span>
-            ) : isMiddle ? (
-              <span className="text-yellow-400">
-                If middle: +${middleProfit?.toFixed(2)} · If miss: ${minProfit.toFixed(2)}
-              </span>
-            ) : (
-              <span className={`font-medium ${minProfit >= 0 ? 'text-green-500' : 'text-red-400'}`}>
-                {Math.abs(maxProfit - minProfit) > 0.01 ? (
-                  <>Profit: ${minProfit.toFixed(2)} – ${maxProfit.toFixed(2)}</>
-                ) : (
-                  <>Guaranteed: {minProfit >= 0 ? '+' : ''}${minProfit.toFixed(2)}</>
-                )}
-              </span>
-            )}
-          </div>
+          {/* Middle Range */}
+          {bet.mode === 'middle' && bet.middleRange && (
+            <div className="text-yellow-400 mt-1">
+              🎯 {bet.middleRange.description}
+            </div>
+          )}
         </div>
 
-        <div className="flex items-center gap-3">
+        {/* Row 4: Summary Line */}
+        <div 
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs pt-2 border-t"
+          style={{ borderColor: 'var(--border-light)' }}
+        >
+          <span style={{ color: 'var(--muted-foreground)' }}>
+            Total: ${totalStake.toFixed(2)}
+          </span>
+          {isValueBet ? (
+            <span className="text-blue-400">
+              EV: +${bet.expectedProfit.toFixed(2)} · Win: +${maxProfit.toFixed(2)}
+            </span>
+          ) : isMiddle ? (
+            <span className="text-yellow-400">
+              Middle: +${middleProfit?.toFixed(2)} · Miss: ${minProfit.toFixed(2)}
+            </span>
+          ) : (
+            <span className={`font-medium ${minProfit >= 0 ? 'text-green-500' : 'text-red-400'}`}>
+              {Math.abs(maxProfit - minProfit) > 0.01 ? (
+                <>Profit: ${minProfit.toFixed(2)} – ${maxProfit.toFixed(2)}</>
+              ) : (
+                <>Guaranteed: {minProfit >= 0 ? '+' : ''}${minProfit.toFixed(2)}</>
+              )}
+            </span>
+          )}
+        </div>
+
+        {/* Row 5: Controls - Full width on mobile */}
+        <div className="flex items-center gap-2 sm:gap-3 pt-1">
           {/* Outcome Selector */}
           <select
             value={getCurrentOutcomeId()}
             onChange={e => handleOutcomeSelect(e.target.value)}
-            className="text-xs px-2 py-1 focus:outline-none max-w-[160px] rounded"
+            className="flex-1 sm:flex-none text-xs px-2 py-1.5 focus:outline-none rounded min-w-0 sm:max-w-[160px]"
             style={{
               backgroundColor: 'var(--surface-secondary)',
               borderColor: 'var(--border)',
@@ -639,9 +670,9 @@ function BetRow({
           </select>
 
           {/* Actual Profit Display / Edit */}
-          <div className="w-24 text-right">
+          <div className="shrink-0">
             {bet.status === 'pending' ? (
-              <div className="text-xs" style={{ color: 'var(--muted)' }}>
+              <div className="text-xs px-2 py-1" style={{ color: 'var(--muted)' }}>
                 Exp: ${bet.expectedProfit.toFixed(2)}
               </div>
             ) : isEditingProfit || getCurrentOutcomeId() === 'manual' ? (
@@ -650,7 +681,7 @@ function BetRow({
                   type="number"
                   value={manualProfit}
                   onChange={e => setManualProfit(e.target.value)}
-                  className="w-16 text-xs px-2 py-1 font-mono focus:outline-none rounded"
+                  className="w-20 text-xs px-2 py-1.5 font-mono focus:outline-none rounded"
                   style={{
                     backgroundColor: 'var(--surface-secondary)',
                     borderColor: 'var(--border)',
@@ -668,7 +699,7 @@ function BetRow({
                   setManualProfit(bet.actualProfit?.toString() || '');
                   setIsEditingProfit(true);
                 }}
-                className="text-xs font-mono transition-colors"
+                className="text-xs font-mono px-2 py-1 transition-colors rounded hover:bg-[var(--surface-secondary)]"
                 title="Click to edit manually"
               >
                 {bet.actualProfit !== undefined ? (
@@ -681,22 +712,13 @@ function BetRow({
               </button>
             )}
           </div>
-
-          {/* Delete */}
-          <button
-            onClick={onDelete}
-            className="p-1 transition-colors"
-            style={{ color: 'var(--muted)' }}
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
         </div>
       </div>
     </div>
   );
 }
 
-// Individual bet line with return calculation
+// Individual bet line with return calculation - Mobile optimized
 function BetLine({ 
   stake, 
   outcome, 
@@ -715,14 +737,14 @@ function BetLine({
   const returnAmount = stake * odds;
   
   return (
-    <div className="flex justify-between" style={{ color: 'var(--muted)' }}>
-      <span>
+    <div className="flex flex-col sm:flex-row sm:justify-between gap-0.5" style={{ color: 'var(--muted)' }}>
+      <span className="break-words">
         {prefix && <span style={{ color: 'var(--muted)' }}>{prefix} </span>}
         ${stake.toFixed(2)} on {outcome}
         {point !== undefined && <span style={{ color: 'var(--muted)' }}> ({point > 0 ? '+' : ''}{point})</span>}
         {' '}@ {odds.toFixed(2)} ({bookmaker})
       </span>
-      <span className="ml-4 whitespace-nowrap" style={{ color: 'var(--muted)' }}>
+      <span className="sm:ml-4 whitespace-nowrap" style={{ color: 'var(--muted)' }}>
         Return: ${returnAmount.toFixed(2)}
       </span>
     </div>
