@@ -109,6 +109,7 @@ export function useBets() {
       ...newBet,
       id: generateBetId(),
       createdAt: new Date().toISOString(),
+      extraProfitCounted: false, // Initialize flag
     };
 
     // Optimistic update
@@ -153,7 +154,7 @@ export function useBets() {
   }, [isAuthenticated]);
 
   const updateBet = useCallback(async (id: string, updates: Partial<PlacedBet>) => {
-    // Find the current bet BEFORE update to check for extra profit (for non-authenticated users)
+    // Find the current bet BEFORE update
     const currentBet = bets.find(b => b.id === id);
     
     // Optimistic update
@@ -179,10 +180,12 @@ export function useBets() {
         setSyncError('Failed to sync bet update');
       }
     } else {
-      // For non-authenticated users: if actualProfit is being set for the first time
-      // and it's higher than expectedProfit, add the DIFFERENCE to global stats
+      // For non-authenticated users: check if we should add extra profit
+      // 1. Extra profit hasn't been counted yet
+      // 2. actualProfit is being set
+      // 3. actualProfit is higher than expectedProfit
       if (currentBet && 
-          currentBet.actualProfit === undefined &&
+          !currentBet.extraProfitCounted &&
           updates.actualProfit !== undefined &&
           updates.actualProfit > currentBet.expectedProfit) {
         const extraProfit = updates.actualProfit - currentBet.expectedProfit;
@@ -192,6 +195,11 @@ export function useBets() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ profit: extraProfit }),
           });
+          
+          // Mark extra profit as counted in local state
+          setBets(prev => prev.map(bet => 
+            bet.id === id ? { ...bet, extraProfitCounted: true } : bet
+          ));
         } catch (err) {
           console.error('Failed to update global stats with extra profit:', err);
         }

@@ -87,6 +87,7 @@ export async function POST(request: NextRequest) {
       ...betData,
       oddsUserId: userId,
       createdAt: betData.createdAt || new Date().toISOString(),
+      extraProfitCounted: false, // Initialize flag
     });
 
     // Update global profit counter and user profit
@@ -135,16 +136,21 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Bet not found' }, { status: 404 });
     }
 
-    // Check if actualProfit is being set for the first time and is higher than expected
-    // This handles the "favour mode" where one outcome pays more than the guaranteed amount
+    // Check if we should add extra profit:
+    // 1. Extra profit hasn't been counted yet for this bet
+    // 2. actualProfit is being set
+    // 3. actualProfit is higher than expectedProfit
     if (
-      currentBet.actualProfit === undefined &&
+      !currentBet.extraProfitCounted &&
       updates.actualProfit !== undefined &&
       updates.actualProfit > currentBet.expectedProfit
     ) {
       const extraProfit = updates.actualProfit - currentBet.expectedProfit;
       await updateGlobalStats(extraProfit);
       await updateUserProfit(userId, extraProfit);
+      
+      // Mark that extra profit has been counted
+      updates.extraProfitCounted = true;
     }
 
     // Now update the bet
@@ -154,7 +160,6 @@ export async function PUT(request: NextRequest) {
       { new: true }
     );
 
-    // This shouldn't happen since we already found the bet above, but TypeScript wants us to check
     if (!bet) {
       return NextResponse.json({ error: 'Bet not found' }, { status: 404 });
     }

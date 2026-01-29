@@ -53,6 +53,7 @@ export interface PlacedBet {
   potentialProfit?: number; // For middles - if middle hits
   status: 'pending' | 'won' | 'lost' | 'partial' | 'middle-hit' | 'middle-miss';
   actualProfit?: number;
+  extraProfitCounted?: boolean; // Track if extra profit was already added to global counter
   notes?: string;
 }
 

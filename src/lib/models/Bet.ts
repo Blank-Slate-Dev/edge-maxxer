@@ -63,6 +63,7 @@ export interface IBet {
   potentialProfit?: number;
   status: BetStatus;
   actualProfit?: number;
+  extraProfitCounted?: boolean; // Track if extra profit was already added to global counter
   notes?: string;
   
   updatedAt: Date;
@@ -145,6 +146,10 @@ const BetSchema = new Schema<IBet>(
       default: 'pending',
     },
     actualProfit: Number,
+    extraProfitCounted: {
+      type: Boolean,
+      default: false,
+    },
     notes: String,
   },
   {
