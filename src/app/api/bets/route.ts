@@ -8,10 +8,12 @@ import User from '@/lib/models/User';
 
 // Maximum profit that can be added in a single update
 const MAX_PROFIT_PER_UPDATE = 10000;
+// Minimum profit to trigger counter update (10 cents)
+const MIN_PROFIT_THRESHOLD = 0.10;
 
 // Helper to update global stats
 async function updateGlobalStats(profit: number) {
-  if (profit <= 0 || profit > MAX_PROFIT_PER_UPDATE) return;
+  if (profit < MIN_PROFIT_THRESHOLD || profit > MAX_PROFIT_PER_UPDATE) return;
   
   try {
     await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/global-stats`, {
@@ -26,7 +28,7 @@ async function updateGlobalStats(profit: number) {
 
 // Helper to update user's total profit
 async function updateUserProfit(userId: string, profit: number) {
-  if (profit <= 0 || profit > MAX_PROFIT_PER_UPDATE) return;
+  if (profit < MIN_PROFIT_THRESHOLD || profit > MAX_PROFIT_PER_UPDATE) return;
   
   try {
     await User.findByIdAndUpdate(userId, {
@@ -90,8 +92,8 @@ export async function POST(request: NextRequest) {
       extraProfitCounted: false, // Initialize flag
     });
 
-    // Update global profit counter and user profit
-    if (bet.expectedProfit > 0) {
+    // Update global profit counter and user profit (only if above threshold)
+    if (bet.expectedProfit >= MIN_PROFIT_THRESHOLD) {
       await updateGlobalStats(bet.expectedProfit);
       await updateUserProfit(userId, bet.expectedProfit);
     }
@@ -140,17 +142,22 @@ export async function PUT(request: NextRequest) {
     // 1. Extra profit hasn't been counted yet for this bet
     // 2. actualProfit is being set
     // 3. actualProfit is higher than expectedProfit
+    // 4. The extra profit is above the minimum threshold
     if (
       !currentBet.extraProfitCounted &&
       updates.actualProfit !== undefined &&
       updates.actualProfit > currentBet.expectedProfit
     ) {
       const extraProfit = updates.actualProfit - currentBet.expectedProfit;
-      await updateGlobalStats(extraProfit);
-      await updateUserProfit(userId, extraProfit);
       
-      // Mark that extra profit has been counted
-      updates.extraProfitCounted = true;
+      // Only update if extra profit meets threshold
+      if (extraProfit >= MIN_PROFIT_THRESHOLD) {
+        await updateGlobalStats(extraProfit);
+        await updateUserProfit(userId, extraProfit);
+        
+        // Mark that extra profit has been counted
+        updates.extraProfitCounted = true;
+      }
     }
 
     // Now update the bet

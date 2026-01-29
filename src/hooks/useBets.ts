@@ -7,6 +7,8 @@ import type { PlacedBet } from '@/lib/bets';
 import { generateBetId } from '@/lib/bets';
 
 const STORAGE_KEY = 'edge-maxxer-bets';
+// Minimum profit to trigger counter update (10 cents)
+const MIN_PROFIT_THRESHOLD = 0.10;
 
 // Type for new bets without id and createdAt (these are generated internally)
 type NewBet = Omit<PlacedBet, 'id' | 'createdAt'>;
@@ -138,8 +140,8 @@ export function useBets() {
         setSyncError('Failed to sync bet to server');
       }
     } else {
-      // If not authenticated, still update global stats
-      if (bet.expectedProfit > 0) {
+      // If not authenticated, still update global stats (only if above threshold)
+      if (bet.expectedProfit >= MIN_PROFIT_THRESHOLD) {
         try {
           await fetch('/api/global-stats', {
             method: 'POST',
@@ -184,24 +186,29 @@ export function useBets() {
       // 1. Extra profit hasn't been counted yet
       // 2. actualProfit is being set
       // 3. actualProfit is higher than expectedProfit
+      // 4. The extra profit is above the minimum threshold
       if (currentBet && 
           !currentBet.extraProfitCounted &&
           updates.actualProfit !== undefined &&
           updates.actualProfit > currentBet.expectedProfit) {
         const extraProfit = updates.actualProfit - currentBet.expectedProfit;
-        try {
-          await fetch('/api/global-stats', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ profit: extraProfit }),
-          });
-          
-          // Mark extra profit as counted in local state
-          setBets(prev => prev.map(bet => 
-            bet.id === id ? { ...bet, extraProfitCounted: true } : bet
-          ));
-        } catch (err) {
-          console.error('Failed to update global stats with extra profit:', err);
+        
+        // Only update if extra profit meets threshold
+        if (extraProfit >= MIN_PROFIT_THRESHOLD) {
+          try {
+            await fetch('/api/global-stats', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ profit: extraProfit }),
+            });
+            
+            // Mark extra profit as counted in local state
+            setBets(prev => prev.map(bet => 
+              bet.id === id ? { ...bet, extraProfitCounted: true } : bet
+            ));
+          } catch (err) {
+            console.error('Failed to update global stats with extra profit:', err);
+          }
         }
       }
     }
