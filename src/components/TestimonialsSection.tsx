@@ -13,6 +13,11 @@ interface Testimonial {
   rating: number;
 }
 
+interface GlobalStats {
+  totalProfit: number;
+  totalUsers: number;
+}
+
 const TESTIMONIALS: Testimonial[] = [
   {
     name: 'Jake M.',
@@ -63,6 +68,24 @@ const TESTIMONIALS: Testimonial[] = [
     rating: 5
   },
 ];
+
+// Format large numbers with K, M suffix
+function formatNumber(num: number): string {
+  if (num >= 1000000) {
+    return `$${(num / 1000000).toFixed(1)}M+`;
+  } else if (num >= 1000) {
+    return `$${(num / 1000).toFixed(1)}K+`;
+  }
+  return `$${num.toFixed(0)}`;
+}
+
+// Format user count
+function formatUserCount(num: number): string {
+  if (num >= 1000) {
+    return `${(num / 1000).toFixed(1)}K+`.replace('.0K', 'K');
+  }
+  return `${num}+`;
+}
 
 function TestimonialCard({ testimonial, delay, className = '' }: { testimonial: Testimonial; delay: number; className?: string }) {
   const [isVisible, setIsVisible] = useState(false);
@@ -135,7 +158,7 @@ function TestimonialCard({ testimonial, delay, className = '' }: { testimonial: 
         className="text-xs sm:text-sm leading-relaxed flex-1"
         style={{ color: 'var(--foreground)' }}
       >
-        "{testimonial.content}"
+        &ldquo;{testimonial.content}&rdquo;
       </p>
 
       {/* Profit badge - always at bottom with consistent top margin */}
@@ -159,6 +182,46 @@ function TestimonialCard({ testimonial, delay, className = '' }: { testimonial: 
 }
 
 export function TestimonialsSection() {
+  const [stats, setStats] = useState<GlobalStats | null>(null);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch('/api/global-stats');
+        if (res.ok) {
+          const data = await res.json();
+          setStats({
+            totalProfit: data.totalProfit || 0,
+            totalUsers: data.totalUsers || 0,
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch global stats:', err);
+      }
+    };
+
+    fetchStats();
+  }, []);
+
+  // Dynamic stats based on real data
+  const displayStats = [
+    { 
+      value: stats ? formatUserCount(stats.totalUsers) : '—', 
+      label: 'Active Users' 
+    },
+    { 
+      value: stats ? formatNumber(stats.totalProfit) : '—', 
+      label: 'User Profits' 
+    },
+    { value: '4.8/5', label: 'Avg. Rating' },
+    { value: '96%', label: 'Would Recommend' },
+  ];
+
+  // Dynamic header text
+  const headerText = stats && stats.totalUsers > 0 
+    ? `Trusted by ${formatUserCount(stats.totalUsers)} Bettors`
+    : 'Trusted by Bettors Worldwide';
+
   return (
     <section 
       className="py-16 sm:py-24 px-4 sm:px-6 border-t"
@@ -171,7 +234,7 @@ export function TestimonialsSection() {
             className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4"
             style={{ color: 'var(--foreground)' }}
           >
-            Trusted by 12,000+ Bettors
+            {headerText}
           </h2>
           <p className="text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
             See what our users are saying about Edge Maxxer
@@ -201,12 +264,7 @@ export function TestimonialsSection() {
           }}
         >
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8 text-center">
-            {[
-              { value: '12,000+', label: 'Active Users' },
-              { value: '$2.6M+', label: 'User Profits' },
-              { value: '4.8/5', label: 'Avg. Rating' },
-              { value: '96%', label: 'Would Recommend' },
-            ].map((stat, i) => (
+            {displayStats.map((stat, i) => (
               <div key={i}>
                 <div 
                   className="text-xl sm:text-3xl font-bold mb-1"

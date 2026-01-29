@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import GlobalStats from '@/lib/models/GlobalStats';
+import User from '@/lib/models/User';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,21 +17,24 @@ export async function GET() {
   try {
     await dbConnect();
     
-    let stats = await GlobalStats.findById('global');
+    // Fetch stats and user count in parallel
+    const [stats, userCount] = await Promise.all([
+      GlobalStats.findById('global'),
+      User.countDocuments(),
+    ]);
     
-    // Initialize if doesn't exist
-    if (!stats) {
-      stats = await GlobalStats.create({
-        _id: 'global',
-        totalProfit: 0,
-        totalBets: 0,
-      });
-    }
+    // Initialize stats if doesn't exist
+    const finalStats = stats || await GlobalStats.create({
+      _id: 'global',
+      totalProfit: 0,
+      totalBets: 0,
+    });
 
     return NextResponse.json({
-      totalProfit: stats.totalProfit,
-      totalBets: stats.totalBets,
-      lastUpdated: stats.lastUpdated,
+      totalProfit: finalStats.totalProfit,
+      totalBets: finalStats.totalBets,
+      totalUsers: userCount,
+      lastUpdated: finalStats.lastUpdated,
     });
   } catch (error) {
     console.error('GlobalStats GET error:', error);
