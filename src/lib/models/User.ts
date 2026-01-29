@@ -22,6 +22,9 @@ export interface IUser {
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
   
+  // Profit tracking
+  totalProfit: number;
+  
   // Other fields
   oddsApiKey?: string;
   referralCode?: string;
@@ -80,6 +83,12 @@ const UserSchema = new Schema<IUser>(
     },
     stripeSubscriptionId: {
       type: String,
+    },
+    
+    // Profit tracking
+    totalProfit: {
+      type: Number,
+      default: 0,
     },
     
     // Other fields

@@ -153,10 +153,32 @@ export function useBets() {
   }, [isAuthenticated]);
 
   const updateBet = useCallback(async (id: string, updates: Partial<PlacedBet>) => {
+    // Find the current bet BEFORE update to check for extra profit
+    const currentBet = bets.find(b => b.id === id);
+    
     // Optimistic update
     setBets(prev => prev.map(bet => 
       bet.id === id ? { ...bet, ...updates } : bet
     ));
+
+    // If actualProfit is being set for the first time (bet was pending)
+    // and it's higher than expectedProfit, add the DIFFERENCE to global stats
+    // This accounts for the "favour" mode where one outcome pays more
+    if (currentBet && 
+        currentBet.actualProfit === undefined &&
+        updates.actualProfit !== undefined &&
+        updates.actualProfit > currentBet.expectedProfit) {
+      const extraProfit = updates.actualProfit - currentBet.expectedProfit;
+      try {
+        await fetch('/api/global-stats', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profit: extraProfit }),
+        });
+      } catch (err) {
+        console.error('Failed to update global stats with extra profit:', err);
+      }
+    }
 
     if (isAuthenticated) {
       try {
@@ -175,7 +197,7 @@ export function useBets() {
         setSyncError('Failed to sync bet update');
       }
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, bets]);
 
   const deleteBet = useCallback(async (id: string) => {
     // Optimistic update

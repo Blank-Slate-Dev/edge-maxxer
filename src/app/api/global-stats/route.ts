@@ -5,6 +5,12 @@ import GlobalStats from '@/lib/models/GlobalStats';
 
 export const dynamic = 'force-dynamic';
 
+// Maximum profit that can be added in a single update (prevents abuse/errors)
+const MAX_PROFIT_PER_UPDATE = 10000;
+
+// Secret key for admin operations (set this in your environment variables)
+const ADMIN_RESET_KEY = process.env.ADMIN_RESET_KEY || 'your-secret-reset-key';
+
 // GET - Fetch global stats (public)
 export async function GET() {
   try {
@@ -41,6 +47,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid profit amount' }, { status: 400 });
     }
 
+    // Cap the profit at $10,000 per update to prevent abuse/errors
+    if (profit > MAX_PROFIT_PER_UPDATE) {
+      console.warn(`Profit amount ${profit} exceeds maximum of ${MAX_PROFIT_PER_UPDATE}. Capping.`);
+      return NextResponse.json({ 
+        error: `Profit amount exceeds maximum of $${MAX_PROFIT_PER_UPDATE.toLocaleString()} per update` 
+      }, { status: 400 });
+    }
+
     await dbConnect();
     
     const stats = await GlobalStats.findByIdAndUpdate(
@@ -60,5 +74,52 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('GlobalStats POST error:', error);
     return NextResponse.json({ error: 'Failed to update stats' }, { status: 500 });
+  }
+}
+
+// DELETE - Reset the counter (admin only)
+export async function DELETE(request: NextRequest) {
+  try {
+    // Check for admin key in header or query param
+    const { searchParams } = new URL(request.url);
+    const adminKey = request.headers.get('x-admin-key') || searchParams.get('key');
+
+    if (adminKey !== ADMIN_RESET_KEY) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Optional: Get a specific value to reset to
+    let resetTo = 0;
+    try {
+      const body = await request.json();
+      if (typeof body.resetTo === 'number' && body.resetTo >= 0) {
+        resetTo = body.resetTo;
+      }
+    } catch {
+      // No body provided, reset to 0
+    }
+
+    await dbConnect();
+    
+    const stats = await GlobalStats.findByIdAndUpdate(
+      'global',
+      {
+        $set: { 
+          totalProfit: resetTo,
+          totalBets: 0,
+          lastUpdated: new Date() 
+        },
+      },
+      { new: true, upsert: true }
+    );
+
+    return NextResponse.json({
+      message: 'Stats reset successfully',
+      totalProfit: stats.totalProfit,
+      totalBets: stats.totalBets,
+    });
+  } catch (error) {
+    console.error('GlobalStats DELETE error:', error);
+    return NextResponse.json({ error: 'Failed to reset stats' }, { status: 500 });
   }
 }
