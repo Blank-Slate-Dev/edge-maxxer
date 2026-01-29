@@ -3,7 +3,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { X } from 'lucide-react';
+import { X, Star } from 'lucide-react';
 import { 
   naturalizeArbStakes,
   naturalize3WayArbStakes,
@@ -72,7 +72,9 @@ function getOutcomesFromArb(arb: ArbOpportunity): { name: string; bookmaker: str
 
 export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculatorModalProps) {
   const [totalStake, setTotalStake] = useState<string>('100');
-  const [stealthMode, setStealthMode] = useState<boolean>(true);
+  const [stealthMode, setStealthMode] = useState<boolean>(false);
+  const [favourMode, setFavourMode] = useState<boolean>(false);
+  const [favouredOutcome, setFavouredOutcome] = useState<number | null>(null);
   const [naturalizedStakes, setNaturalizedStakes] = useState<NaturalizedStake[]>([]);
   const [customOddsStrings, setCustomOddsStrings] = useState<string[]>([]);
   const [customStakeStrings, setCustomStakeStrings] = useState<string[]>([]);
@@ -87,6 +89,8 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
       setCustomStakeStrings([]);
       setOddsModified(false);
       setStakesModified(false);
+      setFavourMode(false);
+      setFavouredOutcome(null);
     }
   }, [arb]);
 
@@ -96,12 +100,79 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
       return { stakes: [], naturalized: [] as NaturalizedStake[] };
     }
 
-    const totalImplied = oddsArray.reduce((sum, odds) => sum + (1 / odds), 0);
-    
-    const stakes = oddsArray.map((odds) => {
-      const impliedProb = 1 / odds;
-      return (total * impliedProb) / totalImplied;
-    });
+    let stakes: number[];
+
+    // Favour mode calculation
+    if (favourMode && favouredOutcome !== null && outcomes.length === 2) {
+      // For favour mode with 2 outcomes:
+      // If favoured outcome wins: double profit
+      // If non-favoured outcome wins: break even
+      
+      const favouredIdx = favouredOutcome;
+      const nonFavouredIdx = favouredOutcome === 0 ? 1 : 0;
+      const nonFavouredOdds = oddsArray[nonFavouredIdx];
+      
+      // For break-even on non-favoured: stake_nf * odds_nf = total
+      // So stake_nf = total / odds_nf
+      // And stake_f = total - stake_nf
+      
+      const stakeNonFavoured = total / nonFavouredOdds;
+      const stakeFavoured = total - stakeNonFavoured;
+      
+      stakes = [];
+      stakes[favouredIdx] = stakeFavoured;
+      stakes[nonFavouredIdx] = stakeNonFavoured;
+    } else if (favourMode && favouredOutcome !== null && outcomes.length === 3) {
+      // For 3-way favour mode:
+      // Favoured outcome wins: enhanced profit
+      // Other two outcomes: break even combined
+      
+      const favouredIdx = favouredOutcome;
+      const otherIdxs = [0, 1, 2].filter(i => i !== favouredIdx);
+      
+      // We need both non-favoured outcomes to return exactly the total stake
+      // stake_other1 * odds_other1 = stake_other2 * odds_other2 = total - stake_favoured... 
+      // This gets complex, so we'll use a simpler approach:
+      // Make the two non-favoured outcomes each break even individually
+      // stake_i = total / odds_i for non-favoured
+      // But this would exceed total stake, so we scale proportionally
+      
+      const odds1 = oddsArray[otherIdxs[0]];
+      const odds2 = oddsArray[otherIdxs[1]];
+      
+      // For equal returns on non-favoured: s1*o1 = s2*o2 = R (some return value)
+      // And we want R = total stake for break-even
+      // s1 = total/o1, s2 = total/o2 would give us break-even but uses too much
+      // We need: s1 + s2 + sf = total
+      // And s1*o1 = s2*o2 = total (break even requirement)
+      // This gives: total/o1 + total/o2 + sf = total
+      // sf = total * (1 - 1/o1 - 1/o2)
+      
+      const stakeFavoured = total * (1 - 1/odds1 - 1/odds2);
+      
+      // If stakeFavoured is negative, favour mode isn't viable for this arb
+      if (stakeFavoured < 0) {
+        // Fall back to standard calculation
+        const totalImplied = oddsArray.reduce((sum, odds) => sum + (1 / odds), 0);
+        stakes = oddsArray.map((odds) => {
+          const impliedProb = 1 / odds;
+          return (total * impliedProb) / totalImplied;
+        });
+      } else {
+        stakes = [];
+        stakes[favouredIdx] = stakeFavoured;
+        stakes[otherIdxs[0]] = total / odds1;
+        stakes[otherIdxs[1]] = total / odds2;
+      }
+    } else {
+      // Standard arb calculation - equalize returns across all outcomes
+      const totalImplied = oddsArray.reduce((sum, odds) => sum + (1 / odds), 0);
+      
+      stakes = oddsArray.map((odds) => {
+        const impliedProb = 1 / odds;
+        return (total * impliedProb) / totalImplied;
+      });
+    }
 
     // Calculate naturalized stakes if stealth mode
     let naturalized: NaturalizedStake[] = [];
@@ -128,7 +199,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
     }
 
     return { stakes, naturalized };
-  }, [stealthMode]);
+  }, [stealthMode, favourMode, favouredOutcome]);
 
   // Recalculate stakes when not manually modified
   const recalculateStakes = useCallback(() => {
@@ -230,9 +301,29 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
     setCustomOddsStrings(outcomes.map(o => o.odds.toFixed(2)));
     setOddsModified(false);
     setStakesModified(false);
+    setFavourMode(false);
+    setFavouredOutcome(null);
   };
 
   const handleRecalculateOptimal = () => {
+    setStakesModified(false);
+  };
+
+  const handleFavourToggle = () => {
+    if (favourMode) {
+      // Turning off
+      setFavourMode(false);
+      setFavouredOutcome(null);
+    } else {
+      // Turning on - default to first outcome
+      setFavourMode(true);
+      setFavouredOutcome(0);
+    }
+    setStakesModified(false);
+  };
+
+  const handleFavouredOutcomeChange = (index: number) => {
+    setFavouredOutcome(index);
     setStakesModified(false);
   };
 
@@ -364,49 +455,140 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
               </div>
             </div>
 
-            {/* Stealth Mode Toggle */}
-            <div 
-              className="flex items-center justify-between gap-3 p-3 sm:p-4 rounded-lg border"
-              style={{
-                backgroundColor: 'var(--surface)',
-                borderColor: 'var(--border)'
-              }}
-            >
-              <div className="min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-medium text-sm sm:text-base" style={{ color: 'var(--foreground)' }}>🥷 Stealth Mode</span>
-                  <span 
-                    className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded"
-                    style={{
-                      backgroundColor: stealthMode ? 'color-mix(in srgb, var(--success) 20%, transparent)' : 'var(--surface-secondary)',
-                      color: stealthMode ? 'var(--success)' : 'var(--muted)'
-                    }}
-                  >
-                    {stealthMode ? 'ON' : 'OFF'}
-                  </span>
-                </div>
-                <p className="text-xs sm:text-sm mt-1" style={{ color: 'var(--muted)' }}>
-                  Rounds stakes to look natural
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setStealthMode(!stealthMode);
-                  setStakesModified(false);
-                }}
-                className="relative w-11 sm:w-12 h-6 rounded-full transition-colors shrink-0"
+            {/* Mode Toggles Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Stealth Mode Toggle */}
+              <div 
+                className="flex items-center justify-between gap-3 p-3 sm:p-4 rounded-lg border"
                 style={{
-                  backgroundColor: stealthMode ? 'var(--success)' : 'var(--border)'
+                  backgroundColor: 'var(--surface)',
+                  borderColor: 'var(--border)'
                 }}
               >
-                <span 
-                  className="absolute top-1 w-4 h-4 bg-white rounded-full transition-transform"
-                  style={{
-                    left: stealthMode ? '1.5rem' : '0.25rem'
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-sm sm:text-base" style={{ color: 'var(--foreground)' }}>🥷 Stealth</span>
+                    <span 
+                      className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded"
+                      style={{
+                        backgroundColor: stealthMode ? 'color-mix(in srgb, var(--success) 20%, transparent)' : 'var(--surface-secondary)',
+                        color: stealthMode ? 'var(--success)' : 'var(--muted)'
+                      }}
+                    >
+                      {stealthMode ? 'ON' : 'OFF'}
+                    </span>
+                  </div>
+                  <p className="text-xs mt-1 hidden sm:block" style={{ color: 'var(--muted)' }}>
+                    Round stakes naturally
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setStealthMode(!stealthMode);
+                    setStakesModified(false);
                   }}
-                />
-              </button>
+                  className="relative w-11 sm:w-12 h-6 rounded-full transition-colors shrink-0"
+                  style={{
+                    backgroundColor: stealthMode ? 'var(--success)' : 'var(--border)'
+                  }}
+                >
+                  <span 
+                    className="absolute top-1 w-4 h-4 bg-white rounded-full transition-transform"
+                    style={{
+                      left: stealthMode ? '1.5rem' : '0.25rem'
+                    }}
+                  />
+                </button>
+              </div>
+
+              {/* Favour Mode Toggle */}
+              <div 
+                className="flex items-center justify-between gap-3 p-3 sm:p-4 rounded-lg border"
+                style={{
+                  backgroundColor: 'var(--surface)',
+                  borderColor: favourMode ? 'var(--warning)' : 'var(--border)'
+                }}
+              >
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-medium text-sm sm:text-base" style={{ color: 'var(--foreground)' }}>
+                      <Star className="w-4 h-4 inline mr-1" style={{ color: 'var(--warning)' }} />
+                      Favour
+                    </span>
+                    <span 
+                      className="text-[10px] sm:text-xs px-1.5 sm:px-2 py-0.5 rounded"
+                      style={{
+                        backgroundColor: favourMode ? 'color-mix(in srgb, var(--warning) 20%, transparent)' : 'var(--surface-secondary)',
+                        color: favourMode ? 'var(--warning)' : 'var(--muted)'
+                      }}
+                    >
+                      {favourMode ? 'ON' : 'OFF'}
+                    </span>
+                  </div>
+                  <p className="text-xs mt-1 hidden sm:block" style={{ color: 'var(--muted)' }}>
+                    Double profit or break even
+                  </p>
+                </div>
+                <button
+                  onClick={handleFavourToggle}
+                  className="relative w-11 sm:w-12 h-6 rounded-full transition-colors shrink-0"
+                  style={{
+                    backgroundColor: favourMode ? 'var(--warning)' : 'var(--border)'
+                  }}
+                >
+                  <span 
+                    className="absolute top-1 w-4 h-4 bg-white rounded-full transition-transform"
+                    style={{
+                      left: favourMode ? '1.5rem' : '0.25rem'
+                    }}
+                  />
+                </button>
+              </div>
             </div>
+
+            {/* Favour Mode Outcome Selector */}
+            {favourMode && (
+              <div 
+                className="p-3 sm:p-4 rounded-lg border"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--warning) 10%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)'
+                }}
+              >
+                <h4 className="font-medium mb-2 text-sm" style={{ color: 'var(--warning)' }}>
+                  <Star className="w-4 h-4 inline mr-1" />
+                  Select Favoured Outcome
+                </h4>
+                <p className="text-xs mb-3" style={{ color: 'var(--muted)' }}>
+                  If your pick wins → double profit. Other outcomes → break even.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {outcomes.map((outcome, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleFavouredOutcomeChange(index)}
+                      className="flex-1 min-w-[120px] px-3 py-2 text-sm font-medium rounded-lg transition-all border"
+                      style={{
+                        backgroundColor: favouredOutcome === index 
+                          ? 'var(--warning)' 
+                          : 'var(--surface)',
+                        borderColor: favouredOutcome === index 
+                          ? 'var(--warning)' 
+                          : 'var(--border)',
+                        color: favouredOutcome === index 
+                          ? 'black' 
+                          : 'var(--foreground)'
+                      }}
+                    >
+                      <div className="flex items-center justify-center gap-1">
+                        {favouredOutcome === index && <Star className="w-3 h-3" />}
+                        <span className="truncate">{outcome.name}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Total Stake Input */}
             <div>
@@ -514,22 +696,38 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                 const optimalStake = optimalStakes[index] || 0;
                 const isStakeChanged = stakesModified && Math.abs(currentStake - optimalStake) > 0.01;
                 
+                const isFavoured = favourMode && favouredOutcome === index;
+                
                 return (
                   <div 
                     key={index}
                     className="p-3 sm:p-4 rounded-lg border"
                     style={{
                       backgroundColor: 'var(--surface)',
-                      borderColor: 'var(--border)'
+                      borderColor: isFavoured ? 'var(--warning)' : 'var(--border)'
                     }}
                   >
                     {/* Outcome Header */}
                     <div className="flex items-start justify-between gap-2 mb-2 sm:mb-3">
                       <div className="min-w-0">
-                        <div className="font-medium text-sm sm:text-base truncate" style={{ color: 'var(--foreground)' }}>{outcome.name}</div>
+                        <div className="flex items-center gap-2">
+                          {isFavoured && <Star className="w-4 h-4 shrink-0" style={{ color: 'var(--warning)' }} />}
+                          <div className="font-medium text-sm sm:text-base truncate" style={{ color: 'var(--foreground)' }}>{outcome.name}</div>
+                        </div>
                         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                           <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>{outcome.bookmaker}</span>
                           <RiskBadge bookmaker={outcome.bookmaker} />
+                          {isFavoured && (
+                            <span 
+                              className="text-[10px] sm:text-xs px-1.5 py-0.5 rounded font-medium"
+                              style={{ 
+                                backgroundColor: 'color-mix(in srgb, var(--warning) 20%, transparent)',
+                                color: 'var(--warning)'
+                              }}
+                            >
+                              FAVOURED
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
@@ -614,14 +812,21 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                   </div>
                 </div>
                 <div>
-                  <div className="text-[10px] sm:text-xs uppercase mb-0.5 sm:mb-1" style={{ color: 'var(--muted-foreground)' }}>Profit</div>
+                  <div className="text-[10px] sm:text-xs uppercase mb-0.5 sm:mb-1" style={{ color: 'var(--muted-foreground)' }}>
+                    {favourMode ? 'Min Profit' : 'Profit'}
+                  </div>
                   <div 
                     className="text-base sm:text-lg font-bold"
                     style={{ color: minProfit >= 0 ? 'var(--success)' : 'var(--danger)' }}
                   >
                     {minProfit >= 0 ? '+' : ''}${minProfit.toFixed(2)}
                   </div>
-                  {profitVariance > 0.01 && (
+                  {favourMode && maxProfit > minProfit && (
+                    <div className="text-[10px] sm:text-xs" style={{ color: 'var(--warning)' }}>
+                      Max: +${maxProfit.toFixed(2)}
+                    </div>
+                  )}
+                  {!favourMode && profitVariance > 0.01 && (
                     <div className="text-[10px] sm:text-xs text-yellow-400">
                       ±${(profitVariance / 2).toFixed(2)}
                     </div>
@@ -639,8 +844,42 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
               </div>
             </div>
 
-            {/* Profit Breakdown per Outcome */}
-            {profitVariance > 0.01 && (
+            {/* Favour Mode Explanation */}
+            {favourMode && favouredOutcome !== null && (
+              <div 
+                className="p-3 sm:p-4 rounded-lg border"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, var(--warning) 10%, transparent)',
+                  borderColor: 'color-mix(in srgb, var(--warning) 30%, transparent)'
+                }}
+              >
+                <h4 className="font-medium mb-2 text-sm" style={{ color: 'var(--warning)' }}>
+                  <Star className="w-4 h-4 inline mr-1" />
+                  Favour Mode Active
+                </h4>
+                <div className="space-y-1 text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
+                  <div className="flex justify-between">
+                    <span>If <strong style={{ color: 'var(--warning)' }}>{outcomes[favouredOutcome].name}</strong> wins:</span>
+                    <span style={{ color: 'var(--success)' }}>+${maxProfit.toFixed(2)}</span>
+                  </div>
+                  {outcomes.map((outcome, i) => {
+                    if (i === favouredOutcome) return null;
+                    return (
+                      <div key={i} className="flex justify-between">
+                        <span>If {outcome.name} wins:</span>
+                        <span style={{ color: getProfit(i) >= 0 ? 'var(--success)' : 'var(--muted)' }}>
+                          {getProfit(i) >= 0 ? '+' : ''}${getProfit(i).toFixed(2)}
+                          {Math.abs(getProfit(i)) < 0.50 && ' (break even)'}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Profit Breakdown per Outcome (only show when not in favour mode) */}
+            {!favourMode && profitVariance > 0.01 && (
               <div 
                 className="p-3 sm:p-4 rounded-lg border"
                 style={{
@@ -676,7 +915,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
             )}
 
             {/* Stealth Tips */}
-            {stealthMode && !stakesModified && (
+            {stealthMode && !stakesModified && !favourMode && (
               <div 
                 className="p-3 sm:p-4 rounded-lg border"
                 style={{
