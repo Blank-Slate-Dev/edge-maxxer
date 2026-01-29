@@ -153,7 +153,7 @@ export function useBets() {
   }, [isAuthenticated]);
 
   const updateBet = useCallback(async (id: string, updates: Partial<PlacedBet>) => {
-    // Find the current bet BEFORE update to check for extra profit
+    // Find the current bet BEFORE update to check for extra profit (for non-authenticated users)
     const currentBet = bets.find(b => b.id === id);
     
     // Optimistic update
@@ -161,26 +161,8 @@ export function useBets() {
       bet.id === id ? { ...bet, ...updates } : bet
     ));
 
-    // If actualProfit is being set for the first time (bet was pending)
-    // and it's higher than expectedProfit, add the DIFFERENCE to global stats
-    // This accounts for the "favour" mode where one outcome pays more
-    if (currentBet && 
-        currentBet.actualProfit === undefined &&
-        updates.actualProfit !== undefined &&
-        updates.actualProfit > currentBet.expectedProfit) {
-      const extraProfit = updates.actualProfit - currentBet.expectedProfit;
-      try {
-        await fetch('/api/global-stats', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ profit: extraProfit }),
-        });
-      } catch (err) {
-        console.error('Failed to update global stats with extra profit:', err);
-      }
-    }
-
     if (isAuthenticated) {
+      // Backend handles extra profit logic for authenticated users
       try {
         const res = await fetch('/api/bets', {
           method: 'PUT',
@@ -195,6 +177,24 @@ export function useBets() {
       } catch (err) {
         console.error('Failed to update bet on server:', err);
         setSyncError('Failed to sync bet update');
+      }
+    } else {
+      // For non-authenticated users: if actualProfit is being set for the first time
+      // and it's higher than expectedProfit, add the DIFFERENCE to global stats
+      if (currentBet && 
+          currentBet.actualProfit === undefined &&
+          updates.actualProfit !== undefined &&
+          updates.actualProfit > currentBet.expectedProfit) {
+        const extraProfit = updates.actualProfit - currentBet.expectedProfit;
+        try {
+          await fetch('/api/global-stats', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profit: extraProfit }),
+          });
+        } catch (err) {
+          console.error('Failed to update global stats with extra profit:', err);
+        }
       }
     }
   }, [isAuthenticated, bets]);
