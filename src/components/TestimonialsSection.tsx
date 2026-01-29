@@ -1,7 +1,7 @@
 // src/components/TestimonialsSection.tsx
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { Star, Quote } from 'lucide-react';
 
 interface Testimonial {
@@ -87,6 +87,55 @@ function formatUserCount(num: number): string {
   return `${num}+`;
 }
 
+// Hook for animated count-up that smoothly transitions to new targets
+function useAnimatedCount(target: number, duration: number = 1500, enabled: boolean = true): number {
+  const [displayValue, setDisplayValue] = useState(0);
+  const animationRef = useRef<number>();
+  const startValueRef = useRef(0);
+  const startTimeRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!enabled || target === displayValue) return;
+
+    // Cancel any existing animation
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+    }
+
+    startValueRef.current = displayValue;
+    startTimeRef.current = null;
+
+    const animate = (timestamp: number) => {
+      if (!startTimeRef.current) startTimeRef.current = timestamp;
+      
+      const elapsed = timestamp - startTimeRef.current;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      // Easing function for smooth deceleration
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      const current = startValueRef.current + (target - startValueRef.current) * easeOut;
+      
+      setDisplayValue(Math.floor(current));
+
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animate);
+      } else {
+        setDisplayValue(target);
+      }
+    };
+
+    animationRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [target, duration, enabled]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return displayValue;
+}
+
 function TestimonialCard({ testimonial, delay, className = '' }: { testimonial: Testimonial; delay: number; className?: string }) {
   const [isVisible, setIsVisible] = useState(false);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -153,7 +202,7 @@ function TestimonialCard({ testimonial, delay, className = '' }: { testimonial: 
         ))}
       </div>
 
-      {/* Content - flex-1 to fill available space and push profit to bottom */}
+      {/* Content */}
       <p 
         className="text-xs sm:text-sm leading-relaxed flex-1"
         style={{ color: 'var(--foreground)' }}
@@ -161,7 +210,7 @@ function TestimonialCard({ testimonial, delay, className = '' }: { testimonial: 
         &ldquo;{testimonial.content}&rdquo;
       </p>
 
-      {/* Profit badge - always at bottom with consistent top margin */}
+      {/* Profit badge */}
       {testimonial.profit && (
         <div className="mt-4 pt-3 sm:pt-4 border-t" style={{ borderColor: 'var(--border)' }}>
           <div 
@@ -183,39 +232,65 @@ function TestimonialCard({ testimonial, delay, className = '' }: { testimonial: 
 
 export function TestimonialsSection() {
   const [stats, setStats] = useState<GlobalStats | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const sectionRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        const res = await fetch('/api/global-stats');
-        if (res.ok) {
-          const data = await res.json();
-          setStats({
-            totalProfit: data.totalProfit || 0,
-            totalUsers: data.totalUsers || 0,
-          });
-        }
-      } catch (err) {
-        console.error('Failed to fetch global stats:', err);
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await fetch('/api/global-stats');
+      if (res.ok) {
+        const data = await res.json();
+        setStats({
+          totalProfit: data.totalProfit || 0,
+          totalUsers: data.totalUsers || 0,
+        });
       }
-    };
-
-    fetchStats();
+    } catch (err) {
+      console.error('Failed to fetch global stats:', err);
+    }
   }, []);
 
-  // Dynamic stats based on real data
-  const displayStats = [
-    { 
-      value: stats ? formatUserCount(stats.totalUsers) : '—', 
-      label: 'Active Users' 
-    },
-    { 
-      value: stats ? formatNumber(stats.totalProfit) : '—', 
-      label: 'User Profits' 
-    },
-    { value: '4.8/5', label: 'Avg. Rating' },
-    { value: '96%', label: 'Would Recommend' },
-  ];
+  // Initial fetch
+  useEffect(() => {
+    fetchStats();
+  }, [fetchStats]);
+
+  // Refresh every 5 seconds (matches hero ProfitCounter)
+  useEffect(() => {
+    const interval = setInterval(fetchStats, 5000);
+    return () => clearInterval(interval);
+  }, [fetchStats]);
+
+  // Intersection observer for triggering animations
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsVisible(true);
+        }
+      },
+      { threshold: 0.2 }
+    );
+
+    if (sectionRef.current) {
+      observer.observe(sectionRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Animated values
+  const animatedUsers = useAnimatedCount(
+    stats?.totalUsers || 0, 
+    1500, 
+    isVisible && stats !== null
+  );
+  
+  const animatedProfit = useAnimatedCount(
+    stats?.totalProfit || 0, 
+    1500, 
+    isVisible && stats !== null
+  );
 
   // Dynamic header text
   const headerText = stats && stats.totalUsers > 0 
@@ -241,22 +316,21 @@ export function TestimonialsSection() {
           </p>
         </div>
 
-        {/* Testimonials Grid - 2 cols on mobile (first 4 only), 3 cols lg (all 6) */}
-        {/* Using grid with items-stretch ensures cards in each row have equal height */}
+        {/* Testimonials Grid */}
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-6 items-stretch">
           {TESTIMONIALS.map((testimonial, i) => (
             <TestimonialCard 
               key={i} 
               testimonial={testimonial} 
               delay={i * 100}
-              // Hide 5th and 6th testimonials on mobile/tablet, show on lg+
               className={i >= 4 ? 'hidden lg:flex' : ''}
             />
           ))}
         </div>
 
-        {/* Social proof stats - increased top margin for better spacing */}
+        {/* Social proof stats */}
         <div 
+          ref={sectionRef}
           className="mt-12 sm:mt-20 p-4 sm:p-8 rounded-2xl border"
           style={{ 
             backgroundColor: 'var(--surface)',
@@ -264,19 +338,56 @@ export function TestimonialsSection() {
           }}
         >
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-8 text-center">
-            {displayStats.map((stat, i) => (
-              <div key={i}>
-                <div 
-                  className="text-xl sm:text-3xl font-bold mb-1"
-                  style={{ color: 'var(--foreground)' }}
-                >
-                  {stat.value}
-                </div>
-                <div className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
-                  {stat.label}
-                </div>
+            {/* Active Users - animated */}
+            <div>
+              <div 
+                className="text-xl sm:text-3xl font-bold mb-1"
+                style={{ color: 'var(--foreground)' }}
+              >
+                {formatUserCount(animatedUsers)}
               </div>
-            ))}
+              <div className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
+                Active Users
+              </div>
+            </div>
+
+            {/* User Profits - animated */}
+            <div>
+              <div 
+                className="text-xl sm:text-3xl font-bold mb-1"
+                style={{ color: 'var(--foreground)' }}
+              >
+                {formatNumber(animatedProfit)}
+              </div>
+              <div className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
+                User Profits
+              </div>
+            </div>
+
+            {/* Static stats */}
+            <div>
+              <div 
+                className="text-xl sm:text-3xl font-bold mb-1"
+                style={{ color: 'var(--foreground)' }}
+              >
+                4.8/5
+              </div>
+              <div className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
+                Avg. Rating
+              </div>
+            </div>
+
+            <div>
+              <div 
+                className="text-xl sm:text-3xl font-bold mb-1"
+                style={{ color: 'var(--foreground)' }}
+              >
+                96%
+              </div>
+              <div className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
+                Would Recommend
+              </div>
+            </div>
           </div>
         </div>
       </div>
