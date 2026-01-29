@@ -79,6 +79,7 @@ export function calculateBetStats(bets: PlacedBet[]): BetStats {
   let totalActualProfit = 0;
 
   bets.forEach(bet => {
+    // Calculate total staked
     if (bet.bet1) {
       totalStaked += bet.bet1.stake;
     }
@@ -91,8 +92,18 @@ export function calculateBetStats(bets: PlacedBet[]): BetStats {
     if (bet.backBet && bet.layBet) {
       totalStaked += bet.backBet.stake + bet.layBet.liability;
     }
+    
+    // Expected profit (always add)
     totalExpectedProfit += bet.expectedProfit;
-    if (bet.actualProfit !== undefined) {
+    
+    // Actual profit calculation:
+    // - Pending bets: count the minimum guaranteed profit (expectedProfit)
+    // - Resolved bets: count the actual profit
+    if (bet.status === 'pending') {
+      // Pending: add expected (minimum guaranteed) profit
+      totalActualProfit += bet.expectedProfit;
+    } else if (bet.actualProfit !== undefined) {
+      // Resolved: add actual profit
       totalActualProfit += bet.actualProfit;
     }
   });
