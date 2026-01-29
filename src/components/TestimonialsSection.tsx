@@ -171,7 +171,7 @@ export function TestimonialsSection() {
             className="text-2xl sm:text-3xl md:text-4xl font-bold mb-3 sm:mb-4"
             style={{ color: 'var(--foreground)' }}
           >
-            Trusted by 1,200+ Bettors
+            Trusted by 12,000+ Bettors
           </h2>
           <p className="text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
             See what our users are saying about Edge Maxxer
