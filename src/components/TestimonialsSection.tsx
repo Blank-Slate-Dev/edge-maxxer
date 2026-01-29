@@ -90,7 +90,7 @@ function formatUserCount(num: number): string {
 // Hook for animated count-up that smoothly transitions to new targets
 function useAnimatedCount(target: number, duration: number = 1500, enabled: boolean = true): number {
   const [displayValue, setDisplayValue] = useState(0);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
   const startValueRef = useRef(0);
   const startTimeRef = useRef<number | null>(null);
 
