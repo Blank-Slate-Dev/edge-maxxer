@@ -1171,6 +1171,8 @@ export default function SettingsPage() {
             <button
               onClick={() => handleSaveAutoScan({
                 minProfitPercent: autoScan.minProfitPercent,
+                highValueThreshold: autoScan.highValueThreshold,
+                enableHighValueReminders: autoScan.enableHighValueReminders,
                 regions: autoScan.regions,
                 creditTier: autoScan.creditTier,
                 alertCooldownMinutes: autoScan.alertCooldownMinutes,

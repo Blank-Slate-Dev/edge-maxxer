@@ -128,7 +128,8 @@ export async function PUT(request: NextRequest) {
     
     // Handle auto-scan settings update
     if (autoScan !== undefined) {
-      const currentAutoScan = user.autoScan || {};
+      // Convert Mongoose subdocument to plain object
+      const currentAutoScan = user.autoScan ? JSON.parse(JSON.stringify(user.autoScan)) : {};
       
       // Validate and merge auto-scan settings
       const newAutoScan = { ...currentAutoScan };
@@ -256,7 +257,7 @@ export async function PUT(request: NextRequest) {
       region: updatedUser?.region,
       phoneNumber: updatedUser?.phoneNumber,
       phoneVerified: updatedUser?.phoneVerified,
-      autoScan: updatedUser?.autoScan,
+      autoScan: updatedUser?.autoScan ? JSON.parse(JSON.stringify(updatedUser.autoScan)) : undefined,
     });
   } catch (error) {
     console.error('Settings PUT error:', error);
