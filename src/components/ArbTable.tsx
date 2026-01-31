@@ -1,6 +1,7 @@
 // src/components/ArbTable.tsx
 'use client';
 
+import { useState, useEffect, useCallback } from 'react';
 import type { ArbOpportunity } from '@/lib/types';
 import { getBookmakerName, getBookmakerRegion } from '@/lib/config';
 import { buildBookmakerSearchUrl, getCanonicalBookmaker } from '@/lib/bookmakerLinks';
@@ -12,8 +13,106 @@ interface ArbTableProps {
   globalMode?: boolean;
 }
 
-// Cache for deep links (unused for now - kept for future use)
-// const deepLinkCache = new Map<string, Record<string, string | null>>();
+// Global cache for deep links - persists across re-renders
+const deepLinkCache = new Map<string, string | null>();
+const pendingRequests = new Map<string, Promise<Record<string, string | null>>>();
+
+// Batch fetch deep links for an event
+async function fetchDeepLinks(
+  homeTeam: string,
+  awayTeam: string,
+  bookmakers: string[],
+  sport?: string
+): Promise<Record<string, string | null>> {
+  const cacheKey = `${homeTeam}|${awayTeam}|${sport || ''}`;
+  
+  // Check if we already have a pending request for this event
+  if (pendingRequests.has(cacheKey)) {
+    return pendingRequests.get(cacheKey)!;
+  }
+  
+  // Check cache first
+  const cached: Record<string, string | null> = {};
+  let allCached = true;
+  for (const bookie of bookmakers) {
+    const key = `${cacheKey}|${getCanonicalBookmaker(bookie)}`;
+    if (deepLinkCache.has(key)) {
+      cached[getCanonicalBookmaker(bookie)] = deepLinkCache.get(key)!;
+    } else {
+      allCached = false;
+    }
+  }
+  
+  if (allCached) {
+    return cached;
+  }
+  
+  // Fetch from API
+  const promise = (async () => {
+    try {
+      const params = new URLSearchParams({
+        homeTeam,
+        awayTeam,
+        bookmakers: bookmakers.map(getCanonicalBookmaker).join(','),
+      });
+      if (sport) params.set('sport', sport);
+      
+      const res = await fetch(`/api/event-url?${params}`);
+      if (!res.ok) return cached;
+      
+      const data = await res.json();
+      const links = data.urls || {};
+      
+      // Cache the results
+      for (const bookie of bookmakers) {
+        const canonical = getCanonicalBookmaker(bookie);
+        const key = `${cacheKey}|${canonical}`;
+        deepLinkCache.set(key, links[canonical] || null);
+      }
+      
+      return { ...cached, ...links };
+    } catch (err) {
+      console.error('[DeepLinks] Error fetching:', err);
+      return cached;
+    } finally {
+      pendingRequests.delete(cacheKey);
+    }
+  })();
+  
+  pendingRequests.set(cacheKey, promise);
+  return promise;
+}
+
+// Hook for fetching deep links on-demand
+function useDeepLinks(
+  event: { homeTeam: string; awayTeam: string; sportKey?: string },
+  bookmakers: string[]
+) {
+  const [links, setLinks] = useState<Record<string, string | null>>({});
+  const [loading, setLoading] = useState(false);
+  
+  useEffect(() => {
+    if (bookmakers.length === 0) return;
+    
+    let cancelled = false;
+    setLoading(true);
+    
+    fetchDeepLinks(event.homeTeam, event.awayTeam, bookmakers, event.sportKey)
+      .then((result) => {
+        if (!cancelled) {
+          setLinks(result);
+          setLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+    
+    return () => { cancelled = true; };
+  }, [event.homeTeam, event.awayTeam, event.sportKey, bookmakers.join(',')]);
+  
+  return { links, loading };
+}
 
 function RegionBadge({ bookmaker }: { bookmaker: string }) {
   const region = getBookmakerRegion(bookmaker);
@@ -75,13 +174,6 @@ function getTimeUntil(date: Date): string {
     return `${hours}h ${minutes}m`;
   }
   return `${minutes}m`;
-}
-
-// Disabled eager fetching - deep links will be fetched on-demand in future
-// This prevents overwhelming the browser with too many simultaneous requests
-function useDeepLinks(_event: { homeTeam: string; awayTeam: string; sportKey?: string }, _bookmakers: string[]) {
-  // Return empty - deep links disabled for now to prevent ERR_INSUFFICIENT_RESOURCES
-  return { links: {} as Record<string, string | null>, loading: false };
 }
 
 export function ArbTable({ opportunities, onSelectArb, globalMode = false }: ArbTableProps) {
@@ -164,7 +256,7 @@ function ArbCard({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect:
     ? [opp.outcome1.bookmaker, opp.outcome2.bookmaker, opp.outcome3?.bookmaker].filter(Boolean) as string[]
     : [opp.backOutcome.bookmaker];
   
-  const { links } = useDeepLinks(opp.event, bookmakers);
+  const { links, loading } = useDeepLinks(opp.event, bookmakers);
 
   return (
     <div 
@@ -210,7 +302,7 @@ function ArbCard({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect:
       {/* Bets Required */}
       <div className="px-3 py-2" style={{ backgroundColor: 'var(--surface-secondary)' }}>
         <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: 'var(--muted-foreground)' }}>
-          Bets Required
+          Bets Required {loading && <span className="text-blue-400">(loading links...)</span>}
         </div>
         {opp.mode === 'book-vs-book' ? (
           <div className="space-y-2">
@@ -319,7 +411,7 @@ function BetLineMobile({
               target="_blank" 
               rel="noreferrer" 
               className="hover:underline truncate"
-              title={hasDeepLink ? 'Direct link to event' : 'Opens bookmaker homepage'}
+              title={hasDeepLink ? 'Direct link to event' : 'Opens bookmaker search'}
             >
               {getBookmakerName(bookmaker)}
             </a>
@@ -348,7 +440,7 @@ function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: 
     ? [opp.outcome1.bookmaker, opp.outcome2.bookmaker, opp.outcome3?.bookmaker].filter(Boolean) as string[]
     : [opp.backOutcome.bookmaker];
   
-  const { links } = useDeepLinks(opp.event, bookmakers);
+  const { links, loading } = useDeepLinks(opp.event, bookmakers);
 
   return (
     <tr 
@@ -377,6 +469,7 @@ function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: 
         </div>
       </td>
       <td className="px-4 py-3">
+        {loading && <div className="text-xs text-blue-400 mb-1">Loading links...</div>}
         {opp.mode === 'book-vs-book' ? (
           <div className="space-y-2">
             <BetLine 
@@ -492,7 +585,7 @@ function BetLine({
             target="_blank"
             rel="noreferrer"
             className="hover:underline"
-            title={hasDeepLink ? 'Direct link to event' : 'Opens bookmaker homepage'}
+            title={hasDeepLink ? 'Direct link to event' : 'Opens bookmaker search'}
           >
             {getBookmakerName(bookmaker)}
           </a>
