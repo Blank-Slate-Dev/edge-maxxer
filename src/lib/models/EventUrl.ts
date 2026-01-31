@@ -53,7 +53,7 @@ const EventUrlSchema = new Schema<IEventUrl>(
     expiresAt: {
       type: Date,
       required: true,
-      index: true,
+      // TTL index defined below with expireAfterSeconds
     },
   },
   {
