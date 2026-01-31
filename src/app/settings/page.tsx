@@ -23,11 +23,19 @@ import {
   AlertCircle,
   Globe,
   ChevronDown,
-  CreditCard
+  CreditCard,
+  Bell,
+  Phone,
+  Zap,
+  Clock,
+  Send,
+  Info,
+  MapPin
 } from 'lucide-react';
 
 type UserPlan = 'none' | 'trial' | 'monthly' | 'yearly';
 type SubscriptionStatus = 'inactive' | 'active' | 'past_due' | 'canceled' | 'expired';
+type CreditTier = '20k' | '100k' | '5m' | '15m';
 
 const PLAN_LABELS: Record<UserPlan, string> = {
   none: 'No Plan',
@@ -35,6 +43,24 @@ const PLAN_LABELS: Record<UserPlan, string> = {
   monthly: 'Monthly',
   yearly: 'Yearly',
 };
+
+interface CreditTierOption {
+  value: string;
+  label: string;
+  scanInterval: string;
+}
+
+interface AutoScanSettings {
+  enabled: boolean;
+  minProfitPercent: number;
+  highValueThreshold: number;
+  enableHighValueReminders: boolean;
+  regions: UserRegion[];
+  creditTier: CreditTier;
+  alertCooldownMinutes: number;
+  lastScanAt?: string;
+  creditsUsedThisMonth: number;
+}
 
 interface SessionUser {
   id: string;
@@ -52,6 +78,7 @@ export default function SettingsPage() {
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   
+  // Basic settings
   const [apiKey, setApiKey] = useState('');
   const [region, setRegion] = useState<UserRegion>('AU');
   const [showApiKey, setShowApiKey] = useState(false);
@@ -62,6 +89,27 @@ export default function SettingsPage() {
   const [error, setError] = useState('');
   const [regionError, setRegionError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+
+  // Auto-scan settings
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [autoScan, setAutoScan] = useState<AutoScanSettings>({
+    enabled: false,
+    minProfitPercent: 4.0,
+    highValueThreshold: 10.0,
+    enableHighValueReminders: true,
+    regions: ['AU'],
+    creditTier: '20k',
+    alertCooldownMinutes: 5,
+    creditsUsedThisMonth: 0,
+  });
+  const [creditTierOptions, setCreditTierOptions] = useState<CreditTierOption[]>([]);
+  const [smsConfigured, setSmsConfigured] = useState(false);
+  const [isSavingAutoScan, setIsSavingAutoScan] = useState(false);
+  const [autoScanSaveSuccess, setAutoScanSaveSuccess] = useState(false);
+  const [autoScanError, setAutoScanError] = useState('');
+  const [isSendingTest, setIsSendingTest] = useState(false);
+  const [testSmsSent, setTestSmsSent] = useState(false);
 
   const user = session?.user as SessionUser | undefined;
 
@@ -81,6 +129,23 @@ export default function SettingsPage() {
           const data = await res.json();
           setApiKey(data.oddsApiKey || '');
           setRegion(data.region || 'AU');
+          setPhoneNumber(data.phoneNumber || '');
+          setPhoneVerified(data.phoneVerified || false);
+          setSmsConfigured(data.smsConfigured || false);
+          setCreditTierOptions(data.creditTierOptions || []);
+          if (data.autoScan) {
+            setAutoScan({
+              enabled: data.autoScan.enabled || false,
+              minProfitPercent: data.autoScan.minProfitPercent || 4.0,
+              highValueThreshold: data.autoScan.highValueThreshold || 10.0,
+              enableHighValueReminders: data.autoScan.enableHighValueReminders !== false,
+              regions: data.autoScan.regions || ['AU'],
+              creditTier: data.autoScan.creditTier || '20k',
+              alertCooldownMinutes: data.autoScan.alertCooldownMinutes || 5,
+              lastScanAt: data.autoScan.lastScanAt,
+              creditsUsedThisMonth: data.autoScan.creditsUsedThisMonth || 0,
+            });
+          }
         }
       } catch (err) {
         console.error('Failed to fetch settings:', err);
@@ -147,6 +212,81 @@ export default function SettingsPage() {
     }
   };
 
+  const handleSaveAutoScan = async (updates: Partial<AutoScanSettings & { phoneNumber?: string }>, sendTest = false) => {
+    setIsSavingAutoScan(true);
+    setAutoScanError('');
+    setAutoScanSaveSuccess(false);
+
+    try {
+      const body: Record<string, unknown> = {};
+      
+      if (updates.phoneNumber !== undefined) {
+        body.phoneNumber = updates.phoneNumber;
+      }
+      
+      // Only include autoScan if there are auto-scan specific updates
+      const autoScanUpdates = { ...updates };
+      delete autoScanUpdates.phoneNumber;
+      if (Object.keys(autoScanUpdates).length > 0) {
+        body.autoScan = autoScanUpdates;
+      }
+      
+      if (sendTest) {
+        body.sendTestMessage = true;
+      }
+
+      const res = await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to save');
+      }
+
+      // Update local state
+      if (data.phoneNumber !== undefined) {
+        setPhoneNumber(data.phoneNumber);
+      }
+      if (data.phoneVerified !== undefined) {
+        setPhoneVerified(data.phoneVerified);
+      }
+      if (data.autoScan) {
+        setAutoScan(prev => ({ ...prev, ...data.autoScan }));
+      }
+      if (data.testMessageSent) {
+        setTestSmsSent(true);
+        setTimeout(() => setTestSmsSent(false), 5000);
+      }
+
+      setAutoScanSaveSuccess(true);
+      setTimeout(() => setAutoScanSaveSuccess(false), 3000);
+    } catch (err) {
+      setAutoScanError(err instanceof Error ? err.message : 'Failed to save');
+    } finally {
+      setIsSavingAutoScan(false);
+      setIsSendingTest(false);
+    }
+  };
+
+  const handleSendTestSms = async () => {
+    if (!phoneNumber) {
+      setAutoScanError('Please enter a phone number first');
+      return;
+    }
+    setIsSendingTest(true);
+    await handleSaveAutoScan({ phoneNumber }, true);
+  };
+
+  const handleToggleAutoScan = async () => {
+    const newEnabled = !autoScan.enabled;
+    setAutoScan(prev => ({ ...prev, enabled: newEnabled }));
+    await handleSaveAutoScan({ enabled: newEnabled });
+  };
+
   const handleSignOut = async () => {
     await signOut({ callbackUrl: '/' });
   };
@@ -154,7 +294,7 @@ export default function SettingsPage() {
   // Get subscription display info
   const getSubscriptionInfo = () => {
     const plan = user?.plan || 'none';
-    const status = user?.subscriptionStatus || 'inactive';
+    const subStatus = user?.subscriptionStatus || 'inactive';
     const hasAccess = user?.hasAccess || false;
     const endsAt = user?.subscriptionEndsAt ? new Date(user.subscriptionEndsAt) : null;
 
@@ -173,12 +313,12 @@ export default function SettingsPage() {
       } else {
         description = `Renews ${endsAt.toLocaleDateString()}`;
       }
-    } else if (status === 'canceled' && endsAt && endsAt > new Date()) {
+    } else if (subStatus === 'canceled' && endsAt && endsAt > new Date()) {
       statusColor = 'var(--warning)';
       statusBg = 'color-mix(in srgb, var(--warning) 15%, transparent)';
       label = `${PLAN_LABELS[plan]} (Canceled)`;
       description = `Access until ${endsAt.toLocaleDateString()}`;
-    } else if (status === 'past_due') {
+    } else if (subStatus === 'past_due') {
       statusColor = 'var(--danger)';
       statusBg = 'color-mix(in srgb, var(--danger) 15%, transparent)';
       label = `${PLAN_LABELS[plan]} (Past Due)`;
@@ -194,6 +334,18 @@ export default function SettingsPage() {
   };
 
   const subscriptionInfo = getSubscriptionInfo();
+
+  // Toggle region for auto-scan
+  const toggleAutoScanRegion = (regionToToggle: UserRegion) => {
+    const newRegions = autoScan.regions.includes(regionToToggle)
+      ? autoScan.regions.filter(r => r !== regionToToggle)
+      : [...autoScan.regions, regionToToggle];
+    
+    // Ensure at least one region is selected
+    if (newRegions.length > 0) {
+      setAutoScan(prev => ({ ...prev, regions: newRegions }));
+    }
+  };
 
   if (status === 'loading' || isLoading) {
     return (
@@ -611,6 +763,447 @@ export default function SettingsPage() {
             </div>
           </section>
         </div>
+
+        {/* Auto-Scan Alerts Section - Full Width */}
+        <section 
+          className="p-6 rounded-xl border mt-6"
+          style={{ 
+            backgroundColor: 'var(--surface)',
+            borderColor: 'var(--border)'
+          }}
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <div 
+              className="w-10 h-10 rounded-lg flex items-center justify-center"
+              style={{ backgroundColor: 'color-mix(in srgb, #f59e0b 15%, transparent)' }}
+            >
+              <Bell className="w-5 h-5" style={{ color: '#f59e0b' }} />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <h2 className="font-medium" style={{ color: 'var(--foreground)' }}>
+                  Auto-Scan Alerts
+                </h2>
+                <span 
+                  className="px-2 py-0.5 text-xs font-medium rounded"
+                  style={{ 
+                    backgroundColor: 'color-mix(in srgb, #f59e0b 15%, transparent)',
+                    color: '#f59e0b'
+                  }}
+                >
+                  PRO
+                </span>
+              </div>
+              <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                Get SMS alerts when arbs matching your criteria are found
+              </p>
+            </div>
+            
+            {/* Enable Toggle */}
+            <button
+              onClick={handleToggleAutoScan}
+              disabled={isSavingAutoScan || !smsConfigured || !apiKey}
+              className={`relative w-12 h-6 rounded-full transition-colors ${
+                !smsConfigured || !apiKey ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+              }`}
+              style={{
+                backgroundColor: autoScan.enabled ? '#22c55e' : 'var(--border)'
+              }}
+            >
+              <div 
+                className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                  autoScan.enabled ? 'translate-x-7' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Info Banner */}
+          {!smsConfigured && (
+            <div 
+              className="flex items-start gap-3 p-4 rounded-lg mb-6"
+              style={{ backgroundColor: 'color-mix(in srgb, var(--warning) 10%, transparent)' }}
+            >
+              <Info className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--warning)' }} />
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'var(--warning)' }}>
+                  SMS Service Not Configured
+                </p>
+                <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                  Auto-scan alerts require SMS to be configured by the administrator. Contact support to enable this feature.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {!apiKey && smsConfigured && (
+            <div 
+              className="flex items-start gap-3 p-4 rounded-lg mb-6"
+              style={{ backgroundColor: 'color-mix(in srgb, var(--warning) 10%, transparent)' }}
+            >
+              <Info className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--warning)' }} />
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'var(--warning)' }}>
+                  API Key Required
+                </p>
+                <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                  Please add your Odds API key above to enable auto-scan alerts.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Left Column */}
+            <div className="space-y-5">
+              {/* Phone Number */}
+              <div>
+                <label 
+                  className="flex items-center gap-2 text-sm font-medium mb-1.5"
+                  style={{ color: 'var(--foreground)' }}
+                >
+                  <Phone className="w-4 h-4" />
+                  Phone Number
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="+61 412 345 678"
+                    className="flex-1 px-3 py-2.5 text-sm rounded-lg"
+                    style={{
+                      backgroundColor: 'var(--background)',
+                      border: '1px solid var(--border)',
+                      color: 'var(--foreground)',
+                    }}
+                  />
+                  <button
+                    onClick={handleSendTestSms}
+                    disabled={isSendingTest || !phoneNumber || !smsConfigured}
+                    className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90 disabled:opacity-50"
+                    style={{
+                      backgroundColor: testSmsSent ? '#22c55e' : 'var(--background)',
+                      border: '1px solid var(--border)',
+                      color: testSmsSent ? '#fff' : 'var(--foreground)'
+                    }}
+                  >
+                    {isSendingTest ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : testSmsSent ? (
+                      <Check className="w-4 h-4" />
+                    ) : (
+                      <Send className="w-4 h-4" />
+                    )}
+                    {testSmsSent ? 'Sent!' : 'Test'}
+                  </button>
+                </div>
+                <p className="text-xs mt-1.5" style={{ color: 'var(--muted)' }}>
+                  Include country code (e.g., +61 for Australia)
+                  {phoneVerified && (
+                    <span className="ml-2" style={{ color: '#22c55e' }}>
+                      ✓ Verified
+                    </span>
+                  )}
+                </p>
+              </div>
+
+              {/* Minimum Profit */}
+              <div>
+                <label 
+                  className="flex items-center gap-2 text-sm font-medium mb-1.5"
+                  style={{ color: 'var(--foreground)' }}
+                >
+                  <Zap className="w-4 h-4" />
+                  Minimum Alert Threshold
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min="4"
+                    max="500"
+                    step="0.5"
+                    value={autoScan.minProfitPercent}
+                    onChange={(e) => setAutoScan(prev => ({ ...prev, minProfitPercent: Math.max(4, parseFloat(e.target.value) || 4) }))}
+                    className="w-24 px-3 py-2 text-sm rounded-lg text-center font-medium"
+                    style={{
+                      backgroundColor: 'var(--background)',
+                      border: '1px solid var(--border)',
+                      color: '#22c55e',
+                    }}
+                  />
+                  <span className="text-sm" style={{ color: 'var(--muted)' }}>%</span>
+                </div>
+                <p className="text-xs mt-1.5" style={{ color: 'var(--muted)' }}>
+                  Only alert for arbs ≥ {autoScan.minProfitPercent}% profit (sent once per arb)
+                </p>
+              </div>
+
+              {/* High Value Threshold */}
+              <div>
+                <label 
+                  className="flex items-center gap-2 text-sm font-medium mb-1.5"
+                  style={{ color: 'var(--foreground)' }}
+                >
+                  <Bell className="w-4 h-4" />
+                  High-Value Reminder Threshold
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min="5"
+                    max="500"
+                    step="0.5"
+                    value={autoScan.highValueThreshold}
+                    onChange={(e) => setAutoScan(prev => ({ ...prev, highValueThreshold: Math.max(5, parseFloat(e.target.value) || 10) }))}
+                    className="w-24 px-3 py-2 text-sm rounded-lg text-center font-medium"
+                    style={{
+                      backgroundColor: 'var(--background)',
+                      border: '1px solid var(--border)',
+                      color: '#f59e0b',
+                    }}
+                  />
+                  <span className="text-sm" style={{ color: 'var(--muted)' }}>%</span>
+                </div>
+                <p className="text-xs mt-1.5" style={{ color: 'var(--muted)' }}>
+                  Arbs ≥ {autoScan.highValueThreshold}% get repeat reminders while active
+                </p>
+              </div>
+
+              {/* Enable High Value Reminders Toggle */}
+              <div 
+                className="p-4 rounded-lg"
+                style={{ 
+                  backgroundColor: 'var(--background)',
+                  border: '1px solid var(--border)'
+                }}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div 
+                      className="w-8 h-8 rounded-lg flex items-center justify-center"
+                      style={{ backgroundColor: 'color-mix(in srgb, #f59e0b 15%, transparent)' }}
+                    >
+                      <Bell className="w-4 h-4" style={{ color: '#f59e0b' }} />
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                        High-Value Reminders
+                      </div>
+                      <div className="text-xs" style={{ color: 'var(--muted)' }}>
+                        Send repeat alerts for {autoScan.highValueThreshold}%+ arbs
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAutoScan(prev => ({ ...prev, enableHighValueReminders: !prev.enableHighValueReminders }))}
+                    className="relative w-12 h-6 rounded-full transition-colors"
+                    style={{ 
+                      backgroundColor: autoScan.enableHighValueReminders 
+                        ? '#f59e0b' 
+                        : 'var(--border)'
+                    }}
+                  >
+                    <div 
+                      className="absolute w-5 h-5 rounded-full top-0.5 transition-transform"
+                      style={{ 
+                        backgroundColor: 'white',
+                        transform: autoScan.enableHighValueReminders ? 'translateX(26px)' : 'translateX(2px)'
+                      }}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Alert Cooldown */}
+              <div>
+                <label 
+                  className="flex items-center gap-2 text-sm font-medium mb-1.5"
+                  style={{ color: 'var(--foreground)' }}
+                >
+                  <Clock className="w-4 h-4" />
+                  Alert Cooldown
+                </label>
+                <select
+                  value={autoScan.alertCooldownMinutes}
+                  onChange={(e) => setAutoScan(prev => ({ ...prev, alertCooldownMinutes: parseInt(e.target.value) }))}
+                  className="w-full px-3 py-2.5 text-sm rounded-lg appearance-none cursor-pointer"
+                  style={{
+                    backgroundColor: 'var(--background)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--foreground)',
+                  }}
+                >
+                  <option value="1">1 minute</option>
+                  <option value="5">5 minutes</option>
+                  <option value="10">10 minutes</option>
+                  <option value="15">15 minutes</option>
+                  <option value="30">30 minutes</option>
+                  <option value="60">1 hour</option>
+                </select>
+                <p className="text-xs mt-1.5" style={{ color: 'var(--muted)' }}>
+                  Minimum time between any SMS alerts
+                </p>
+              </div>
+            </div>
+
+            {/* Right Column */}
+            <div className="space-y-5">
+              {/* Credit Tier */}
+              <div>
+                <label 
+                  className="flex items-center gap-2 text-sm font-medium mb-1.5"
+                  style={{ color: 'var(--foreground)' }}
+                >
+                  <CreditCard className="w-4 h-4" />
+                  API Credit Tier
+                </label>
+                <select
+                  value={autoScan.creditTier}
+                  onChange={(e) => setAutoScan(prev => ({ ...prev, creditTier: e.target.value as CreditTier }))}
+                  className="w-full px-3 py-2.5 text-sm rounded-lg appearance-none cursor-pointer"
+                  style={{
+                    backgroundColor: 'var(--background)',
+                    border: '1px solid var(--border)',
+                    color: 'var(--foreground)',
+                  }}
+                >
+                  {creditTierOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label} - {option.scanInterval}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs mt-1.5" style={{ color: 'var(--muted)' }}>
+                  Match this to your{' '}
+                  <a 
+                    href="https://the-odds-api.com/#pricing-section"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline"
+                    style={{ color: '#14b8a6' }}
+                  >
+                    The Odds API plan
+                  </a>
+                </p>
+              </div>
+
+              {/* Scan Regions */}
+              <div>
+                <label 
+                  className="flex items-center gap-2 text-sm font-medium mb-1.5"
+                  style={{ color: 'var(--foreground)' }}
+                >
+                  <MapPin className="w-4 h-4" />
+                  Scan Regions
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {config.regionOrder.map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => toggleAutoScanRegion(r)}
+                      className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors ${
+                        autoScan.regions.includes(r) 
+                          ? 'ring-2 ring-offset-1 ring-teal-500' 
+                          : ''
+                      }`}
+                      style={{
+                        backgroundColor: autoScan.regions.includes(r) 
+                          ? 'color-mix(in srgb, #14b8a6 15%, transparent)' 
+                          : 'var(--background)',
+                        border: '1px solid var(--border)',
+                        color: autoScan.regions.includes(r) ? '#14b8a6' : 'var(--foreground)',
+                      }}
+                    >
+                      <Flag code={config.regionInfo[r].flagCode} size="sm" />
+                      {r}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-xs mt-1.5" style={{ color: 'var(--muted)' }}>
+                  Bookmakers from these regions will be scanned
+                </p>
+              </div>
+
+              {/* Usage Stats */}
+              {autoScan.enabled && (
+                <div 
+                  className="p-4 rounded-lg"
+                  style={{ backgroundColor: 'var(--background)' }}
+                >
+                  <h4 className="text-sm font-medium mb-2" style={{ color: 'var(--foreground)' }}>
+                    This Month&apos;s Usage
+                  </h4>
+                  <div className="flex items-center justify-between text-sm">
+                    <span style={{ color: 'var(--muted)' }}>Credits Used</span>
+                    <span style={{ color: 'var(--foreground)' }}>
+                      {autoScan.creditsUsedThisMonth.toLocaleString()} / {
+                        creditTierOptions.find(t => t.value === autoScan.creditTier)?.label.split(' ')[0] || '20K'
+                      }
+                    </span>
+                  </div>
+                  {autoScan.lastScanAt && (
+                    <div className="flex items-center justify-between text-sm mt-1">
+                      <span style={{ color: 'var(--muted)' }}>Last Scan</span>
+                      <span style={{ color: 'var(--foreground)' }}>
+                        {new Date(autoScan.lastScanAt).toLocaleString()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Error Message */}
+          {autoScanError && (
+            <div 
+              className="flex items-center gap-2 text-sm mt-4"
+              style={{ color: 'var(--danger)' }}
+            >
+              <AlertCircle className="w-4 h-4" />
+              {autoScanError}
+            </div>
+          )}
+
+          {/* Save Button */}
+          <div className="flex items-center gap-3 mt-6 pt-6 border-t" style={{ borderColor: 'var(--border)' }}>
+            <button
+              onClick={() => handleSaveAutoScan({
+                minProfitPercent: autoScan.minProfitPercent,
+                regions: autoScan.regions,
+                creditTier: autoScan.creditTier,
+                alertCooldownMinutes: autoScan.alertCooldownMinutes,
+              })}
+              disabled={isSavingAutoScan}
+              className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90 disabled:opacity-50"
+              style={{
+                backgroundColor: autoScanSaveSuccess ? '#22c55e' : '#14b8a6',
+                color: '#fff'
+              }}
+            >
+              {isSavingAutoScan ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Saving...
+                </>
+              ) : autoScanSaveSuccess ? (
+                <>
+                  <Check className="w-4 h-4" />
+                  Saved!
+                </>
+              ) : (
+                'Save Alert Settings'
+              )}
+            </button>
+            
+            {autoScan.enabled && (
+              <span className="text-sm" style={{ color: '#22c55e' }}>
+                ✓ Auto-scan is active
+              </span>
+            )}
+          </div>
+        </section>
 
         {/* Sign Out Section - Separate from grid */}
         <section 

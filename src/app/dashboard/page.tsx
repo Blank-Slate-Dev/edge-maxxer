@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Globe, Loader2, X, CheckCircle } from 'lucide-react';
+import { Globe, Loader2, X, CheckCircle, Clock } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal, Flag, SubscriptionRequiredModal } from '@/components';
 import { useBets } from '@/hooks/useBets';
@@ -49,6 +49,18 @@ interface LinesResponse {
 interface SportsResponse {
   sports: Sport[];
   isUsingMockData: boolean;
+}
+
+interface CachedScanResponse {
+  hasCachedResults: boolean;
+  opportunities?: ArbOpportunity[];
+  valueBets?: ValueBet[];
+  stats?: ScanStats;
+  regions?: string[];
+  scannedAt?: string;
+  ageMinutes?: number;
+  autoScanEnabled?: boolean;
+  message?: string;
 }
 
 const DEFAULT_FILTERS: FilterType = {
@@ -200,6 +212,12 @@ export default function DashboardPage() {
   const [checkoutSuccess, setCheckoutSuccess] = useState<string | null>(null);
   const [isRefreshingSession, setIsRefreshingSession] = useState(false);
 
+  // Cached scan state
+  const [cachedScanAge, setCachedScanAge] = useState<number | null>(null);
+  const [autoScanEnabled, setAutoScanEnabled] = useState(false);
+  const [isLoadingCached, setIsLoadingCached] = useState(true);
+  const [cachedRegions, setCachedRegions] = useState<string[] | null>(null);
+
   // AbortController for canceling scans
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -274,6 +292,63 @@ export default function DashboardPage() {
     fetchSettings();
   }, []);
 
+  // Load cached scan results on mount (from auto-scan)
+  useEffect(() => {
+    const fetchCachedResults = async () => {
+      try {
+        const res = await fetch('/api/cached-scan');
+        if (res.ok) {
+          const data: CachedScanResponse = await res.json();
+          
+          if (data.hasCachedResults && data.opportunities && data.opportunities.length > 0) {
+            // Parse dates in opportunities
+            const parsed = data.opportunities.map(opp => ({
+              ...opp,
+              event: {
+                ...opp.event,
+                commenceTime: new Date(opp.event.commenceTime),
+              },
+              lastUpdated: new Date(opp.lastUpdated),
+            }));
+
+            const parsedValueBets = (data.valueBets || []).map(vb => ({
+              ...vb,
+              event: {
+                ...vb.event,
+                commenceTime: new Date(vb.event.commenceTime),
+              },
+              lastUpdated: new Date(vb.lastUpdated),
+            }));
+
+            setOpportunities(parsed);
+            setValueBets(parsedValueBets);
+            if (data.stats) setStats(data.stats);
+            if (data.scannedAt) setLastUpdated(new Date(data.scannedAt));
+            if (data.ageMinutes !== undefined) setCachedScanAge(data.ageMinutes);
+            if (data.autoScanEnabled !== undefined) setAutoScanEnabled(data.autoScanEnabled);
+            if (data.regions) setCachedRegions(data.regions);
+            setHasFetchedArbs(true);
+
+            // Extract bookmakers
+            const uniqueBookmakers = new Set<string>();
+            parsed.forEach(opp => {
+              getBookmakersFromArb(opp).forEach(bm => uniqueBookmakers.add(bm));
+            });
+            setBookmakers(Array.from(uniqueBookmakers));
+
+            console.log(`[Dashboard] Loaded ${parsed.length} cached opportunities (${data.ageMinutes} min old)`);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to fetch cached results:', err);
+      } finally {
+        setIsLoadingCached(false);
+      }
+    };
+
+    fetchCachedResults();
+  }, []);
+
   const isGlobalMode = selectedRegions.length === config.regionOrder.length;
 
   const toggleRegion = (region: UserRegion) => {
@@ -337,6 +412,9 @@ export default function DashboardPage() {
 
     setError(null);
     setLinesError(null);
+    
+    // Clear cached scan indicator when doing a fresh scan
+    setCachedScanAge(null);
     
     setIsLoadingArbs(true);
     setIsLoadingLines(false);
@@ -591,6 +669,15 @@ export default function DashboardPage() {
     }
   };
 
+  const formatCachedAge = (minutes: number) => {
+    if (minutes < 1) return 'just now';
+    if (minutes === 1) return '1 minute ago';
+    if (minutes < 60) return `${minutes} minutes ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours === 1) return '1 hour ago';
+    return `${hours} hours ago`;
+  };
+
   return (
     <div 
       className="min-h-screen transition-colors"
@@ -753,6 +840,33 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Auto-Scan Cached Results Banner */}
+        {cachedScanAge !== null && autoScanEnabled && hasFetchedArbs && !isLoadingArbs && (
+          <div 
+            className="border px-4 py-3 rounded-lg"
+            style={{
+              borderColor: 'color-mix(in srgb, #14b8a6 50%, transparent)',
+              backgroundColor: 'color-mix(in srgb, #14b8a6 10%, transparent)'
+            }}
+          >
+            <div className="flex items-center gap-3">
+              <Clock className="w-5 h-5 shrink-0" style={{ color: '#14b8a6' }} />
+              <div className="flex-1">
+                <div className="font-medium text-sm" style={{ color: '#14b8a6' }}>
+                  Auto-Scan Results Loaded
+                </div>
+                <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                  Last scanned {formatCachedAge(cachedScanAge)}
+                  {cachedRegions && cachedRegions.length > 0 && (
+                    <span> • {cachedRegions.join(', ')}</span>
+                  )}
+                  <span> • Click <strong>Scan</strong> for fresh data</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Region Tabs */}
         {settingsLoaded && (
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
@@ -801,8 +915,8 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Initial State */}
-        {!hasFetched && !isLoadingArbs && activeTab === 'opportunities' && (
+        {/* Initial State - Only show if no cached results and not loading */}
+        {!hasFetched && !isLoadingArbs && !isLoadingCached && activeTab === 'opportunities' && (
           <div 
             className="border p-8 sm:p-12 text-center rounded-lg"
             style={{
@@ -818,6 +932,20 @@ export default function DashboardPage() {
             <p className="text-[10px] sm:text-xs" style={{ color: 'var(--muted-foreground)' }}>
               {selectedRegions.join(', ')} ({selectedBookmakerCount} bookmakers)
             </p>
+          </div>
+        )}
+
+        {/* Loading Cached Results */}
+        {isLoadingCached && !hasFetched && activeTab === 'opportunities' && (
+          <div 
+            className="border p-8 sm:p-12 text-center rounded-lg"
+            style={{
+              borderColor: 'var(--border)',
+              backgroundColor: 'var(--surface)'
+            }}
+          >
+            <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin mx-auto mb-4" style={{ color: 'var(--muted)' }} />
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>Loading latest scan results...</p>
           </div>
         )}
 
