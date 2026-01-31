@@ -30,7 +30,10 @@ import {
   Clock,
   Send,
   Info,
-  MapPin
+  MapPin,
+  Puzzle,
+  Copy,
+  RefreshCw
 } from 'lucide-react';
 
 type UserPlan = 'none' | 'trial' | 'monthly' | 'yearly';
@@ -111,6 +114,13 @@ export default function SettingsPage() {
   const [isSendingTest, setIsSendingTest] = useState(false);
   const [testSmsSent, setTestSmsSent] = useState(false);
 
+  // Extension settings
+  const [extensionToken, setExtensionToken] = useState('');
+  const [showExtensionToken, setShowExtensionToken] = useState(false);
+  const [isLoadingToken, setIsLoadingToken] = useState(false);
+  const [isRegeneratingToken, setIsRegeneratingToken] = useState(false);
+  const [tokenCopied, setTokenCopied] = useState(false);
+
   const user = session?.user as SessionUser | undefined;
 
   // Redirect if not logged in
@@ -156,6 +166,28 @@ export default function SettingsPage() {
 
     if (status === 'authenticated') {
       fetchSettings();
+    }
+  }, [status]);
+
+  // Fetch extension token
+  useEffect(() => {
+    const fetchExtensionToken = async () => {
+      setIsLoadingToken(true);
+      try {
+        const res = await fetch('/api/extension-token');
+        if (res.ok) {
+          const data = await res.json();
+          setExtensionToken(data.token || '');
+        }
+      } catch (err) {
+        console.error('Failed to fetch extension token:', err);
+      } finally {
+        setIsLoadingToken(false);
+      }
+    };
+
+    if (status === 'authenticated') {
+      fetchExtensionToken();
     }
   }, [status]);
 
@@ -285,6 +317,33 @@ export default function SettingsPage() {
     const newEnabled = !autoScan.enabled;
     setAutoScan(prev => ({ ...prev, enabled: newEnabled }));
     await handleSaveAutoScan({ enabled: newEnabled });
+  };
+
+  // Extension token functions
+  const handleCopyToken = async () => {
+    if (!extensionToken) return;
+    try {
+      await navigator.clipboard.writeText(extensionToken);
+      setTokenCopied(true);
+      setTimeout(() => setTokenCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy token:', err);
+    }
+  };
+
+  const handleRegenerateToken = async () => {
+    setIsRegeneratingToken(true);
+    try {
+      const res = await fetch('/api/extension-token', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setExtensionToken(data.token || '');
+      }
+    } catch (err) {
+      console.error('Failed to regenerate token:', err);
+    } finally {
+      setIsRegeneratingToken(false);
+    }
   };
 
   const handleSignOut = async () => {
@@ -1204,6 +1263,154 @@ export default function SettingsPage() {
                 ✓ Auto-scan is active
               </span>
             )}
+          </div>
+        </section>
+
+        {/* Chrome Extension Section */}
+        <section 
+          className="p-6 rounded-xl border mt-6"
+          style={{ 
+            backgroundColor: 'var(--surface)',
+            borderColor: 'var(--border)'
+          }}
+        >
+          <div className="flex items-center gap-3 mb-6">
+            <div 
+              className="w-10 h-10 rounded-lg flex items-center justify-center"
+              style={{ backgroundColor: 'color-mix(in srgb, #a855f7 15%, transparent)' }}
+            >
+              <Puzzle className="w-5 h-5" style={{ color: '#a855f7' }} />
+            </div>
+            <div>
+              <h2 className="font-medium" style={{ color: 'var(--foreground)' }}>
+                Chrome Extension
+              </h2>
+              <p className="text-sm" style={{ color: 'var(--muted)' }}>
+                Auto-navigate to arbs and pre-fill stakes
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {/* Token Display */}
+            <div>
+              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--foreground)' }}>
+                Extension Token
+              </label>
+              <div className="flex gap-2">
+                <div 
+                  className="flex-1 flex items-center gap-2 px-3 py-2.5 rounded-lg border"
+                  style={{ 
+                    backgroundColor: 'var(--background)',
+                    borderColor: 'var(--border)'
+                  }}
+                >
+                  {isLoadingToken ? (
+                    <Loader2 className="w-4 h-4 animate-spin" style={{ color: 'var(--muted)' }} />
+                  ) : (
+                    <>
+                      <Key className="w-4 h-4 shrink-0" style={{ color: 'var(--muted)' }} />
+                      <input
+                        type={showExtensionToken ? 'text' : 'password'}
+                        value={extensionToken || 'No token generated'}
+                        readOnly
+                        className="flex-1 bg-transparent text-sm font-mono outline-none"
+                        style={{ color: extensionToken ? 'var(--foreground)' : 'var(--muted)' }}
+                      />
+                      {extensionToken && (
+                        <button
+                          onClick={() => setShowExtensionToken(!showExtensionToken)}
+                          className="p-1 hover:opacity-70 transition-opacity"
+                          style={{ color: 'var(--muted)' }}
+                        >
+                          {showExtensionToken ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+                
+                {extensionToken && (
+                  <button
+                    onClick={handleCopyToken}
+                    className="px-3 py-2 rounded-lg border transition-all hover:opacity-80"
+                    style={{ 
+                      backgroundColor: tokenCopied ? '#22c55e' : 'var(--background)',
+                      borderColor: tokenCopied ? '#22c55e' : 'var(--border)',
+                      color: tokenCopied ? 'white' : 'var(--foreground)'
+                    }}
+                  >
+                    {tokenCopied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                )}
+                
+                <button
+                  onClick={handleRegenerateToken}
+                  disabled={isRegeneratingToken}
+                  className="px-3 py-2 rounded-lg border transition-all hover:opacity-80 disabled:opacity-50"
+                  style={{ 
+                    backgroundColor: 'var(--background)',
+                    borderColor: 'var(--border)',
+                    color: 'var(--foreground)'
+                  }}
+                  title="Generate new token"
+                >
+                  {isRegeneratingToken ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+              <p className="text-xs mt-2" style={{ color: 'var(--muted)' }}>
+                Paste this token into the Chrome extension to connect
+              </p>
+            </div>
+
+            {/* Instructions */}
+            <div 
+              className="p-4 rounded-lg border"
+              style={{ 
+                backgroundColor: 'var(--background)',
+                borderColor: 'var(--border)'
+              }}
+            >
+              <h4 className="text-sm font-medium mb-3" style={{ color: 'var(--foreground)' }}>
+                Quick Setup
+              </h4>
+              <ol className="space-y-2 text-sm" style={{ color: 'var(--muted)' }}>
+                <li className="flex gap-2">
+                  <span style={{ color: '#a855f7' }}>1.</span>
+                  <span>Copy token above and paste in extension popup</span>
+                </li>
+                <li className="flex gap-2">
+                  <span style={{ color: '#a855f7' }}>2.</span>
+                  <span>Open tabs for your bookmakers (Sportsbet, TAB, etc.)</span>
+                </li>
+                <li className="flex gap-2">
+                  <span style={{ color: '#a855f7' }}>3.</span>
+                  <span>Log in to each bookmaker and keep tabs open</span>
+                </li>
+                <li className="flex gap-2">
+                  <span style={{ color: '#a855f7' }}>4.</span>
+                  <span>When an arb is found, click &quot;Execute&quot; in extension</span>
+                </li>
+              </ol>
+            </div>
+
+            {/* Warning */}
+            <div 
+              className="flex items-start gap-3 p-3 rounded-lg"
+              style={{ 
+                backgroundColor: 'color-mix(in srgb, var(--warning) 10%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--warning) 30%, transparent)'
+              }}
+            >
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--warning)' }} />
+              <p className="text-xs" style={{ color: 'var(--warning)' }}>
+                Keep your token secret. If compromised, click the refresh button to generate a new one.
+              </p>
+            </div>
           </div>
         </section>
 
