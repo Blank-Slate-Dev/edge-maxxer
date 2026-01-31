@@ -60,6 +60,9 @@ export interface IUser {
   referralCode?: string;
   referredBy?: string;
   
+  // Chrome extension
+  extensionToken?: string;           // Token for extension authentication
+  
   // Auto-scan alert fields
   phoneNumber?: string;            // Phone number for SMS alerts (E.164 format)
   phoneVerified: boolean;          // Whether phone has been verified
@@ -227,6 +230,13 @@ const UserSchema = new Schema<IUser>(
     },
     referredBy: {
       type: String,
+    },
+    
+    // Chrome extension
+    extensionToken: {
+      type: String,
+      unique: true,
+      sparse: true,
     },
     
     // Auto-scan alert fields
