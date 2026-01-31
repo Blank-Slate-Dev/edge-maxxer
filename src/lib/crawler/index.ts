@@ -1,8 +1,8 @@
 // src/lib/crawler/index.ts
 // Puppeteer-based crawler for scraping bookmaker event URLs
+// Uses Browserless.io in production for reliable browser automation
 
 import puppeteer, { Browser, Page } from 'puppeteer-core';
-import chromium from '@sparticuz/chromium';
 import EventUrl from '@/lib/models/EventUrl';
 import dbConnect from '@/lib/mongodb';
 
@@ -168,24 +168,21 @@ async function getBrowser(): Promise<Browser> {
     return browserInstance;
   }
   
+  const browserlessApiKey = process.env.BROWSERLESS_API_KEY;
   const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL;
   
-  if (isProduction) {
-    // Vercel serverless - use @sparticuz/chromium
-    const executablePath = await chromium.executablePath();
+  if (isProduction && browserlessApiKey) {
+    // Production - connect to Browserless.io
+    const browserlessUrl = `wss://production-sfo.browserless.io?token=${browserlessApiKey}`;
     
-    browserInstance = await puppeteer.launch({
-      args: [
-        ...chromium.args,
-        '--disable-gpu',
-        '--disable-dev-shm-usage',
-        '--disable-software-rasterizer',
-        '--single-process',
-      ],
-      defaultViewport: { width: 1280, height: 800 },
-      executablePath,
-      headless: true,
+    browserInstance = await puppeteer.connect({
+      browserWSEndpoint: browserlessUrl,
     });
+    
+    console.log('[Crawler] Connected to Browserless.io');
+  } else if (isProduction) {
+    // No Browserless key - throw error
+    throw new Error('BROWSERLESS_API_KEY not configured. Add it to your environment variables.');
   } else {
     // Local development - use full puppeteer
     const puppeteerFull = await import('puppeteer');
@@ -200,7 +197,22 @@ async function getBrowser(): Promise<Browser> {
 
 export async function closeBrowser(): Promise<void> {
   if (browserInstance) {
-    await browserInstance.close();
+    try {
+      // For Browserless connections, we use disconnect instead of close
+      // This releases the browser back to the pool instead of terminating it
+      const browserlessApiKey = process.env.BROWSERLESS_API_KEY;
+      const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL;
+      
+      if (isProduction && browserlessApiKey) {
+        await browserInstance.disconnect();
+        console.log('[Crawler] Disconnected from Browserless.io');
+      } else {
+        await browserInstance.close();
+      }
+    } catch (e) {
+      // Browserless connections may already be closed
+      console.log('[Crawler] Browser already closed');
+    }
     browserInstance = null;
   }
 }
@@ -367,6 +379,27 @@ export async function crawlBookmakerSport(bookmakerName: string, sport: string):
     return result;
   }
   
+  // Smart caching: Skip if we already have recent URLs for this combo
+  try {
+    await dbConnect();
+    const recentCount = await EventUrl.countDocuments({
+      bookmaker: bookmaker.name,
+      sport,
+      scrapedAt: { $gt: new Date(Date.now() - 6 * 60 * 60 * 1000) }, // Within last 6 hours
+    });
+    
+    if (recentCount >= 5) {
+      console.log(`[Crawler] Skipping ${bookmaker.name}/${sport} - already have ${recentCount} recent URLs cached`);
+      result.eventsFound = recentCount;
+      result.eventsSaved = 0;
+      result.duration = Date.now() - startTime;
+      return result;
+    }
+  } catch (err) {
+    // Continue with crawl if check fails
+    console.log(`[Crawler] Cache check failed, proceeding with crawl`);
+  }
+  
   const url = `${bookmaker.baseUrl}${sportPath}`;
   console.log(`[Crawler] Scraping ${bookmaker.name}/${sport}: ${url}`);
   
@@ -446,6 +479,8 @@ export async function crawlBookmakerSport(bookmakerName: string, sport: string):
     if (page) {
       await page.close();
     }
+    // Always disconnect from Browserless after each crawl to release the unit
+    await closeBrowser();
   }
   
   result.duration = Date.now() - startTime;

@@ -9,7 +9,6 @@
     "lint": "eslint"
   },
   "dependencies": {
-    "@sparticuz/chromium": "^143.0.4",
     "@stripe/react-stripe-js": "^5.4.1",
     "@stripe/stripe-js": "^8.6.1",
     "bcryptjs": "^3.0.3",

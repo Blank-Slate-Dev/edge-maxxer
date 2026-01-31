@@ -104,8 +104,8 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['lucide-react', 'date-fns'],
   },
   
-  // Required for Puppeteer/Chromium to work on Vercel serverless (Next.js 16+)
-  serverExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
+  // Required for Puppeteer to work on Vercel serverless (Next.js 16+)
+  serverExternalPackages: ['puppeteer-core'],
 };
 
 export default nextConfig;
