@@ -172,10 +172,6 @@ async function getBrowser(): Promise<Browser> {
   
   if (isProduction) {
     // Vercel serverless - use @sparticuz/chromium
-    // Configure chromium for serverless environment
-    chromium.setHeadlessMode = true;
-    chromium.setGraphicsMode = false;
-    
     const executablePath = await chromium.executablePath();
     
     browserInstance = await puppeteer.launch({
