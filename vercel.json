@@ -8,11 +8,5 @@
       "path": "/api/cron/crawl-urls",
       "schedule": "0 * * * *"
     }
-  ],
-  "functions": {
-    "app/api/cron/crawl-urls/route.ts": {
-      "memory": 1024,
-      "maxDuration": 60
-    }
-  }
+  ]
 }
