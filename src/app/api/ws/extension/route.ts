@@ -8,12 +8,24 @@ import User from '@/lib/models/User';
 
 export const dynamic = 'force-dynamic';
 
+// CORS headers for Chrome extension
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+};
+
+// Handle CORS preflight
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 200, headers: corsHeaders });
+}
+
 // For SSE: Return a streaming response (optional - for future use)
 export async function GET(request: NextRequest) {
   const token = request.nextUrl.searchParams.get('token');
   
   if (!token) {
-    return NextResponse.json({ error: 'Token required' }, { status: 401 });
+    return NextResponse.json({ error: 'Token required' }, { status: 401, headers: corsHeaders });
   }
   
   try {
@@ -22,7 +34,7 @@ export async function GET(request: NextRequest) {
     const user = await User.findOne({ extensionToken: token });
     
     if (!user) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401, headers: corsHeaders });
     }
     
     // For SSE: Return a streaming response
@@ -51,12 +63,13 @@ export async function GET(request: NextRequest) {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
+        ...corsHeaders,
       },
     });
     
   } catch (error) {
     console.error('[WS Extension] Error:', error);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500, headers: corsHeaders });
   }
 }
 
@@ -67,7 +80,7 @@ export async function POST(request: NextRequest) {
     
     if (!token) {
       console.log('[Extension Poll] No token provided');
-      return NextResponse.json({ error: 'Token required' }, { status: 401 });
+      return NextResponse.json({ error: 'Token required' }, { status: 401, headers: corsHeaders });
     }
     
     console.log('[Extension Poll] Token received:', token.substring(0, 20) + '...');
@@ -83,7 +96,7 @@ export async function POST(request: NextRequest) {
       if (anyUserWithToken) {
         console.log('[Extension Poll] DB token starts with:', anyUserWithToken.extensionToken?.substring(0, 20));
       }
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+      return NextResponse.json({ error: 'Invalid token' }, { status: 401, headers: corsHeaders });
     }
     
     console.log('[Extension Poll] User found:', user.email);
@@ -92,7 +105,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ 
         hasNewArbs: false,
         arbs: [],
-      });
+      }, { headers: corsHeaders });
     }
     
     const scannedAt = new Date(user.cachedScanResults.scannedAt);
@@ -176,16 +189,16 @@ export async function POST(request: NextRequest) {
         hasNewArbs: arbs.length > 0,
         arbs,
         scannedAt: scannedAt.toISOString(),
-      });
+      }, { headers: corsHeaders });
     }
     
     return NextResponse.json({
       hasNewArbs: false,
       arbs: [],
-    });
+    }, { headers: corsHeaders });
     
   } catch (error) {
     console.error('[Extension Poll] Error:', error);
-    return NextResponse.json({ error: 'Internal error' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal error' }, { status: 500, headers: corsHeaders });
   }
 }
