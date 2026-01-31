@@ -172,10 +172,22 @@ async function getBrowser(): Promise<Browser> {
   
   if (isProduction) {
     // Vercel serverless - use @sparticuz/chromium
+    // Configure chromium for serverless environment
+    chromium.setHeadlessMode = true;
+    chromium.setGraphicsMode = false;
+    
+    const executablePath = await chromium.executablePath();
+    
     browserInstance = await puppeteer.launch({
-      args: chromium.args,
+      args: [
+        ...chromium.args,
+        '--disable-gpu',
+        '--disable-dev-shm-usage',
+        '--disable-software-rasterizer',
+        '--single-process',
+      ],
       defaultViewport: { width: 1280, height: 800 },
-      executablePath: await chromium.executablePath(),
+      executablePath,
       headless: true,
     });
   } else {
