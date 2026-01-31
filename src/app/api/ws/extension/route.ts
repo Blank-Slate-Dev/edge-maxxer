@@ -1,21 +1,15 @@
 // src/app/api/ws/extension/route.ts
-// WebSocket endpoint for Chrome extension real-time arb alerts
-// Note: Vercel doesn't support WebSockets, so this would need to be deployed 
-// separately (e.g., on Railway, Render, or a VPS) or use polling instead.
+// Polling endpoint for Chrome extension arb alerts
+// Returns arbs with bookmaker URLs for direct navigation
 
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import User from '@/lib/models/User';
 
 export const dynamic = 'force-dynamic';
 
-// For Vercel deployment, we'll use Server-Sent Events (SSE) instead of WebSocket
-// This allows real-time updates without a separate WebSocket server
-
+// For SSE: Return a streaming response (optional - for future use)
 export async function GET(request: NextRequest) {
-  // Verify authentication via token
   const token = request.nextUrl.searchParams.get('token');
   
   if (!token) {
@@ -25,7 +19,6 @@ export async function GET(request: NextRequest) {
   try {
     await dbConnect();
     
-    // Find user by extension token
     const user = await User.findOne({ extensionToken: token });
     
     if (!user) {
@@ -36,10 +29,8 @@ export async function GET(request: NextRequest) {
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       start(controller) {
-        // Send initial connection message
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'connected' })}\n\n`));
         
-        // Keep connection alive with heartbeat
         const heartbeat = setInterval(() => {
           try {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'ping' })}\n\n`));
@@ -48,7 +39,6 @@ export async function GET(request: NextRequest) {
           }
         }, 30000);
         
-        // Clean up on close
         request.signal.addEventListener('abort', () => {
           clearInterval(heartbeat);
           controller.close();
@@ -70,7 +60,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// Alternative: Polling endpoint for extension to check for new arbs
+// Main polling endpoint for extension
 export async function POST(request: NextRequest) {
   try {
     const { token, lastCheckAt } = await request.json();
@@ -84,11 +74,9 @@ export async function POST(request: NextRequest) {
     
     await dbConnect();
     
-    // Find user by extension token
     const user = await User.findOne({ extensionToken: token }).select('cachedScanResults autoScan email');
     
     if (!user) {
-      // Debug: Check if any user has a token
       const anyUserWithToken = await User.findOne({ extensionToken: { $exists: true, $ne: null } }).select('extensionToken email');
       console.log('[Extension Poll] Token not found in DB');
       console.log('[Extension Poll] Any user with token?', anyUserWithToken ? `Yes - ${anyUserWithToken.email}` : 'No');
@@ -100,7 +88,6 @@ export async function POST(request: NextRequest) {
     
     console.log('[Extension Poll] User found:', user.email);
     
-    // Check if there are new arbs since last check
     if (!user.cachedScanResults?.scannedAt) {
       return NextResponse.json({ 
         hasNewArbs: false,
@@ -111,7 +98,6 @@ export async function POST(request: NextRequest) {
     const scannedAt = new Date(user.cachedScanResults.scannedAt);
     const lastCheck = lastCheckAt ? new Date(lastCheckAt) : new Date(0);
     
-    // If scanned since last check, return arbs
     if (scannedAt > lastCheck) {
       const opportunities = (user.cachedScanResults.opportunities || []) as Array<{
         id?: string;
@@ -126,41 +112,65 @@ export async function POST(request: NextRequest) {
         outcome2?: { name?: string; bookmaker?: string; odds?: number };
         outcome3?: { name?: string; bookmaker?: string; odds?: number };
         type?: string;
+        // New: bookmaker URLs from auto-scan
+        bookmakerUrls?: Record<string, {
+          eventUrl?: string | null;
+          competitionUrl?: string | null;
+          searchUrl?: string | null;
+        }>;
       }>;
       
       // Filter to actual arbs (not near-arbs) - 0.5% minimum for testing
       const arbs = opportunities
         .filter(opp => opp.type === 'arb' && (opp.profitPercentage || 0) >= 0.5)
-        .sort((a, b) => (b.profitPercentage || 0) - (a.profitPercentage || 0)) // Highest first
-        .map(opp => ({
-          id: opp.id || `${opp.event?.homeTeam}-${opp.event?.awayTeam}-${Date.now()}`,
-          profitPercent: opp.profitPercentage || 0,
-          eventName: `${opp.event?.homeTeam} vs ${opp.event?.awayTeam}`,
-          homeTeam: opp.event?.homeTeam,
-          awayTeam: opp.event?.awayTeam,
-          sport: opp.event?.sportKey,
-          commenceTime: opp.event?.commenceTime,
-          bets: [
-            {
-              outcome: opp.outcome1?.name,
-              bookmaker: opp.outcome1?.bookmaker,
-              odds: opp.outcome1?.odds,
-              stake: 0, // Will be calculated client-side
-            },
-            {
-              outcome: opp.outcome2?.name,
-              bookmaker: opp.outcome2?.bookmaker,
-              odds: opp.outcome2?.odds,
-              stake: 0,
-            },
-            ...(opp.outcome3 ? [{
-              outcome: opp.outcome3.name,
-              bookmaker: opp.outcome3.bookmaker,
-              odds: opp.outcome3.odds,
-              stake: 0,
-            }] : []),
-          ],
-        }));
+        .sort((a, b) => (b.profitPercentage || 0) - (a.profitPercentage || 0))
+        .map(opp => {
+          // Helper to get URL info for a bookmaker
+          const getUrlInfo = (bookmaker: string) => {
+            const urlInfo = opp.bookmakerUrls?.[bookmaker];
+            return {
+              eventUrl: urlInfo?.eventUrl || null,
+              competitionUrl: urlInfo?.competitionUrl || null,
+              searchUrl: urlInfo?.searchUrl || null,
+            };
+          };
+          
+          return {
+            id: opp.id || `${opp.event?.homeTeam}-${opp.event?.awayTeam}-${Date.now()}`,
+            profitPercent: opp.profitPercentage || 0,
+            eventName: `${opp.event?.homeTeam} vs ${opp.event?.awayTeam}`,
+            homeTeam: opp.event?.homeTeam,
+            awayTeam: opp.event?.awayTeam,
+            sport: opp.event?.sportKey,
+            commenceTime: opp.event?.commenceTime,
+            bets: [
+              {
+                outcome: opp.outcome1?.name,
+                bookmaker: opp.outcome1?.bookmaker,
+                odds: opp.outcome1?.odds,
+                stake: 0,
+                // Include URL info for this bookmaker
+                urls: opp.outcome1?.bookmaker ? getUrlInfo(opp.outcome1.bookmaker) : null,
+              },
+              {
+                outcome: opp.outcome2?.name,
+                bookmaker: opp.outcome2?.bookmaker,
+                odds: opp.outcome2?.odds,
+                stake: 0,
+                urls: opp.outcome2?.bookmaker ? getUrlInfo(opp.outcome2.bookmaker) : null,
+              },
+              ...(opp.outcome3 ? [{
+                outcome: opp.outcome3.name,
+                bookmaker: opp.outcome3.bookmaker,
+                odds: opp.outcome3.odds,
+                stake: 0,
+                urls: opp.outcome3.bookmaker ? getUrlInfo(opp.outcome3.bookmaker) : null,
+              }] : []),
+            ],
+            // Also include top-level URLs for convenience
+            bookmakerUrls: opp.bookmakerUrls || {},
+          };
+        });
       
       return NextResponse.json({
         hasNewArbs: arbs.length > 0,

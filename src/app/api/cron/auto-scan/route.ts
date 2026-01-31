@@ -7,6 +7,7 @@ import { detectAllOpportunities } from '@/lib/arb/detector';
 import { config, getApiRegionsForUserRegions, UserRegion } from '@/lib/config';
 import { sendMultipleArbAlerts, ArbAlert } from '@/lib/sms';
 import { calculateBookVsBookStakes } from '@/lib/arb/calculator';
+import { buildFullEventUrls } from '@/lib/scraper/urlBuilder';
 import type { BookVsBookArb } from '@/lib/types';
 
 // Vercel cron jobs send a specific header to authenticate
@@ -22,6 +23,15 @@ const CREDITS_PER_SCAN: Record<string, number> = {
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Allow up to 60 seconds for cron job
+
+// Extended arb type with URLs
+interface ArbWithUrls extends BookVsBookArb {
+  bookmakerUrls?: Record<string, { 
+    eventUrl: string | null; 
+    competitionUrl: string | null; 
+    searchUrl: string | null;
+  }>;
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -130,7 +140,7 @@ export async function GET(request: NextRequest) {
         }
 
         // Filter opportunities that meet alert criteria
-        const oppsToAlert: BookVsBookArb[] = [];
+        const oppsToAlert: ArbWithUrls[] = [];
         const newAlertedArbs: Record<string, { alertedAt: Date; profitPercent: number }> = { ...cleanedAlertedArbs };
         
         for (const opp of scanResult.opportunities) {
@@ -384,10 +394,36 @@ function calculateEstimatedCredits(regions: UserRegion[]): number {
 }
 
 /**
+ * Add bookmaker URLs to arb opportunities
+ */
+function addUrlsToArbs(arbs: BookVsBookArb[]): ArbWithUrls[] {
+  return arbs.map(arb => {
+    // Get all bookmakers involved in this arb
+    const bookmakers = [arb.outcome1.bookmaker, arb.outcome2.bookmaker];
+    if (arb.outcome3) {
+      bookmakers.push(arb.outcome3.bookmaker);
+    }
+    
+    // Build URLs for each bookmaker (includes eventUrl, competitionUrl, searchUrl)
+    const bookmakerUrls = buildFullEventUrls(
+      arb.event.sportKey,
+      arb.event.homeTeam,
+      arb.event.awayTeam,
+      bookmakers
+    );
+    
+    return {
+      ...arb,
+      bookmakerUrls,
+    };
+  });
+}
+
+/**
  * Run arbitrage scan for a specific user
  */
 async function runScanForUser(user: IUser): Promise<{
-  opportunities: BookVsBookArb[];
+  opportunities: ArbWithUrls[];
   valueBets: unknown[];
   stats: {
     totalEvents: number;
@@ -437,8 +473,13 @@ async function runScanForUser(user: IUser): Promise<{
     return true;
   });
   
+  // Add URLs to arbs (lightweight - no scraping)
+  const arbsWithUrls = addUrlsToArbs(validArbs);
+  
+  console.log(`[AutoScan] Added URLs to ${arbsWithUrls.length} arbs`);
+  
   return {
-    opportunities: validArbs,
+    opportunities: arbsWithUrls,
     valueBets: validValueBets,
     stats,
     // Try to get remaining credits if available on the result
