@@ -38,16 +38,18 @@ const BOOKMAKERS: BookmakerConfig[] = [
     name: 'sportsbet',
     baseUrl: 'https://www.sportsbet.com.au',
     sports: {
-      'basketball_nba': '/betting/basketball/nba',
-      'basketball_ncaab': '/betting/basketball/ncaa-basketball',
+      'basketball_nba': '/betting/basketball-us/nba',
+      'basketball_ncaab': '/betting/basketball-us/ncaa-mens-basketball',
       'americanfootball_nfl': '/betting/american-football/nfl',
-      'americanfootball_ncaaf': '/betting/american-football/ncaa-football',
+      'americanfootball_ncaaf': '/betting/american-football/ncaa',
       'icehockey_nhl': '/betting/ice-hockey/nhl',
       'baseball_mlb': '/betting/baseball/mlb',
       'aussierules_afl': '/betting/australian-rules/afl',
       'rugbyleague_nrl': '/betting/rugby-league/nrl',
-      'soccer_epl': '/betting/soccer/england-premier-league',
-      'soccer_australia_aleague': '/betting/soccer/australia-a-league',
+      'soccer_epl': '/betting/soccer/english-premier-league',
+      'soccer_australia_aleague': '/betting/soccer/a-league-men',
+      'cricket_test': '/betting/cricket',
+      'cricket_bbl': '/betting/cricket/big-bash',
     },
   },
   {
@@ -231,9 +233,22 @@ async function scrapeEventsFromPage(
     // Generic extraction that works across most Australian bookmakers
     const extracted = await page.evaluate((base) => {
       const results: { homeTeam: string; awayTeam: string; eventUrl: string; eventName: string }[] = [];
+      const debug: string[] = [];
       
       // Find all links that could be event links
       const allLinks = Array.from(document.querySelectorAll('a[href]'));
+      debug.push(`Total links on page: ${allLinks.length}`);
+      
+      // Get page title and URL for debugging
+      debug.push(`Page title: ${document.title}`);
+      debug.push(`Page URL: ${window.location.href}`);
+      
+      // Sample some link hrefs for debugging
+      const sampleLinks = allLinks.slice(0, 20).map(l => (l as HTMLAnchorElement).href);
+      debug.push(`Sample links: ${JSON.stringify(sampleLinks.slice(0, 5))}`);
+      
+      let passedBaseFilter = 0;
+      let passedEventFilter = 0;
       
       for (const link of allLinks) {
         const href = (link as HTMLAnchorElement).href;
@@ -245,6 +260,8 @@ async function scrapeEventsFromPage(
         if (href.includes('promotions') || href.includes('responsible')) continue;
         if (!href.startsWith(base)) continue;
         
+        passedBaseFilter++;
+        
         // Look for event patterns in URL
         const isEventUrl = 
           /\/\d{5,}/.test(href) ||           // Numeric ID (common)
@@ -255,6 +272,8 @@ async function scrapeEventsFromPage(
           /\/[a-z-]+-v-[a-z-]+/.test(href);  // team-v-team pattern
         
         if (!isEventUrl) continue;
+        
+        passedEventFilter++;
         
         // Try to extract team names
         let homeTeam = '';
@@ -307,6 +326,20 @@ async function scrapeEventsFromPage(
             homeTeam = slugMatch[1].replace(/-/g, ' ');
             awayTeam = slugMatch[3].replace(/-/g, ' ');
           }
+        }
+        
+        // Method 5: Try parsing from href path segments (e.g., /team1-at-team2/)
+        if (!homeTeam || !awayTeam) {
+          const atMatch = href.match(/\/([a-z0-9-]+)-at-([a-z0-9-]+)(?:\/|\?|#|$)/i);
+          if (atMatch) {
+            homeTeam = atMatch[2].replace(/-/g, ' '); // Away team is first in "X at Y" (Y is home)
+            awayTeam = atMatch[1].replace(/-/g, ' ');
+          }
+        }
+        
+        // Log what we found for debugging
+        if (passedEventFilter <= 5) {
+          debug.push(`Event URL: ${href}, text: "${text.substring(0, 50)}", teams: ${homeTeam} vs ${awayTeam}`);
         }
         
         // Validate we have both teams
