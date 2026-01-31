@@ -76,17 +76,29 @@ export async function POST(request: NextRequest) {
     const { token, lastCheckAt } = await request.json();
     
     if (!token) {
+      console.log('[Extension Poll] No token provided');
       return NextResponse.json({ error: 'Token required' }, { status: 401 });
     }
+    
+    console.log('[Extension Poll] Token received:', token.substring(0, 20) + '...');
     
     await dbConnect();
     
     // Find user by extension token
-    const user = await User.findOne({ extensionToken: token }).select('cachedScanResults autoScan');
+    const user = await User.findOne({ extensionToken: token }).select('cachedScanResults autoScan email');
     
     if (!user) {
+      // Debug: Check if any user has a token
+      const anyUserWithToken = await User.findOne({ extensionToken: { $exists: true, $ne: null } }).select('extensionToken email');
+      console.log('[Extension Poll] Token not found in DB');
+      console.log('[Extension Poll] Any user with token?', anyUserWithToken ? `Yes - ${anyUserWithToken.email}` : 'No');
+      if (anyUserWithToken) {
+        console.log('[Extension Poll] DB token starts with:', anyUserWithToken.extensionToken?.substring(0, 20));
+      }
       return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
     }
+    
+    console.log('[Extension Poll] User found:', user.email);
     
     // Check if there are new arbs since last check
     if (!user.cachedScanResults?.scannedAt) {
@@ -116,9 +128,9 @@ export async function POST(request: NextRequest) {
         type?: string;
       }>;
       
-      // Filter to actual arbs (not near-arbs)
+      // Filter to actual arbs (not near-arbs) - 0.5% minimum for testing
       const arbs = opportunities
-        .filter(opp => opp.type === 'arb' && (opp.profitPercentage || 0) >= 1)
+        .filter(opp => opp.type === 'arb' && (opp.profitPercentage || 0) >= 0.5)
         .map(opp => ({
           id: opp.id || `${opp.event?.homeTeam}-${opp.event?.awayTeam}-${Date.now()}`,
           profitPercent: opp.profitPercentage || 0,
