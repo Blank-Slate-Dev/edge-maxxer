@@ -1,23 +1,31 @@
 // src/lib/bookmakerLinks.ts
 
 /**
- * Bookmaker homepage links.
- * Odds APIs generally do NOT provide stable deep links to specific events.
- * We resolve a bookmaker "key" (and optionally a display title) to a homepage URL.
+ * Bookmaker URLs with support for deep links from crawler
+ * 
+ * The buildBookmakerUrl function now supports both:
+ * 1. Cached deep links (from crawler database)
+ * 2. Fallback to homepage if no deep link available
  */
 
 // Accept basically anything because upstream types can be loose.
 type AnyInput = unknown;
 
+interface EventInfo {
+  home_team?: string;
+  away_team?: string;
+  sport_key?: string;
+  sport_title?: string;
+  commence_time?: string;
+  // Pre-fetched deep link URL from crawler
+  deep_link?: string | null;
+}
+
 function toCleanString(v: AnyInput): string {
-  // Fast paths
   if (typeof v === "string") return v;
   if (v == null) return "";
-
-  // Numbers / booleans
   if (typeof v === "number" || typeof v === "boolean") return String(v);
 
-  // Common bookmaker object shapes (defensive)
   if (typeof v === "object") {
     const obj = v as Record<string, unknown>;
     const maybe =
@@ -27,8 +35,6 @@ function toCleanString(v: AnyInput): string {
       (typeof obj.title === "string" && obj.title) ||
       "";
     if (maybe) return maybe;
-
-    // Last resort: don't stringify huge objects; just return empty to avoid garbage keys
     return "";
   }
 
@@ -45,7 +51,7 @@ function normalizeKey(v: AnyInput): string {
 }
 
 /**
- * Canonical homepage URLs (our internal canonical keys).
+ * Canonical homepage URLs
  */
 const BOOKMAKER_URLS: Record<string, string> = {
   // ---------- AU ----------
@@ -64,6 +70,7 @@ const BOOKMAKER_URLS: Record<string, string> = {
   tab: "https://www.tab.com.au",
   tabtouch: "https://www.tabtouch.com.au",
   unibet_au: "https://www.unibet.com.au",
+  bluebet: "https://www.bluebet.com.au",
 
   // ---------- UK ----------
   sport888: "https://www.888sport.com",
@@ -98,8 +105,6 @@ const BOOKMAKER_URLS: Record<string, string> = {
   mybookieag: "https://www.mybookie.ag",
   williamhill_us: "https://www.caesars.com/sportsbook-and-casino",
   fanatics: "https://sportsbook.fanatics.com",
-
-  // ---------- US 2 ----------
   ballybet: "https://www.ballybet.com",
   betanysports: "https://www.betanysports.eu",
   betparx: "https://www.betparx.com",
@@ -145,22 +150,17 @@ const BOOKMAKER_URLS: Record<string, string> = {
   unibet_eu: "https://www.unibet.eu",
   winamax_de: "https://www.winamax.de",
   winamax_fr: "https://www.winamax.fr",
-
-  // ---------- FR ----------
   netbet_fr: "https://www.netbet.fr",
-
-  // ---------- SE ----------
   atg_se: "https://www.atg.se",
   mrgreen_se: "https://www.mrgreen.se",
   svenskaspel_se: "https://www.svenskaspel.se",
 };
 
 /**
- * Aliases: map whatever the API gives you -> our canonical key in BOOKMAKER_URLS.
- * (Fixes Betfair/BetRight/PointsBet + common naming drift.)
+ * Aliases to map API keys to our canonical keys
  */
 const BOOKMAKER_ALIASES: Record<string, string> = {
-  // ---- Betfair (AU) ----
+  // Betfair (AU)
   betfair: "betfair_ex_au",
   betfair_au: "betfair_ex_au",
   betfair_exchange: "betfair_ex_au",
@@ -168,22 +168,22 @@ const BOOKMAKER_ALIASES: Record<string, string> = {
   betfair_exau: "betfair_ex_au",
   betfair_ex_au: "betfair_ex_au",
 
-  // ---- Betfair (UK/EU) ----
+  // Betfair (UK/EU)
   betfair_ex_uk: "betfair_ex_uk",
   betfair_sb_uk: "betfair_sb_uk",
   betfair_ex_eu: "betfair_ex_eu",
 
-  // ---- BetRight (AU) ----
+  // BetRight (AU)
   bet_right: "betright",
   betright_au: "betright",
   betright: "betright",
 
-  // ---- PointsBet (AU) ----
+  // PointsBet (AU)
   pointsbet: "pointsbet_au",
   pointsbetau: "pointsbet_au",
   pointsbet_au: "pointsbet_au",
 
-  // ---- Common AU drift ----
+  // Common AU drift
   unibet: "unibet_au",
   unibet_au: "unibet_au",
   ladbrokes: "ladbrokes_au",
@@ -196,10 +196,12 @@ const BOOKMAKER_ALIASES: Record<string, string> = {
   tab: "tab",
   sports_bet: "sportsbet",
   sportsbet: "sportsbet",
+  bluebet: "bluebet",
+  bluebet_au: "bluebet",
 };
 
 /**
- * Optional fallback by DISPLAY name if caller passes "PointsBet (AU)" etc.
+ * Display name fallbacks
  */
 const BOOKMAKER_NAME_FALLBACKS: Record<string, string> = {
   betfair: "betfair_ex_au",
@@ -223,11 +225,19 @@ const BOOKMAKER_NAME_FALLBACKS: Record<string, string> = {
   playup: "playup",
   dabble: "dabble_au",
   boombet: "boombet",
+  bluebet: "bluebet",
 };
 
 /**
- * Resolve a bookmaker homepage URL.
- * Returns null if not supported (so your UI can show "Link unavailable" instead of "#").
+ * Get canonical bookmaker key
+ */
+export function getCanonicalBookmaker(bookmakerKey: AnyInput): string {
+  const key = normalizeKey(bookmakerKey);
+  return BOOKMAKER_ALIASES[key] ?? key;
+}
+
+/**
+ * Get bookmaker homepage URL
  */
 export function getBookmakerUrl(bookmakerKey: AnyInput, bookmakerName?: AnyInput): string | null {
   const key = normalizeKey(bookmakerKey);
@@ -243,8 +253,47 @@ export function getBookmakerUrl(bookmakerKey: AnyInput, bookmakerName?: AnyInput
 }
 
 /**
- * Build a bookmaker link (homepage).
+ * Build a bookmaker URL - uses deep link if available, otherwise homepage
+ * 
+ * Usage:
+ * ```tsx
+ * // With pre-fetched deep link
+ * const url = buildBookmakerSearchUrl(bookmaker, { 
+ *   home_team: 'Lakers', 
+ *   away_team: 'Celtics',
+ *   deep_link: opp.deepLinks?.[bookmaker] // from crawler
+ * });
+ * 
+ * // Without deep link (falls back to homepage)
+ * const url = buildBookmakerSearchUrl(bookmaker);
+ * ```
  */
-export function buildBookmakerSearchUrl(bookmakerKey: AnyInput, bookmakerName?: AnyInput): string | null {
-  return getBookmakerUrl(bookmakerKey, bookmakerName);
+export function buildBookmakerSearchUrl(
+  bookmakerKey: AnyInput, 
+  eventInfo?: EventInfo | AnyInput
+): string | null {
+  // If a pre-fetched deep link is provided, use it
+  if (eventInfo && typeof eventInfo === 'object' && 'deep_link' in eventInfo) {
+    const info = eventInfo as EventInfo;
+    if (info.deep_link) {
+      return info.deep_link;
+    }
+  }
+  
+  // Fall back to homepage
+  return getBookmakerUrl(bookmakerKey);
+}
+
+/**
+ * Check if a bookmaker is supported
+ */
+export function isBookmakerSupported(bookmakerKey: AnyInput): boolean {
+  return getBookmakerUrl(bookmakerKey) !== null;
+}
+
+/**
+ * Get all supported bookmaker keys
+ */
+export function getSupportedBookmakers(): string[] {
+  return Object.keys(BOOKMAKER_URLS);
 }

@@ -1,9 +1,10 @@
 // src/components/ArbTable.tsx
 'use client';
 
+import { useState, useEffect } from 'react';
 import type { ArbOpportunity } from '@/lib/types';
 import { getBookmakerName, getBookmakerRegion } from '@/lib/config';
-import { buildBookmakerSearchUrl } from '@/lib/bookmakerLinks';
+import { buildBookmakerSearchUrl, getCanonicalBookmaker } from '@/lib/bookmakerLinks';
 import { BookLogo } from './BookLogo';
 
 interface ArbTableProps {
@@ -11,6 +12,9 @@ interface ArbTableProps {
   onSelectArb: (arb: ArbOpportunity) => void;
   globalMode?: boolean;
 }
+
+// Cache for deep links
+const deepLinkCache = new Map<string, Record<string, string | null>>();
 
 function RegionBadge({ bookmaker }: { bookmaker: string }) {
   const region = getBookmakerRegion(bookmaker);
@@ -72,6 +76,55 @@ function getTimeUntil(date: Date): string {
     return `${hours}h ${minutes}m`;
   }
   return `${minutes}m`;
+}
+
+// Hook to fetch deep links for an event
+function useDeepLinks(event: { homeTeam: string; awayTeam: string; sportKey?: string }, bookmakers: string[]) {
+  const [links, setLinks] = useState<Record<string, string | null>>({});
+  const [loading, setLoading] = useState(true);
+  
+  const cacheKey = `${event.homeTeam}-${event.awayTeam}-${bookmakers.sort().join(',')}`;
+  
+  useEffect(() => {
+    // Check cache first
+    const cached = deepLinkCache.get(cacheKey);
+    if (cached) {
+      setLinks(cached);
+      setLoading(false);
+      return;
+    }
+    
+    // Fetch from API
+    const fetchLinks = async () => {
+      try {
+        const res = await fetch('/api/event-url', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bookmakers: bookmakers.map(getCanonicalBookmaker),
+            homeTeam: event.homeTeam,
+            awayTeam: event.awayTeam,
+            sport: event.sportKey,
+          }),
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          const urls = data.urls || {};
+          deepLinkCache.set(cacheKey, urls);
+          setLinks(urls);
+        }
+      } catch (err) {
+        console.error('Failed to fetch deep links:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchLinks();
+  }, [cacheKey, event.homeTeam, event.awayTeam, event.sportKey, bookmakers]);
+  
+  return { links, loading };
 }
 
 export function ArbTable({ opportunities, onSelectArb, globalMode = false }: ArbTableProps) {
@@ -148,6 +201,13 @@ function ArbCard({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect:
   const eventDate = new Date(opp.event.commenceTime);
   const soon = isEventSoon(eventDate);
   const timeUntil = getTimeUntil(eventDate);
+  
+  // Get bookmakers from the arb
+  const bookmakers = opp.mode === 'book-vs-book' 
+    ? [opp.outcome1.bookmaker, opp.outcome2.bookmaker, opp.outcome3?.bookmaker].filter(Boolean) as string[]
+    : [opp.backOutcome.bookmaker];
+  
+  const { links } = useDeepLinks(opp.event, bookmakers);
 
   return (
     <div 
@@ -202,6 +262,7 @@ function ArbCard({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect:
               odds={opp.outcome1.odds} 
               bookmaker={opp.outcome1.bookmaker}
               showRegion={globalMode}
+              deepLink={links[getCanonicalBookmaker(opp.outcome1.bookmaker)]}
               event={opp.event}
             />
             <BetLineMobile 
@@ -209,6 +270,7 @@ function ArbCard({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect:
               odds={opp.outcome2.odds} 
               bookmaker={opp.outcome2.bookmaker}
               showRegion={globalMode}
+              deepLink={links[getCanonicalBookmaker(opp.outcome2.bookmaker)]}
               event={opp.event}
             />
             {opp.outcome3 && (
@@ -217,6 +279,7 @@ function ArbCard({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect:
                 odds={opp.outcome3.odds} 
                 bookmaker={opp.outcome3.bookmaker}
                 showRegion={globalMode}
+                deepLink={links[getCanonicalBookmaker(opp.outcome3.bookmaker)]}
                 event={opp.event}
               />
             )}
@@ -228,6 +291,7 @@ function ArbCard({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect:
               odds={opp.backOutcome.odds} 
               bookmaker={opp.backOutcome.bookmaker}
               showRegion={globalMode}
+              deepLink={links[getCanonicalBookmaker(opp.backOutcome.bookmaker)]}
               event={opp.event}
             />
             <div className="flex items-center justify-between">
@@ -267,20 +331,24 @@ function BetLineMobile({
   odds,
   bookmaker,
   showRegion,
+  deepLink,
   event,
 }: {
   name: string;
   odds: number;
   bookmaker: string;
   showRegion?: boolean;
-  event: { homeTeam: string; awayTeam: string; sportTitle?: string; sportKey?: string; commenceTime?: any };
+  deepLink?: string | null;
+  event: { homeTeam: string; awayTeam: string; sportTitle?: string; sportKey?: string; commenceTime?: Date };
 }) {
-  const href = buildBookmakerSearchUrl(bookmaker, {
+  const href = deepLink || buildBookmakerSearchUrl(bookmaker, {
     home_team: event.homeTeam,
     away_team: event.awayTeam,
     sport_title: event.sportTitle || event.sportKey,
     commence_time: event.commenceTime ? new Date(event.commenceTime).toISOString() : undefined,
-  }) ?? undefined;
+  }) || undefined;
+  
+  const hasDeepLink = !!deepLink;
 
   return (
     <div className="flex items-center justify-between gap-2">
@@ -289,9 +357,20 @@ function BetLineMobile({
         <div className="min-w-0">
           <div className="font-medium text-sm truncate" style={{ color: 'var(--foreground)' }}>{name}</div>
           <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
-            <a href={href} target="_blank" rel="noreferrer" className="hover:underline truncate">
+            <a 
+              href={href} 
+              target="_blank" 
+              rel="noreferrer" 
+              className="hover:underline truncate"
+              title={hasDeepLink ? 'Direct link to event' : 'Opens bookmaker homepage'}
+            >
               {getBookmakerName(bookmaker)}
             </a>
+            {hasDeepLink && (
+              <span className="px-1 py-0.5 text-[8px] bg-green-900/50 text-green-400 rounded">
+                Direct
+              </span>
+            )}
             {showRegion && <RegionBadge bookmaker={bookmaker} />}
           </div>
         </div>
@@ -306,6 +385,13 @@ function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: 
   const eventDate = new Date(opp.event.commenceTime);
   const soon = isEventSoon(eventDate);
   const timeUntil = getTimeUntil(eventDate);
+  
+  // Get bookmakers from the arb
+  const bookmakers = opp.mode === 'book-vs-book' 
+    ? [opp.outcome1.bookmaker, opp.outcome2.bookmaker, opp.outcome3?.bookmaker].filter(Boolean) as string[]
+    : [opp.backOutcome.bookmaker];
+  
+  const { links } = useDeepLinks(opp.event, bookmakers);
 
   return (
     <tr 
@@ -341,6 +427,7 @@ function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: 
               odds={opp.outcome1.odds} 
               bookmaker={opp.outcome1.bookmaker}
               showRegion={globalMode}
+              deepLink={links[getCanonicalBookmaker(opp.outcome1.bookmaker)]}
               event={opp.event}
             />
             <BetLine 
@@ -348,6 +435,7 @@ function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: 
               odds={opp.outcome2.odds} 
               bookmaker={opp.outcome2.bookmaker}
               showRegion={globalMode}
+              deepLink={links[getCanonicalBookmaker(opp.outcome2.bookmaker)]}
               event={opp.event}
             />
             {opp.outcome3 && (
@@ -356,6 +444,7 @@ function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: 
                 odds={opp.outcome3.odds} 
                 bookmaker={opp.outcome3.bookmaker}
                 showRegion={globalMode}
+                deepLink={links[getCanonicalBookmaker(opp.outcome3.bookmaker)]}
                 event={opp.event}
               />
             )}
@@ -367,6 +456,7 @@ function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: 
               odds={opp.backOutcome.odds} 
               bookmaker={opp.backOutcome.bookmaker}
               showRegion={globalMode}
+              deepLink={links[getCanonicalBookmaker(opp.backOutcome.bookmaker)]}
               event={opp.event}
             />
             <div className="flex items-center gap-2">
@@ -412,20 +502,24 @@ function BetLine({
   odds,
   bookmaker,
   showRegion,
+  deepLink,
   event,
 }: {
   name: string;
   odds: number;
   bookmaker: string;
   showRegion?: boolean;
-  event: { homeTeam: string; awayTeam: string; sportTitle?: string; sportKey?: string; commenceTime?: any };
+  deepLink?: string | null;
+  event: { homeTeam: string; awayTeam: string; sportTitle?: string; sportKey?: string; commenceTime?: Date };
 }) {
-  const href = buildBookmakerSearchUrl(bookmaker, {
+  const href = deepLink || buildBookmakerSearchUrl(bookmaker, {
     home_team: event.homeTeam,
     away_team: event.awayTeam,
     sport_title: event.sportTitle || event.sportKey,
     commence_time: event.commenceTime ? new Date(event.commenceTime).toISOString() : undefined,
-  }) ?? undefined;
+  }) || undefined;
+  
+  const hasDeepLink = !!deepLink;
 
   return (
     <div className="flex items-center gap-2">
@@ -441,10 +535,15 @@ function BetLine({
             target="_blank"
             rel="noreferrer"
             className="hover:underline"
-            title="Open bookmaker search for this event"
+            title={hasDeepLink ? 'Direct link to event' : 'Opens bookmaker homepage'}
           >
             {getBookmakerName(bookmaker)}
           </a>
+          {hasDeepLink && (
+            <span className="px-1 py-0.5 text-[9px] bg-green-900/50 text-green-400 rounded">
+              Direct
+            </span>
+          )}
           {showRegion && <RegionBadge bookmaker={bookmaker} />}
         </div>
       </div>
