@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
-import User from '@/lib/models/User';
+import User, { CREDIT_TIER_CONFIG, CreditTier } from '@/lib/models/User';
 
 export const dynamic = 'force-dynamic';
 
@@ -35,12 +35,31 @@ export async function GET() {
       );
     }
 
+    // Calculate scanning status and next scan time
+    const now = new Date();
+    const isScanning = !!(user.autoScan?.scanStartedAt && 
+      (now.getTime() - new Date(user.autoScan.scanStartedAt).getTime()) < 120000); // Max 2 min scan
+    
+    // Calculate next scan time based on credit tier
+    let nextScanIn: number | null = null;
+    if (user.autoScan?.enabled && user.autoScan?.lastScanAt) {
+      const tierConfig = CREDIT_TIER_CONFIG[user.autoScan.creditTier as CreditTier];
+      const lastScanTime = new Date(user.autoScan.lastScanAt).getTime();
+      const nextScanTime = lastScanTime + (tierConfig.scanIntervalSeconds * 1000);
+      nextScanIn = Math.max(0, Math.floor((nextScanTime - now.getTime()) / 1000));
+    }
+
     // Check if user has cached results
     if (!user.cachedScanResults || !user.cachedScanResults.scannedAt) {
       return NextResponse.json(
         { 
           hasCachedResults: false,
           message: 'No cached scan results available',
+          autoScanEnabled: user.autoScan?.enabled || false,
+          isScanning,
+          remainingCredits: user.autoScan?.lastScanCreditsRemaining,
+          nextScanIn,
+          creditTier: user.autoScan?.creditTier || '20k',
         },
         { headers: NO_STORE_HEADERS }
       );
@@ -49,9 +68,9 @@ export async function GET() {
     // Check how old the cached results are
     const scannedAt = new Date(user.cachedScanResults.scannedAt);
     const ageMinutes = Math.floor((Date.now() - scannedAt.getTime()) / (1000 * 60));
+    const ageSeconds = Math.floor((Date.now() - scannedAt.getTime()) / 1000);
     
     // Filter out expired opportunities (events that have already started)
-    const now = new Date();
     
     // Cast to any to handle unknown[] type from MongoDB
     const opportunities = (user.cachedScanResults.opportunities || []) as Array<{ event?: { commenceTime?: string | Date } }>;
@@ -77,7 +96,12 @@ export async function GET() {
       regions: user.cachedScanResults.regions,
       scannedAt: scannedAt.toISOString(),
       ageMinutes,
+      ageSeconds,
       autoScanEnabled: user.autoScan?.enabled || false,
+      isScanning,
+      remainingCredits: user.autoScan?.lastScanCreditsRemaining,
+      nextScanIn,
+      creditTier: user.autoScan?.creditTier || '20k',
     }, { headers: NO_STORE_HEADERS });
     
   } catch (error) {

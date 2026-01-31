@@ -83,12 +83,19 @@ export async function GET(request: NextRequest) {
         // Calculate estimated credits for this scan
         const estimatedCredits = calculateEstimatedCredits(user.autoScan.regions);
         
+        // Mark scan as started (for real-time UI updates)
+        await User.findByIdAndUpdate(user._id, {
+          'autoScan.scanStartedAt': now,
+        });
+        
         // Run the scan
         const scanResult = await runScanForUser(user);
         
         // Update user's scan stats AND cache the results
         await User.findByIdAndUpdate(user._id, {
           'autoScan.lastScanAt': now,
+          'autoScan.scanStartedAt': null, // Clear scanning flag
+          'autoScan.lastScanCreditsRemaining': scanResult.remainingCredits,
           $inc: { 'autoScan.creditsUsedThisMonth': estimatedCredits },
           // Cache all scan results for dashboard
           cachedScanResults: {
@@ -249,6 +256,11 @@ export async function GET(request: NextRequest) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
         console.error(`[AutoScan] Error processing user ${user.email}:`, errorMsg);
         results.errors.push(`Error for ${user.email}: ${errorMsg}`);
+        
+        // Clear scanning flag on error
+        await User.findByIdAndUpdate(user._id, {
+          'autoScan.scanStartedAt': null,
+        });
       }
     }
 
@@ -386,6 +398,7 @@ async function runScanForUser(user: IUser): Promise<{
     valueBetsFound: number;
     sportsScanned: number;
   };
+  remainingCredits?: number;
 }> {
   const provider = createOddsApiProvider(user.oddsApiKey!);
   
@@ -428,5 +441,7 @@ async function runScanForUser(user: IUser): Promise<{
     opportunities: validArbs,
     valueBets: validValueBets,
     stats,
+    // Try to get remaining credits if available on the result
+    remainingCredits: (oddsResult as { remainingRequests?: number }).remainingRequests,
   };
 }

@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Globe, Loader2, X, CheckCircle, Clock } from 'lucide-react';
+import { Globe, Loader2, X, CheckCircle, Clock, Key } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal, Flag, SubscriptionRequiredModal } from '@/components';
 import { useBets } from '@/hooks/useBets';
@@ -59,7 +59,12 @@ interface CachedScanResponse {
   regions?: string[];
   scannedAt?: string;
   ageMinutes?: number;
+  ageSeconds?: number;
   autoScanEnabled?: boolean;
+  isScanning?: boolean;
+  remainingCredits?: number;
+  nextScanIn?: number;
+  creditTier?: string;
   message?: string;
 }
 
@@ -217,6 +222,13 @@ export default function DashboardPage() {
   const [autoScanEnabled, setAutoScanEnabled] = useState(false);
   const [isLoadingCached, setIsLoadingCached] = useState(true);
   const [cachedRegions, setCachedRegions] = useState<string[] | null>(null);
+  
+  // Real-time auto-scan state
+  const [isAutoScanning, setIsAutoScanning] = useState(false);
+  const [nextScanIn, setNextScanIn] = useState<number | null>(null);
+  const [autoScanCredits, setAutoScanCredits] = useState<number | undefined>();
+  const [lastCachedScannedAt, setLastCachedScannedAt] = useState<string | null>(null);
+  const [showNewResultsFlash, setShowNewResultsFlash] = useState(false);
 
   // AbortController for canceling scans
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -300,7 +312,20 @@ export default function DashboardPage() {
         if (res.ok) {
           const data: CachedScanResponse = await res.json();
           
+          // Update auto-scan status
+          setAutoScanEnabled(data.autoScanEnabled || false);
+          setIsAutoScanning(data.isScanning || false);
+          setNextScanIn(data.nextScanIn ?? null);
+          if (data.remainingCredits !== undefined) {
+            setAutoScanCredits(data.remainingCredits);
+            // Also update remainingRequests for header display
+            setRemainingRequests(data.remainingCredits);
+          }
+          
           if (data.hasCachedResults && data.opportunities && data.opportunities.length > 0) {
+            // Check if this is new data (different scannedAt)
+            const isNewData = data.scannedAt !== lastCachedScannedAt;
+            
             // Parse dates in opportunities
             const parsed = data.opportunities.map(opp => ({
               ...opp,
@@ -323,9 +348,11 @@ export default function DashboardPage() {
             setOpportunities(parsed);
             setValueBets(parsedValueBets);
             if (data.stats) setStats(data.stats);
-            if (data.scannedAt) setLastUpdated(new Date(data.scannedAt));
+            if (data.scannedAt) {
+              setLastUpdated(new Date(data.scannedAt));
+              setLastCachedScannedAt(data.scannedAt);
+            }
             if (data.ageMinutes !== undefined) setCachedScanAge(data.ageMinutes);
-            if (data.autoScanEnabled !== undefined) setAutoScanEnabled(data.autoScanEnabled);
             if (data.regions) setCachedRegions(data.regions);
             setHasFetchedArbs(true);
 
@@ -336,7 +363,15 @@ export default function DashboardPage() {
             });
             setBookmakers(Array.from(uniqueBookmakers));
 
+            // Show flash animation if new data arrived during polling
+            if (isNewData && lastCachedScannedAt !== null) {
+              setShowNewResultsFlash(true);
+              setTimeout(() => setShowNewResultsFlash(false), 2000);
+            }
+
             console.log(`[Dashboard] Loaded ${parsed.length} cached opportunities (${data.ageMinutes} min old)`);
+          } else if (data.ageMinutes !== undefined) {
+            setCachedScanAge(data.ageMinutes);
           }
         }
       } catch (err) {
@@ -346,8 +381,32 @@ export default function DashboardPage() {
       }
     };
 
+    // Initial fetch
     fetchCachedResults();
-  }, []);
+
+    // Poll for updates when auto-scan is enabled (every 5 seconds)
+    const pollInterval = setInterval(() => {
+      if (autoScanEnabled && !isLoadingArbs) {
+        fetchCachedResults();
+      }
+    }, 5000);
+
+    return () => clearInterval(pollInterval);
+  }, [autoScanEnabled, isLoadingArbs, lastCachedScannedAt]);
+
+  // Countdown timer for next scan
+  useEffect(() => {
+    if (!autoScanEnabled || nextScanIn === null || nextScanIn <= 0) return;
+    
+    const countdownInterval = setInterval(() => {
+      setNextScanIn(prev => {
+        if (prev === null || prev <= 0) return null;
+        return prev - 1;
+      });
+    }, 1000);
+    
+    return () => clearInterval(countdownInterval);
+  }, [autoScanEnabled, nextScanIn]);
 
   const isGlobalMode = selectedRegions.length === config.regionOrder.length;
 
@@ -840,29 +899,69 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Auto-Scan Cached Results Banner */}
-        {cachedScanAge !== null && autoScanEnabled && hasFetchedArbs && !isLoadingArbs && (
+        {/* Auto-Scan Status Banner */}
+        {autoScanEnabled && hasFetchedArbs && !isLoadingArbs && (
           <div 
-            className="border px-4 py-3 rounded-lg"
+            className={`border px-4 py-3 rounded-lg transition-all duration-500 ${showNewResultsFlash ? 'ring-2 ring-green-500' : ''}`}
             style={{
-              borderColor: 'color-mix(in srgb, #14b8a6 50%, transparent)',
-              backgroundColor: 'color-mix(in srgb, #14b8a6 10%, transparent)'
+              borderColor: isAutoScanning 
+                ? 'color-mix(in srgb, #22c55e 50%, transparent)' 
+                : 'color-mix(in srgb, #14b8a6 50%, transparent)',
+              backgroundColor: isAutoScanning 
+                ? 'color-mix(in srgb, #22c55e 10%, transparent)' 
+                : 'color-mix(in srgb, #14b8a6 10%, transparent)'
             }}
           >
             <div className="flex items-center gap-3">
-              <Clock className="w-5 h-5 shrink-0" style={{ color: '#14b8a6' }} />
-              <div className="flex-1">
-                <div className="font-medium text-sm" style={{ color: '#14b8a6' }}>
-                  Auto-Scan Results Loaded
+              {/* Scanning indicator */}
+              {isAutoScanning ? (
+                <div className="relative w-5 h-5 shrink-0">
+                  <div 
+                    className="absolute inset-0 rounded-full border-2 animate-ping"
+                    style={{ borderColor: '#22c55e', opacity: 0.4 }}
+                  />
+                  <div 
+                    className="absolute inset-0 rounded-full border-2 border-t-transparent animate-spin"
+                    style={{ borderColor: '#22c55e', borderTopColor: 'transparent' }}
+                  />
                 </div>
-                <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                  Last scanned {formatCachedAge(cachedScanAge)}
-                  {cachedRegions && cachedRegions.length > 0 && (
-                    <span> • {cachedRegions.join(', ')}</span>
+              ) : (
+                <Clock className="w-5 h-5 shrink-0" style={{ color: '#14b8a6' }} />
+              )}
+              
+              <div className="flex-1">
+                <div className="font-medium text-sm" style={{ color: isAutoScanning ? '#22c55e' : '#14b8a6' }}>
+                  {isAutoScanning ? 'Auto-Scanning...' : 'Auto-Scan Active'}
+                </div>
+                <div className="text-xs mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5" style={{ color: 'var(--muted)' }}>
+                  {cachedScanAge !== null && !isAutoScanning && (
+                    <span>Updated {formatCachedAge(cachedScanAge)}</span>
                   )}
-                  <span> • Click <strong>Scan</strong> for fresh data</span>
+                  {cachedRegions && cachedRegions.length > 0 && (
+                    <span>• {cachedRegions.join(', ')}</span>
+                  )}
+                  {nextScanIn !== null && nextScanIn > 0 && !isAutoScanning && (
+                    <span>• Next scan in {nextScanIn}s</span>
+                  )}
+                  {autoScanCredits !== undefined && (
+                    <span className="font-mono">• {autoScanCredits.toLocaleString()} credits</span>
+                  )}
                 </div>
               </div>
+              
+              {/* Credits badge */}
+              {autoScanCredits !== undefined && (
+                <div 
+                  className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono"
+                  style={{ 
+                    backgroundColor: 'var(--background)',
+                    color: autoScanCredits < 10000 ? 'var(--warning)' : 'var(--muted)'
+                  }}
+                >
+                  <Key className="w-3 h-3" />
+                  {autoScanCredits.toLocaleString()}
+                </div>
+              )}
             </div>
           </div>
         )}

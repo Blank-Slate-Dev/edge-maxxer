@@ -30,6 +30,9 @@ export interface IAutoScanSettings {
   creditsResetAt?: Date;           // When credits reset (1st of month)
   // Track alerted arbs to avoid spam (arbId -> { alertedAt, profitPercent })
   alertedArbs: Map<string, { alertedAt: Date; profitPercent: number }> | Record<string, { alertedAt: Date; profitPercent: number }>;
+  // Real-time scanning status
+  scanStartedAt?: Date;            // When current scan started (null if not scanning)
+  lastScanCreditsRemaining?: number; // API credits remaining after last scan
 }
 
 export interface IUser {
@@ -144,6 +147,13 @@ const AutoScanSettingsSchema = new Schema<IAutoScanSettings>(
         profitPercent: Number,
       },
       default: new Map(),
+    },
+    // Real-time scanning status
+    scanStartedAt: {
+      type: Date,
+    },
+    lastScanCreditsRemaining: {
+      type: Number,
     },
   },
   { _id: false }
