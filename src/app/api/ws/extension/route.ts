@@ -110,9 +110,10 @@ export async function POST(request: NextRequest) {
     
     const scannedAt = new Date(user.cachedScanResults.scannedAt);
     const lastCheck = lastCheckAt ? new Date(lastCheckAt) : new Date(0);
+    const isNewData = scannedAt > lastCheck;
     
-    if (scannedAt > lastCheck) {
-      const opportunities = (user.cachedScanResults.opportunities || []) as Array<{
+    // Always return arbs (not just when new)
+    const opportunities = (user.cachedScanResults.opportunities || []) as Array<{
         id?: string;
         profitPercentage?: number;
         event?: {
@@ -186,16 +187,10 @@ export async function POST(request: NextRequest) {
         });
       
       return NextResponse.json({
-        hasNewArbs: arbs.length > 0,
+        hasNewArbs: isNewData && arbs.length > 0,
         arbs,
         scannedAt: scannedAt.toISOString(),
       }, { headers: corsHeaders });
-    }
-    
-    return NextResponse.json({
-      hasNewArbs: false,
-      arbs: [],
-    }, { headers: corsHeaders });
     
   } catch (error) {
     console.error('[Extension Poll] Error:', error);
