@@ -131,6 +131,7 @@ export async function POST(request: NextRequest) {
       // Filter to actual arbs (not near-arbs) - 0.5% minimum for testing
       const arbs = opportunities
         .filter(opp => opp.type === 'arb' && (opp.profitPercentage || 0) >= 0.5)
+        .sort((a, b) => (b.profitPercentage || 0) - (a.profitPercentage || 0)) // Highest first
         .map(opp => ({
           id: opp.id || `${opp.event?.homeTeam}-${opp.event?.awayTeam}-${Date.now()}`,
           profitPercent: opp.profitPercentage || 0,
