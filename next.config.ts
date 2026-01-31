@@ -1,3 +1,4 @@
+// next.config.ts
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
@@ -21,11 +22,6 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'www.edgemaxxer.com',
       },
-      // Add other domains as needed, e.g.:
-      // {
-      //   protocol: 'https',
-      //   hostname: 'cdn.edgemaxxer.com',
-      // },
     ],
   },
 
@@ -79,21 +75,7 @@ const nextConfig: NextConfig = {
 
   // Redirects for SEO (non-www to www, trailing slashes, etc.)
   async redirects() {
-    return [
-      // Redirect non-www to www (if you prefer www)
-      // Uncomment if needed:
-      // {
-      //   source: '/:path*',
-      //   has: [
-      //     {
-      //       type: 'host',
-      //       value: 'edgemaxxer.com',
-      //     },
-      //   ],
-      //   destination: 'https://www.edgemaxxer.com/:path*',
-      //   permanent: true,
-      // },
-    ];
+    return [];
   },
 
   // Rewrites if needed
@@ -120,6 +102,9 @@ const nextConfig: NextConfig = {
   experimental: {
     // Enable optimized package imports
     optimizePackageImports: ['lucide-react', 'date-fns'],
+    
+    // Required for Puppeteer/Chromium to work on Vercel serverless
+    serverComponentsExternalPackages: ['@sparticuz/chromium', 'puppeteer-core'],
   },
 };
 
