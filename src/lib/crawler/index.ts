@@ -244,8 +244,8 @@ async function scrapeEventsFromPage(
       debug.push(`Page URL: ${window.location.href}`);
       
       // Sample some link hrefs for debugging
-      const sampleLinks = allLinks.slice(0, 20).map(l => (l as HTMLAnchorElement).href);
-      debug.push(`Sample links: ${JSON.stringify(sampleLinks.slice(0, 5))}`);
+      const sampleLinks = allLinks.slice(0, 30).map(l => (l as HTMLAnchorElement).href);
+      debug.push(`Sample links: ${JSON.stringify(sampleLinks)}`);
       
       let passedBaseFilter = 0;
       let passedEventFilter = 0;
@@ -264,16 +264,21 @@ async function scrapeEventsFromPage(
         
         // Look for event patterns in URL
         const isEventUrl = 
-          /\/\d{5,}/.test(href) ||           // Numeric ID (common)
+          /\/\d{5,}/.test(href) ||           // Numeric ID after slash (common)
+          /-\d{6,}/.test(href) ||            // Numeric ID after hyphen (Sportsbet: team-at-team-10559025)
+          /\d{7,}$/.test(href) ||            // Numeric ID at end of URL
           href.includes('/match/') ||
           href.includes('/event/') ||
           href.includes('/matches/') ||
           href.includes('/game/') ||
-          /\/[a-z-]+-v-[a-z-]+/.test(href);  // team-v-team pattern
+          /\/[a-z-]+-v-[a-z-]+/i.test(href) ||   // team-v-team pattern
+          /\/[a-z-]+-at-[a-z-]+/i.test(href) ||  // team-at-team pattern (Sportsbet)
+          /\/[a-z-]+-vs-[a-z-]+/i.test(href);    // team-vs-team pattern
         
         if (!isEventUrl) continue;
         
         passedEventFilter++;
+        debug.push(`Found event URL: ${href}`);
         
         // Try to extract team names
         let homeTeam = '';
@@ -328,12 +333,42 @@ async function scrapeEventsFromPage(
           }
         }
         
-        // Method 5: Try parsing from href path segments (e.g., /team1-at-team2/)
+        // Method 5: Try parsing from href path segments (e.g., /team1-at-team2-12345/)
         if (!homeTeam || !awayTeam) {
-          const atMatch = href.match(/\/([a-z0-9-]+)-at-([a-z0-9-]+)(?:\/|\?|#|$)/i);
+          // Sportsbet style: /cleveland-cavaliers-at-denver-nuggets-10559025
+          const atMatch = href.match(/\/([a-z][a-z0-9-]+)-at-([a-z][a-z0-9-]+?)(?:-\d+)?(?:\/|\?|#|$)/i);
           if (atMatch) {
-            homeTeam = atMatch[2].replace(/-/g, ' '); // Away team is first in "X at Y" (Y is home)
+            // In "X at Y" format, X is away team, Y is home team
             awayTeam = atMatch[1].replace(/-/g, ' ');
+            homeTeam = atMatch[2].replace(/-/g, ' ');
+            debug.push(`Extracted from at-URL: away=${awayTeam}, home=${homeTeam}`);
+          }
+        }
+        
+        // Method 6: Parse team names from URL with numeric suffix (Sportsbet)
+        if (!homeTeam || !awayTeam) {
+          // Match pattern: /sport/league/team1-at-team2-12345 or /team1-vs-team2-12345
+          const urlParts = href.split('/');
+          const lastPart = urlParts[urlParts.length - 1];
+          
+          // Remove trailing numeric ID
+          const withoutId = lastPart.replace(/-\d+$/, '');
+          
+          const vsMatch = withoutId.match(/^(.+?)-(at|vs|v)-(.+)$/i);
+          if (vsMatch) {
+            const team1 = vsMatch[1].replace(/-/g, ' ');
+            const separator = vsMatch[2].toLowerCase();
+            const team2 = vsMatch[3].replace(/-/g, ' ');
+            
+            // "at" means team1 is away, team2 is home
+            if (separator === 'at') {
+              awayTeam = team1;
+              homeTeam = team2;
+            } else {
+              homeTeam = team1;
+              awayTeam = team2;
+            }
+            debug.push(`Extracted from URL slug: home=${homeTeam}, away=${awayTeam}`);
           }
         }
         
@@ -366,14 +401,24 @@ async function scrapeEventsFromPage(
       
       // Deduplicate by URL
       const seen = new Set<string>();
-      return results.filter(r => {
+      const uniqueResults = results.filter(r => {
         if (seen.has(r.eventUrl)) return false;
         seen.add(r.eventUrl);
         return true;
       });
+      
+      debug.push(`Passed base filter: ${passedBaseFilter}`);
+      debug.push(`Passed event filter: ${passedEventFilter}`);
+      debug.push(`Unique results: ${uniqueResults.length}`);
+      
+      return { results: uniqueResults, debug };
     }, baseUrl);
     
-    events.push(...extracted.map(e => ({ ...e, sport })));
+    // Log debug info
+    console.log(`[Crawler] Debug for ${bookmaker}/${sport}:`);
+    extracted.debug.forEach(d => console.log(`  ${d}`));
+    
+    events.push(...extracted.results.map(e => ({ ...e, sport })));
     
   } catch (error) {
     console.error(`[Crawler] Error scraping ${bookmaker}/${sport}:`, error);
