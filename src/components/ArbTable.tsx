@@ -1,7 +1,6 @@
 // src/components/ArbTable.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
 import type { ArbOpportunity } from '@/lib/types';
 import { getBookmakerName, getBookmakerRegion } from '@/lib/config';
 import { buildBookmakerSearchUrl, getCanonicalBookmaker } from '@/lib/bookmakerLinks';
@@ -13,8 +12,8 @@ interface ArbTableProps {
   globalMode?: boolean;
 }
 
-// Cache for deep links
-const deepLinkCache = new Map<string, Record<string, string | null>>();
+// Cache for deep links (unused for now - kept for future use)
+// const deepLinkCache = new Map<string, Record<string, string | null>>();
 
 function RegionBadge({ bookmaker }: { bookmaker: string }) {
   const region = getBookmakerRegion(bookmaker);
@@ -78,53 +77,11 @@ function getTimeUntil(date: Date): string {
   return `${minutes}m`;
 }
 
-// Hook to fetch deep links for an event
-function useDeepLinks(event: { homeTeam: string; awayTeam: string; sportKey?: string }, bookmakers: string[]) {
-  const [links, setLinks] = useState<Record<string, string | null>>({});
-  const [loading, setLoading] = useState(true);
-  
-  const cacheKey = `${event.homeTeam}-${event.awayTeam}-${bookmakers.sort().join(',')}`;
-  
-  useEffect(() => {
-    // Check cache first
-    const cached = deepLinkCache.get(cacheKey);
-    if (cached) {
-      setLinks(cached);
-      setLoading(false);
-      return;
-    }
-    
-    // Fetch from API
-    const fetchLinks = async () => {
-      try {
-        const res = await fetch('/api/event-url', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            bookmakers: bookmakers.map(getCanonicalBookmaker),
-            homeTeam: event.homeTeam,
-            awayTeam: event.awayTeam,
-            sport: event.sportKey,
-          }),
-        });
-        
-        if (res.ok) {
-          const data = await res.json();
-          const urls = data.urls || {};
-          deepLinkCache.set(cacheKey, urls);
-          setLinks(urls);
-        }
-      } catch (err) {
-        console.error('Failed to fetch deep links:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    
-    fetchLinks();
-  }, [cacheKey, event.homeTeam, event.awayTeam, event.sportKey, bookmakers]);
-  
-  return { links, loading };
+// Disabled eager fetching - deep links will be fetched on-demand in future
+// This prevents overwhelming the browser with too many simultaneous requests
+function useDeepLinks(_event: { homeTeam: string; awayTeam: string; sportKey?: string }, _bookmakers: string[]) {
+  // Return empty - deep links disabled for now to prevent ERR_INSUFFICIENT_RESOURCES
+  return { links: {} as Record<string, string | null>, loading: false };
 }
 
 export function ArbTable({ opportunities, onSelectArb, globalMode = false }: ArbTableProps) {
