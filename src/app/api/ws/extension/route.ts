@@ -133,9 +133,9 @@ export async function POST(request: NextRequest) {
         }>;
       }>;
       
-      // Filter to actual arbs (not near-arbs) - 0.5% minimum for testing
+      // Filter to arbs and near-arbs - 0.01% minimum for testing
       const arbs = opportunities
-        .filter(opp => opp.type === 'arb' && (opp.profitPercentage || 0) >= 0.5)
+        .filter(opp => (opp.type === 'arb' || opp.type === 'near-arb') && (opp.profitPercentage || 0) >= 0.01)
         .sort((a, b) => (b.profitPercentage || 0) - (a.profitPercentage || 0))
         .map(opp => {
           // Helper to get URL info for a bookmaker
