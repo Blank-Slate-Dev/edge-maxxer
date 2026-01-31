@@ -411,8 +411,8 @@ async function runScanForUser(user: IUser): Promise<{
     .filter(s => !s.hasOutrights)
     .map(s => s.key);
   
-  // Fetch odds
-  const oddsResult = await provider.fetchOdds(sportsToFetch, ['h2h'], regionsStr);
+  // Fetch odds - h2h, spreads, and totals markets
+  const oddsResult = await provider.fetchOdds(sportsToFetch, ['h2h', 'spreads', 'totals'], regionsStr);
   
   // Detect opportunities
   const { arbs, valueBets, stats } = detectAllOpportunities(
