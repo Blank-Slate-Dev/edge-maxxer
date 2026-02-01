@@ -57,7 +57,22 @@ function buildRegionBookmakersSet(region: UserRegion): Set<string> {
   return bookmakers;
 }
 
-// Check if all bookmakers in a list are from a region
+// Build a combined set for multiple regions
+function buildMultiRegionBookmakersSet(regions: UserRegion[]): Set<string> {
+  const bookmakers = new Set<string>();
+  for (const region of regions) {
+    config.bookmakersByRegion[region]?.forEach(b => {
+      bookmakers.add(b.toLowerCase());
+      const displayName = config.bookmakerNames[b];
+      if (displayName) {
+        bookmakers.add(displayName.toLowerCase());
+      }
+    });
+  }
+  return bookmakers;
+}
+
+// Check if all bookmakers in a list are from a region set
 function allBookmakersFromRegion(bookmakerList: string[], regionSet: Set<string>): boolean {
   return bookmakerList.every(bk => regionSet.has(bk.toLowerCase()));
 }
@@ -120,6 +135,17 @@ function filterResultsByRegion(
       allBookmakersFromRegion(getBookmakersFromMiddle(m), regionSet)
     ),
   };
+}
+
+// Filter opportunities by multiple regions (for SMS alerts)
+function filterOpportunitiesByRegions(
+  opportunities: ArbWithUrls[],
+  regions: UserRegion[]
+): ArbWithUrls[] {
+  const regionSet = buildMultiRegionBookmakersSet(regions);
+  return opportunities.filter(arb => 
+    allBookmakersFromRegion(getBookmakersFromArb(arb), regionSet)
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -271,7 +297,7 @@ export async function GET(request: NextRequest) {
           results.globalCacheUpdated = true;
         }
 
-        // Handle alerts
+        // Handle alerts - FILTERED BY USER'S ALERT REGIONS
         await handleAlertsForUser(user, scanResult, now, results);
 
       } catch (error) {
@@ -327,7 +353,7 @@ function getRegionsForThisScan(): UserRegion[] {
 }
 
 /**
- * Handle sending alerts for a user
+ * Handle sending alerts for a user - FILTERS BY USER'S ALERT REGIONS
  */
 async function handleAlertsForUser(
   user: IUser,
@@ -338,6 +364,16 @@ async function handleAlertsForUser(
   const minProfit = user.autoScan.minProfitPercent || 4.0;
   const highValueThreshold = user.autoScan.highValueThreshold || 10.0;
   const enableHighValueReminders = user.autoScan.enableHighValueReminders !== false;
+  
+  // Get user's alert regions - use autoScan.regions if set, otherwise fall back to user.region
+  const userAlertRegions = user.autoScan.regions && user.autoScan.regions.length > 0 
+    ? user.autoScan.regions 
+    : [user.region || 'AU'];
+
+  // FILTER opportunities to only include those matching user's alert regions
+  const filteredOpportunities = filterOpportunitiesByRegions(scanResult.opportunities, userAlertRegions);
+  
+  console.log(`[AutoScan] User ${user.email} alert regions: ${userAlertRegions.join(',')} - ${filteredOpportunities.length}/${scanResult.opportunities.length} arbs match`);
 
   const alertedArbs: Record<string, { alertedAt: Date; profitPercent: number }> =
     user.autoScan.alertedArbs instanceof Map
@@ -355,7 +391,8 @@ async function handleAlertsForUser(
   const oppsToAlert: ArbWithUrls[] = [];
   const newAlertedArbs: Record<string, { alertedAt: Date; profitPercent: number }> = { ...cleanedAlertedArbs };
 
-  for (const opp of scanResult.opportunities) {
+  // Use filtered opportunities instead of all opportunities
+  for (const opp of filteredOpportunities) {
     if (opp.type !== 'arb' || opp.profitPercentage < minProfit) continue;
 
     const arbId = generateArbId(opp);
@@ -430,6 +467,7 @@ async function handleAlertsForUser(
           'autoScan.lastAlertAt': now,
           'autoScan.alertedArbs': newAlertedArbs,
         });
+        console.log(`[AutoScan] Sent ${alerts.length} alerts to ${user.email} for regions: ${userAlertRegions.join(',')}`);
       } else {
         results.errors.push(`SMS failed for ${user.email}: ${smsResult.error}`);
       }
