@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import User, { IUser, CREDIT_TIER_CONFIG, CreditTier } from '@/lib/models/User';
+import GlobalScanCache from '@/lib/models/GlobalScanCache';
 import { createOddsApiProvider } from '@/lib/providers/theOddsApiProvider';
 import { detectAllOpportunities } from '@/lib/arb/detector';
 import { config, getApiRegionsForUserRegions, UserRegion } from '@/lib/config';
@@ -12,6 +13,9 @@ import type { BookVsBookArb } from '@/lib/types';
 
 // Vercel cron jobs send a specific header to authenticate
 const CRON_SECRET = process.env.CRON_SECRET;
+
+// Master account email - this account's scans will populate GlobalScanCache
+const MASTER_SCAN_USER_EMAIL = process.env.MASTER_SCAN_USER_EMAIL;
 
 // Approximate credits per scan (varies by region)
 const CREDITS_PER_SCAN: Record<string, number> = {
@@ -73,6 +77,7 @@ export async function GET(request: NextRequest) {
       processed: 0,
       scanned: 0,
       alertsSent: 0,
+      globalCacheUpdated: false,
       errors: [] as string[],
     };
 
@@ -99,7 +104,9 @@ export async function GET(request: NextRequest) {
         });
         
         // Run the scan
+        const scanStartTime = Date.now();
         const scanResult = await runScanForUser(user);
+        const scanDurationMs = Date.now() - scanStartTime;
         
         // Update user's scan stats AND cache the results
         await User.findByIdAndUpdate(user._id, {
@@ -118,6 +125,24 @@ export async function GET(request: NextRequest) {
         });
         
         results.scanned++;
+
+        // If this is the master account, also update GlobalScanCache
+        if (MASTER_SCAN_USER_EMAIL && user.email === MASTER_SCAN_USER_EMAIL) {
+          console.log(`[AutoScan] Updating GlobalScanCache from master account...`);
+          
+          await GlobalScanCache.updateScan({
+            opportunities: scanResult.opportunities,
+            valueBets: scanResult.valueBets,
+            stats: scanResult.stats,
+            regions: user.autoScan.regions,
+            scannedAt: now,
+            scanDurationMs,
+            remainingCredits: scanResult.remainingCredits,
+          });
+          
+          results.globalCacheUpdated = true;
+          console.log(`[AutoScan] GlobalScanCache updated with ${scanResult.opportunities.length} arbs`);
+        }
 
         // Get user's alert settings
         const minProfit = user.autoScan.minProfitPercent || 4.0;
@@ -274,7 +299,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    console.log(`[AutoScan] Completed. Processed: ${results.processed}, Scanned: ${results.scanned}, Alerts: ${results.alertsSent}`);
+    console.log(`[AutoScan] Completed. Processed: ${results.processed}, Scanned: ${results.scanned}, Alerts: ${results.alertsSent}, GlobalCache: ${results.globalCacheUpdated}`);
 
     return NextResponse.json({
       success: true,
