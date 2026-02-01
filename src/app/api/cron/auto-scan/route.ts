@@ -30,8 +30,9 @@ const CREDITS_PER_SCAN: Record<string, number> = {
 };
 
 // Rate limiting: delay between API batches (ms)
-const DELAY_BETWEEN_REGIONS_MS = 2000; // 2 seconds between region scans
-const DELAY_BETWEEN_MARKET_TYPES_MS = 1000; // 1 second between H2H and lines
+// Keep these short since regions are scanned sequentially (no parallel requests)
+const DELAY_BETWEEN_REGIONS_MS = 500; // 0.5 seconds between region scans
+const DELAY_BETWEEN_MARKET_TYPES_MS = 300; // 0.3 seconds between H2H and lines
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
