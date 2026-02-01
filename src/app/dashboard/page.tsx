@@ -734,7 +734,7 @@ export default function DashboardPage() {
               Loading {selectedRegion} Opportunities...
             </h3>
             <p className="text-sm" style={{ color: 'var(--muted)' }}>
-              Switching to {config.regionInfo[selectedRegion].name} bookmakers
+              Switching to {selectedRegion} bookmakers
             </p>
           </div>
         )}
