@@ -55,8 +55,9 @@ type Tab = 'opportunities' | 'spreads' | 'totals' | 'value-bets' | 'history' | '
 // Polling interval in seconds (how often we check for new data)
 const POLL_INTERVAL_SECONDS = 5;
 
-// Expected scan interval (how often the scanner runs)
-const SCAN_INTERVAL_SECONDS = 60;
+// Scan intervals by region
+const SCAN_INTERVAL_AU = 44; // AU scans every cron run
+const SCAN_INTERVAL_OTHER = 180; // UK/US/EU rotate every ~3 minutes
 
 // Region tab component
 function RegionTab({ 
@@ -123,6 +124,45 @@ function getBookmakersFromArb(opp: ArbOpportunity): string[] {
   }
 }
 
+// Helper to get region for a bookmaker (handles both API keys and display names)
+function getBookmakerRegionFromConfig(bookmaker: string): UserRegion | null {
+  const lowerBookmaker = bookmaker.toLowerCase();
+  
+  for (const region of config.regionOrder) {
+    const regionBookmakers = config.bookmakersByRegion[region];
+    for (const bk of regionBookmakers) {
+      // Check API key
+      if (bk.toLowerCase() === lowerBookmaker) {
+        return region;
+      }
+      // Check display name
+      const displayName = config.bookmakerNames[bk];
+      if (displayName && displayName.toLowerCase() === lowerBookmaker) {
+        return region;
+      }
+    }
+  }
+  return null;
+}
+
+// Check if all bookmakers in an arb are from the same region
+function areAllBookmakersFromSameRegion(bookmakers: string[]): boolean {
+  if (bookmakers.length === 0) return true;
+  
+  const firstRegion = getBookmakerRegionFromConfig(bookmakers[0]);
+  if (!firstRegion) return false;
+  
+  return bookmakers.every(bk => getBookmakerRegionFromConfig(bk) === firstRegion);
+}
+
+// Check if all bookmakers in an arb are from the selected regions
+function areAllBookmakersFromSelectedRegions(bookmakers: string[], selectedRegions: UserRegion[]): boolean {
+  return bookmakers.every(bk => {
+    const region = getBookmakerRegionFromConfig(bk);
+    return region && selectedRegions.includes(region);
+  });
+}
+
 export default function DashboardPage() {
   const { data: session, update: updateSession } = useSession();
   const searchParams = useSearchParams();
@@ -171,8 +211,10 @@ export default function DashboardPage() {
 
   // Global scan state
   const [scanAgeSeconds, setScanAgeSeconds] = useState<number | null>(null);
-  const [lastScannedAt, setLastScannedAt] = useState<string | null>(null);
   const [showNewResultsFlash, setShowNewResultsFlash] = useState(false);
+  
+  // Ref to track last scanned timestamp without causing re-renders
+  const lastScannedAtRef = useRef<string | null>(null);
 
   // AbortController for canceling requests
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -189,6 +231,20 @@ export default function DashboardPage() {
 
   // Get hasAccess from session (computed server-side in auth.ts)
   const hasAccess = (session?.user as { hasAccess?: boolean } | undefined)?.hasAccess ?? false;
+
+  // Calculate scan interval based on selected regions
+  const getScanInterval = useCallback(() => {
+    // If only AU is selected, use AU interval
+    if (selectedRegions.length === 1 && selectedRegions[0] === 'AU') {
+      return SCAN_INTERVAL_AU;
+    }
+    // If AU is included with others, use AU interval (most frequent)
+    if (selectedRegions.includes('AU')) {
+      return SCAN_INTERVAL_AU;
+    }
+    // Otherwise use the longer interval for other regions
+    return SCAN_INTERVAL_OTHER;
+  }, [selectedRegions]);
 
   // Handle checkout success - refresh session to get updated subscription status
   useEffect(() => {
@@ -264,8 +320,8 @@ export default function DashboardPage() {
       }
 
       if (data.hasCachedResults && data.opportunities) {
-        // Check if this is new data
-        const isNewData = data.scannedAt !== lastScannedAt;
+        // Check if this is new data using ref (doesn't cause re-render)
+        const isNewData = data.scannedAt !== lastScannedAtRef.current;
 
         // Parse dates in opportunities
         const parsed = data.opportunities.map(opp => ({
@@ -292,7 +348,7 @@ export default function DashboardPage() {
         if (data.stats) setStats(data.stats);
         if (data.scannedAt) {
           setLastUpdated(new Date(data.scannedAt));
-          setLastScannedAt(data.scannedAt);
+          lastScannedAtRef.current = data.scannedAt;
         }
         if (data.ageSeconds !== undefined) setScanAgeSeconds(data.ageSeconds);
         if (data.remainingCredits !== undefined) setRemainingCredits(data.remainingCredits);
@@ -307,7 +363,7 @@ export default function DashboardPage() {
         setBookmakers(Array.from(uniqueBookmakers));
 
         // Show flash animation if new data arrived during polling
-        if (isNewData && lastScannedAt !== null && mode !== 'initial') {
+        if (isNewData && lastScannedAtRef.current !== null && mode !== 'initial') {
           setShowNewResultsFlash(true);
           setTimeout(() => setShowNewResultsFlash(false), 2000);
         }
@@ -325,7 +381,7 @@ export default function DashboardPage() {
       setIsBackgroundRefreshing(false);
       setIsManualRefreshing(false);
     }
-  }, [lastScannedAt]);
+  }, []); // No dependencies - stable callback
 
   // Initial fetch and polling
   useEffect(() => {
@@ -397,6 +453,8 @@ export default function DashboardPage() {
   };
 
   // Filter opportunities by selected regions
+  // When a single region is selected, ALL bookmakers in the arb must be from that region
+  // When multiple regions are selected (global mode), allow mixed region arbs
   const filteredOpportunities = opportunities.filter(opp => {
     // Filter by profit
     if (filters.profitableOnly && opp.profitPercentage < 0) return false;
@@ -411,26 +469,45 @@ export default function DashboardPage() {
       if (!filters.bookmakers.some(b => oppBookmakers.includes(b))) return false;
     }
     
-    // Filter by region - check if any bookmaker is from selected regions
-    // Build a set of both API keys AND display names for selected regions
-    const selectedRegionBookmakers = new Set<string>();
-    selectedRegions.forEach(region => {
-      config.bookmakersByRegion[region].forEach(b => {
-        selectedRegionBookmakers.add(b); // API key (e.g., "tabtouch")
-        selectedRegionBookmakers.add(b.toLowerCase()); // lowercase key
+    const oppBookmakers = getBookmakersFromArb(opp);
+    
+    // If single region selected, ALL bookmakers must be from that region
+    if (selectedRegions.length === 1) {
+      const selectedRegion = selectedRegions[0];
+      const regionBookmakers = new Set<string>();
+      
+      config.bookmakersByRegion[selectedRegion].forEach(b => {
+        regionBookmakers.add(b.toLowerCase());
         const displayName = config.bookmakerNames[b];
         if (displayName) {
-          selectedRegionBookmakers.add(displayName); // Display name (e.g., "TABtouch")
-          selectedRegionBookmakers.add(displayName.toLowerCase()); // lowercase display
+          regionBookmakers.add(displayName.toLowerCase());
         }
       });
-    });
-    
-    const oppBookmakers = getBookmakersFromArb(opp);
-    const hasBookmakerFromSelectedRegion = oppBookmakers.some(b => 
-      selectedRegionBookmakers.has(b) || selectedRegionBookmakers.has(b.toLowerCase())
-    );
-    if (!hasBookmakerFromSelectedRegion) return false;
+      
+      // Every bookmaker in the arb must be from the selected region
+      const allFromSelectedRegion = oppBookmakers.every(bk => 
+        regionBookmakers.has(bk.toLowerCase())
+      );
+      
+      if (!allFromSelectedRegion) return false;
+    } else {
+      // Multiple regions selected - at least one bookmaker must be from selected regions
+      const selectedRegionBookmakers = new Set<string>();
+      selectedRegions.forEach(region => {
+        config.bookmakersByRegion[region].forEach(b => {
+          selectedRegionBookmakers.add(b.toLowerCase());
+          const displayName = config.bookmakerNames[b];
+          if (displayName) {
+            selectedRegionBookmakers.add(displayName.toLowerCase());
+          }
+        });
+      });
+      
+      const hasBookmakerFromSelectedRegion = oppBookmakers.some(b => 
+        selectedRegionBookmakers.has(b.toLowerCase())
+      );
+      if (!hasBookmakerFromSelectedRegion) return false;
+    }
     
     return true;
   });
@@ -471,16 +548,20 @@ export default function DashboardPage() {
     return `${hours}h ${minutes % 60}m ago`;
   };
 
-  // Get progress bar color based on scan age
-  const getProgressBarColor = (seconds: number) => {
-    if (seconds < 15) return '#22c55e'; // Green - very fresh
-    if (seconds < 30) return '#84cc16'; // Lime - fresh
-    if (seconds < 45) return '#eab308'; // Yellow - getting stale
+  // Get progress bar color based on scan age relative to expected interval
+  const getProgressBarColor = (seconds: number, interval: number) => {
+    const progress = seconds / interval;
+    if (progress < 0.25) return '#22c55e'; // Green - very fresh
+    if (progress < 0.5) return '#84cc16'; // Lime - fresh
+    if (progress < 0.75) return '#eab308'; // Yellow - getting stale
     return '#f97316'; // Orange - stale, new scan expected soon
   };
 
   // Combined loading state for header
   const isLoading = isInitialLoading || isManualRefreshing;
+  
+  // Get current scan interval based on selected regions
+  const currentScanInterval = getScanInterval();
 
   return (
     <div 
@@ -585,17 +666,16 @@ export default function DashboardPage() {
                 <div className="font-medium text-sm flex items-center gap-2" style={{ color: '#22c55e' }}>
                   <span>Live Scanner Active</span>
                   {isBackgroundRefreshing && (
-                    <span className="text-xs font-normal opacity-75">Checking for updates...</span>
+                    <span className="text-xs font-normal opacity-75">Checking...</span>
                   )}
                   {showNewResultsFlash && (
-                    <span className="text-xs font-normal bg-green-500 text-black px-1.5 py-0.5 rounded animate-pulse">New data!</span>
+                    <span className="text-xs font-normal bg-green-500 text-black px-1.5 py-0.5 rounded animate-pulse">Updated!</span>
                   )}
                 </div>
-                <div className="text-xs mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5" style={{ color: 'var(--muted)' }}>
+                <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
                   {scanAgeSeconds !== null && (
-                    <span>Updated {formatScanAge(scanAgeSeconds)}</span>
+                    <span>Last scan: {formatScanAge(scanAgeSeconds)}</span>
                   )}
-                  <span>• Scanner runs every ~44s</span>
                 </div>
               </div>
               
@@ -614,7 +694,7 @@ export default function DashboardPage() {
               </button>
             </div>
             
-            {/* Scan age progress bar - fills up over 60 seconds */}
+            {/* Scan age progress bar */}
             <div 
               className="mt-2 h-1 rounded-full overflow-hidden"
               style={{ backgroundColor: 'color-mix(in srgb, #22c55e 20%, transparent)' }}
@@ -622,14 +702,14 @@ export default function DashboardPage() {
               <div 
                 className="h-full rounded-full transition-all duration-1000 ease-linear"
                 style={{ 
-                  backgroundColor: scanAgeSeconds !== null ? getProgressBarColor(scanAgeSeconds) : '#22c55e',
-                  width: `${Math.min(100, ((scanAgeSeconds || 0) / SCAN_INTERVAL_SECONDS) * 100)}%`,
+                  backgroundColor: scanAgeSeconds !== null ? getProgressBarColor(scanAgeSeconds, currentScanInterval) : '#22c55e',
+                  width: `${Math.min(100, ((scanAgeSeconds || 0) / currentScanInterval) * 100)}%`,
                 }}
               />
             </div>
             <div className="mt-1 text-[10px] flex justify-between" style={{ color: 'var(--muted-foreground)' }}>
-              <span>Fresh</span>
-              <span>Next scan soon</span>
+              <span>Updated</span>
+              <span>Next scan</span>
             </div>
           </div>
         )}
