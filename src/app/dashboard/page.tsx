@@ -67,11 +67,13 @@ const SCAN_INTERVAL_OTHER = 180; // UK/US/EU rotate every ~3 minutes
 function RegionTab({ 
   region, 
   isSelected, 
-  onClick 
+  onClick,
+  isLoading
 }: { 
   region: UserRegion; 
   isSelected: boolean; 
   onClick: () => void;
+  isLoading?: boolean;
 }) {
   const info = config.regionInfo[region];
   const colorMap: Record<string, string> = {
@@ -84,9 +86,14 @@ function RegionTab({
   return (
     <button
       onClick={onClick}
-      className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium border rounded-lg transition-all ${colorMap[info.color]}`}
+      disabled={isLoading}
+      className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium border rounded-lg transition-all ${colorMap[info.color]} ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
     >
-      <Flag code={info.flagCode} size="sm" />
+      {isSelected && isLoading ? (
+        <Loader2 className="w-3 h-3 sm:w-4 sm:h-4 animate-spin" />
+      ) : (
+        <Flag code={info.flagCode} size="sm" />
+      )}
       <span className="hidden xs:inline">{region}</span>
     </button>
   );
@@ -135,6 +142,7 @@ export default function DashboardPage() {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
+  const [isRegionSwitching, setIsRegionSwitching] = useState(false);
   
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [remainingCredits, setRemainingCredits] = useState<number | undefined>();
@@ -165,8 +173,11 @@ export default function DashboardPage() {
   // Ref to track last scanned timestamp without causing re-renders
   const lastScannedAtRef = useRef<string | null>(null);
   
-  // Ref to track selected region for stable callback
+  // Ref to track selected region for stable callback (used only for background polling)
   const selectedRegionRef = useRef<UserRegion>('AU');
+  
+  // Ref to track if a region switch is in progress (prevents poll interference)
+  const isRegionSwitchingRef = useRef(false);
 
   const { bets, isLoaded: betsLoaded, addBet, updateBet, deleteBet, clearAllBets } = useBets();
   const { 
@@ -181,7 +192,7 @@ export default function DashboardPage() {
   // Get hasAccess from session (computed server-side in auth.ts)
   const hasAccess = (session?.user as { hasAccess?: boolean } | undefined)?.hasAccess ?? false;
 
-  // Keep ref in sync with state
+  // Keep ref in sync with state (for background polling only)
   useEffect(() => {
     selectedRegionRef.current = selectedRegion;
   }, [selectedRegion]);
@@ -229,7 +240,7 @@ export default function DashboardPage() {
           const region = data.region || 'AU';
           setUserDefaultRegion(region);
           setSelectedRegion(region);
-          selectedRegionRef.current = region;
+          selectedRegionRef.current = region; // Sync ref immediately
         }
       } catch (err) {
         console.error('Failed to fetch user settings:', err);
@@ -240,9 +251,16 @@ export default function DashboardPage() {
     fetchSettings();
   }, []);
 
-  // Fetch global arbs - main data fetching function (includes H2H, spreads, totals, middles)
-  // Uses ref for region to keep callback stable
-  const fetchGlobalArbs = useCallback(async (mode: 'initial' | 'background' | 'manual' = 'background') => {
+  // Fetch global arbs - accepts explicit region parameter to avoid race conditions
+  const fetchGlobalArbs = useCallback(async (
+    mode: 'initial' | 'background' | 'manual' = 'background',
+    explicitRegion?: UserRegion
+  ) => {
+    // Skip background polls during region switch
+    if (mode === 'background' && isRegionSwitchingRef.current) {
+      return;
+    }
+
     // Set appropriate loading state
     if (mode === 'initial') {
       setIsInitialLoading(true);
@@ -253,8 +271,8 @@ export default function DashboardPage() {
     }
 
     try {
-      // Use ref for region to keep callback stable
-      const region = selectedRegionRef.current;
+      // Use explicit region if provided, otherwise use ref (for background polls)
+      const region = explicitRegion ?? selectedRegionRef.current;
       const res = await fetch(`/api/global-arbs?region=${region}`);
       const data: GlobalArbsResponse = await res.json();
 
@@ -266,6 +284,12 @@ export default function DashboardPage() {
 
       if (!res.ok) {
         throw new Error(data.error || 'Failed to fetch opportunities');
+      }
+
+      // Verify we're still on the same region (prevents stale data from appearing)
+      if (data.region && data.region !== selectedRegionRef.current) {
+        console.log(`[Dashboard] Ignoring stale response for ${data.region}, now on ${selectedRegionRef.current}`);
+        return;
       }
 
       if (data.hasCachedResults) {
@@ -370,13 +394,17 @@ export default function DashboardPage() {
       setIsInitialLoading(false);
       setIsBackgroundRefreshing(false);
       setIsManualRefreshing(false);
+      setIsRegionSwitching(false);
+      isRegionSwitchingRef.current = false;
     }
-  }, []); // No dependencies - uses ref for region
+  }, []); // No dependencies - uses ref for region in background polls, explicit param for switches
 
   // Initial fetch and polling
   useEffect(() => {
-    // Initial fetch
-    fetchGlobalArbs('initial');
+    if (!settingsLoaded) return;
+
+    // Initial fetch with explicit region
+    fetchGlobalArbs('initial', selectedRegionRef.current);
 
     // Poll for updates every 5 seconds
     const pollInterval = setInterval(() => {
@@ -384,22 +412,36 @@ export default function DashboardPage() {
     }, POLL_INTERVAL_SECONDS * 1000);
 
     return () => clearInterval(pollInterval);
-  }, [fetchGlobalArbs]);
+  }, [fetchGlobalArbs, settingsLoaded]);
 
-  // Refetch when region changes
-  useEffect(() => {
-    if (settingsLoaded) {
-      // Clear existing data and refetch for new region
+  // Single region selection - clicking a region selects it and triggers fetch
+  const selectRegion = useCallback((region: UserRegion) => {
+    if (region !== selectedRegion) {
+      // Mark as switching BEFORE state update to prevent race conditions
+      isRegionSwitchingRef.current = true;
+      setIsRegionSwitching(true);
+      
+      // Update ref BEFORE state update
+      selectedRegionRef.current = region;
+      
+      // Update state
+      setSelectedRegion(region);
+      
+      // Clear existing data immediately for instant feedback
       setOpportunities([]);
       setValueBets([]);
       setSpreadArbs([]);
       setTotalsArbs([]);
       setMiddles([]);
+      setStats(null);
+      setLineStats(null);
       setScanAgeSeconds(null);
       lastScannedAtRef.current = null;
-      fetchGlobalArbs('initial');
+      
+      // Fetch with explicit region parameter
+      fetchGlobalArbs('initial', region);
     }
-  }, [selectedRegion, settingsLoaded, fetchGlobalArbs]);
+  }, [selectedRegion, fetchGlobalArbs]);
 
   // Increment age counter every second
   useEffect(() => {
@@ -411,13 +453,6 @@ export default function DashboardPage() {
 
     return () => clearInterval(ageInterval);
   }, [scanAgeSeconds !== null]);
-
-  // Single region selection - clicking a region selects it (radio button style)
-  const selectRegion = (region: UserRegion) => {
-    if (region !== selectedRegion) {
-      setSelectedRegion(region);
-    }
-  };
 
   const fetchSports = useCallback(async () => {
     try {
@@ -433,8 +468,8 @@ export default function DashboardPage() {
 
   // Manual refresh
   const handleRefresh = useCallback(() => {
-    fetchGlobalArbs('manual');
-  }, [fetchGlobalArbs]);
+    fetchGlobalArbs('manual', selectedRegion);
+  }, [fetchGlobalArbs, selectedRegion]);
 
   const handleLogBet = (bet: Omit<PlacedBet, 'id' | 'createdAt'>) => {
     addBet(bet);
@@ -509,7 +544,7 @@ export default function DashboardPage() {
   };
 
   // Combined loading state for header
-  const isLoading = isInitialLoading || isManualRefreshing;
+  const isLoading = isInitialLoading || isManualRefreshing || isRegionSwitching;
   
   // Get current scan interval based on selected region
   const currentScanInterval = getScanInterval();
@@ -586,7 +621,7 @@ export default function DashboardPage() {
         )}
 
         {/* Live Scan Status Banner */}
-        {hasFetchedArbs && !isInitialLoading && (
+        {hasFetchedArbs && !isInitialLoading && !isRegionSwitching && (
           <div 
             className={`border px-4 py-3 rounded-lg transition-all duration-500 ${showNewResultsFlash ? 'ring-2 ring-green-500' : ''}`}
             style={{
@@ -676,6 +711,7 @@ export default function DashboardPage() {
                 region={region}
                 isSelected={selectedRegion === region}
                 onClick={() => selectRegion(region)}
+                isLoading={isRegionSwitching && selectedRegion === region}
               />
             ))}
             <span className="text-[10px] sm:text-xs ml-1 sm:ml-2 hidden sm:inline" style={{ color: 'var(--muted)' }}>
@@ -684,8 +720,27 @@ export default function DashboardPage() {
           </div>
         )}
 
+        {/* Loading State for Region Switch */}
+        {isRegionSwitching && (
+          <div 
+            className="border p-8 sm:p-12 text-center rounded-lg"
+            style={{
+              borderColor: 'var(--border)',
+              backgroundColor: 'var(--surface)'
+            }}
+          >
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: 'var(--muted)' }} />
+            <h3 className="text-lg font-medium mb-2" style={{ color: 'var(--foreground)' }}>
+              Loading {selectedRegion} Opportunities...
+            </h3>
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>
+              Switching to {config.regionInfo[selectedRegion].name} bookmakers
+            </p>
+          </div>
+        )}
+
         {/* Initial Loading State */}
-        {isInitialLoading && !hasFetchedArbs && (
+        {isInitialLoading && !hasFetchedArbs && !isRegionSwitching && (
           <div 
             className="border p-8 sm:p-12 text-center rounded-lg"
             style={{
@@ -718,7 +773,7 @@ export default function DashboardPage() {
         )}
 
         {/* Stats Grid - with smooth transitions */}
-        {hasFetchedArbs && stats && (
+        {hasFetchedArbs && stats && !isRegionSwitching && (
           <div 
             className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-px rounded-lg overflow-hidden transition-opacity duration-300"
             style={{ backgroundColor: 'var(--border-light)', opacity: isBackgroundRefreshing ? 0.8 : 1 }}
@@ -755,7 +810,7 @@ export default function DashboardPage() {
         )}
 
         {/* Tabs */}
-        {hasFetchedArbs && (
+        {hasFetchedArbs && !isRegionSwitching && (
           <div 
             className="flex gap-1 border-b overflow-x-auto scrollbar-hide -mx-3 sm:mx-0 px-3 sm:px-0"
             style={{ borderColor: 'var(--border-light)' }}
@@ -806,7 +861,7 @@ export default function DashboardPage() {
         )}
 
         {/* Filters */}
-        {hasFetchedArbs && (activeTab === 'opportunities' || activeTab === 'spreads' || activeTab === 'totals') && (
+        {hasFetchedArbs && !isRegionSwitching && (activeTab === 'opportunities' || activeTab === 'spreads' || activeTab === 'totals') && (
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
             <ArbFilters
               filters={filters}
@@ -832,7 +887,7 @@ export default function DashboardPage() {
 
         {/* Tab Content - wrapped in transition container */}
         <div className={`transition-opacity duration-200 ${isBackgroundRefreshing ? 'opacity-90' : 'opacity-100'}`}>
-          {hasFetchedArbs && activeTab === 'opportunities' && (
+          {hasFetchedArbs && !isRegionSwitching && activeTab === 'opportunities' && (
             <ArbTable
               opportunities={filteredOpportunities}
               onSelectArb={setSelectedArb}
@@ -840,7 +895,7 @@ export default function DashboardPage() {
             />
           )}
 
-          {hasFetchedArbs && activeTab === 'spreads' && (
+          {hasFetchedArbs && !isRegionSwitching && activeTab === 'spreads' && (
             <SpreadsTable
               spreads={filteredSpreads}
               middles={spreadMiddles}
@@ -851,7 +906,7 @@ export default function DashboardPage() {
             />
           )}
 
-          {hasFetchedArbs && activeTab === 'totals' && (
+          {hasFetchedArbs && !isRegionSwitching && activeTab === 'totals' && (
             <TotalsTable
               totals={filteredTotals}
               middles={totalsMiddles}
@@ -862,7 +917,7 @@ export default function DashboardPage() {
             />
           )}
 
-          {hasFetchedArbs && activeTab === 'value-bets' && (
+          {hasFetchedArbs && !isRegionSwitching && activeTab === 'value-bets' && (
             <ValueBetsTable valueBets={filteredValueBets} onSelectValueBet={setSelectedValueBet} />
           )}
         </div>
