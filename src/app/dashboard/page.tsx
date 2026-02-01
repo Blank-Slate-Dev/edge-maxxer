@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Globe, Loader2, X, CheckCircle, Clock, RefreshCw } from 'lucide-react';
+import { Globe, Loader2, X, CheckCircle, RefreshCw } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal, Flag, SubscriptionRequiredModal } from '@/components';
 import { useBets } from '@/hooks/useBets';
@@ -32,18 +32,6 @@ interface GlobalArbsResponse {
   message?: string;
   error?: string;
   subscriptionRequired?: boolean;
-}
-
-interface LinesResponse {
-  spreadArbs: SpreadArb[];
-  totalsArbs: TotalsArb[];
-  middles: MiddleOpportunity[];
-  stats: LineStats;
-  lastUpdated: string;
-  isUsingMockData: boolean;
-  regions?: string;
-  remainingApiRequests?: number;
-  error?: string;
 }
 
 interface SportsResponse {
@@ -405,13 +393,24 @@ export default function DashboardPage() {
     }
     
     // Filter by region - check if any bookmaker is from selected regions
-    const oppBookmakers = getBookmakersFromArb(opp);
+    // Build a set of both API keys AND display names for selected regions
     const selectedRegionBookmakers = new Set<string>();
     selectedRegions.forEach(region => {
-      config.bookmakersByRegion[region].forEach(b => selectedRegionBookmakers.add(b));
+      config.bookmakersByRegion[region].forEach(b => {
+        selectedRegionBookmakers.add(b); // API key (e.g., "tabtouch")
+        selectedRegionBookmakers.add(b.toLowerCase()); // lowercase key
+        const displayName = config.bookmakerNames[b];
+        if (displayName) {
+          selectedRegionBookmakers.add(displayName); // Display name (e.g., "TABtouch")
+          selectedRegionBookmakers.add(displayName.toLowerCase()); // lowercase display
+        }
+      });
     });
     
-    const hasBookmakerFromSelectedRegion = oppBookmakers.some(b => selectedRegionBookmakers.has(b));
+    const oppBookmakers = getBookmakersFromArb(opp);
+    const hasBookmakerFromSelectedRegion = oppBookmakers.some(b => 
+      selectedRegionBookmakers.has(b) || selectedRegionBookmakers.has(b.toLowerCase())
+    );
     if (!hasBookmakerFromSelectedRegion) return false;
     
     return true;
