@@ -3,14 +3,14 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Globe, Loader2, X, CheckCircle, Clock, Key } from 'lucide-react';
+import { Globe, Loader2, X, CheckCircle, Clock, RefreshCw } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal, Flag, SubscriptionRequiredModal } from '@/components';
 import { useBets } from '@/hooks/useBets';
 import { useAccounts } from '@/hooks/useAccounts';
 import type { ArbOpportunity, ValueBet, ArbFilters as FilterType, ScanStats, SpreadArb, TotalsArb, MiddleOpportunity, LineStats } from '@/lib/types';
 import type { PlacedBet } from '@/lib/bets';
-import { config, getApiRegionsForUserRegions, countBookmakersForRegions, type UserRegion } from '@/lib/config';
+import { config, countBookmakersForRegions, type UserRegion } from '@/lib/config';
 
 interface Sport {
   key: string;
@@ -18,20 +18,20 @@ interface Sport {
   group?: string;
 }
 
-interface ArbsResponse {
-  opportunities: ArbOpportunity[];
-  valueBets: ValueBet[];
-  stats: ScanStats;
-  lastUpdated: string;
-  isUsingMockData: boolean;
-  cached: boolean;
-  regions?: string;
-  remainingApiRequests?: number;
-  error?: string;
-  details?: string;
-  subscriptionRequired?: boolean;
-  noApiKey?: boolean;
+interface GlobalArbsResponse {
+  hasCachedResults: boolean;
+  opportunities?: ArbOpportunity[];
+  valueBets?: ValueBet[];
+  stats?: ScanStats;
+  regions?: string[];
+  scannedAt?: string;
+  ageSeconds?: number;
+  ageMinutes?: number;
+  remainingCredits?: number;
+  scanDurationMs?: number;
   message?: string;
+  error?: string;
+  subscriptionRequired?: boolean;
 }
 
 interface LinesResponse {
@@ -51,23 +51,6 @@ interface SportsResponse {
   isUsingMockData: boolean;
 }
 
-interface CachedScanResponse {
-  hasCachedResults: boolean;
-  opportunities?: ArbOpportunity[];
-  valueBets?: ValueBet[];
-  stats?: ScanStats;
-  regions?: string[];
-  scannedAt?: string;
-  ageMinutes?: number;
-  ageSeconds?: number;
-  autoScanEnabled?: boolean;
-  isScanning?: boolean;
-  remainingCredits?: number;
-  nextScanIn?: number;
-  creditTier?: string;
-  message?: string;
-}
-
 const DEFAULT_FILTERS: FilterType = {
   minProfit: -2,
   sports: [],
@@ -78,32 +61,6 @@ const DEFAULT_FILTERS: FilterType = {
   showValueBets: true,
   profitableOnly: false,
 };
-
-// High-liquidity sports most likely to have arbitrage opportunities
-const QUICK_SCAN_SPORTS = [
-  'basketball_nba',
-  'basketball_ncaab',
-  'americanfootball_nfl',
-  'americanfootball_ncaaf',
-  'icehockey_nhl',
-  'baseball_mlb',
-  'soccer_epl',
-  'soccer_spain_la_liga',
-  'soccer_italy_serie_a',
-  'soccer_germany_bundesliga',
-  'soccer_uefa_champs_league',
-  'soccer_usa_mls',
-  'tennis_atp_australian_open',
-  'tennis_atp_french_open', 
-  'tennis_atp_us_open',
-  'tennis_atp_wimbledon',
-  'tennis_wta_australian_open',
-  'tennis_wta_french_open',
-  'tennis_wta_us_open',
-  'tennis_wta_wimbledon',
-  'aussierules_afl',
-  'rugbyleague_nrl',
-];
 
 type Tab = 'opportunities' | 'spreads' | 'totals' | 'value-bets' | 'history' | 'accounts';
 
@@ -188,14 +145,12 @@ export default function DashboardPage() {
   const [sports, setSports] = useState<Sport[]>([]);
   const [bookmakers, setBookmakers] = useState<string[]>([]);
   
-  const [isLoadingArbs, setIsLoadingArbs] = useState(false);
+  const [isLoadingGlobal, setIsLoadingGlobal] = useState(true);
   const [isLoadingLines, setIsLoadingLines] = useState(false);
-  const [arbsProgress, setArbsProgress] = useState<string>('');
   const [linesProgress, setLinesProgress] = useState<string>('');
   
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-  const [isUsingMockData, setIsUsingMockData] = useState(false);
-  const [remainingRequests, setRemainingRequests] = useState<number | undefined>();
+  const [remainingCredits, setRemainingCredits] = useState<number | undefined>();
   const [selectedArb, setSelectedArb] = useState<ArbOpportunity | null>(null);
   const [selectedValueBet, setSelectedValueBet] = useState<ValueBet | null>(null);
   const [selectedLineOpp, setSelectedLineOpp] = useState<SpreadArb | TotalsArb | MiddleOpportunity | null>(null);
@@ -217,20 +172,12 @@ export default function DashboardPage() {
   const [checkoutSuccess, setCheckoutSuccess] = useState<string | null>(null);
   const [isRefreshingSession, setIsRefreshingSession] = useState(false);
 
-  // Cached scan state
-  const [cachedScanAge, setCachedScanAge] = useState<number | null>(null);
-  const [autoScanEnabled, setAutoScanEnabled] = useState(false);
-  const [isLoadingCached, setIsLoadingCached] = useState(true);
-  const [cachedRegions, setCachedRegions] = useState<string[] | null>(null);
-  
-  // Real-time auto-scan state
-  const [isAutoScanning, setIsAutoScanning] = useState(false);
-  const [nextScanIn, setNextScanIn] = useState<number | null>(null);
-  const [autoScanCredits, setAutoScanCredits] = useState<number | undefined>();
-  const [lastCachedScannedAt, setLastCachedScannedAt] = useState<string | null>(null);
+  // Global scan state
+  const [scanAgeSeconds, setScanAgeSeconds] = useState<number | null>(null);
+  const [lastScannedAt, setLastScannedAt] = useState<string | null>(null);
   const [showNewResultsFlash, setShowNewResultsFlash] = useState(false);
 
-  // AbortController for canceling scans
+  // AbortController for canceling requests
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const { bets, isLoaded: betsLoaded, addBet, updateBet, deleteBet, clearAllBets } = useBets();
@@ -242,8 +189,6 @@ export default function DashboardPage() {
     addTransaction, 
     deleteTransaction 
   } = useAccounts();
-
-  const hasFetched = hasFetchedArbs;
 
   // Get hasAccess from session (computed server-side in auth.ts)
   const hasAccess = (session?.user as { hasAccess?: boolean } | undefined)?.hasAccess ?? false;
@@ -257,23 +202,15 @@ export default function DashboardPage() {
       setIsRefreshingSession(true);
       setCheckoutSuccess(planParam);
       
-      // Force session refresh to get updated subscription data from database
       const refreshSession = async () => {
         try {
-          // Trigger JWT refresh which will fetch latest user data
           await updateSession();
-          
-          // Small delay to ensure session is fully updated
           await new Promise(resolve => setTimeout(resolve, 500));
-          
-          // Clear URL params without full page reload
           router.replace('/dashboard', { scroll: false });
         } catch (err) {
           console.error('Failed to refresh session:', err);
         } finally {
           setIsRefreshingSession(false);
-          
-          // Auto-hide success message after 5 seconds
           setTimeout(() => {
             setCheckoutSuccess(null);
           }, 5000);
@@ -304,109 +241,108 @@ export default function DashboardPage() {
     fetchSettings();
   }, []);
 
-  // Load cached scan results on mount (from auto-scan)
-  useEffect(() => {
-    const fetchCachedResults = async () => {
-      try {
-        const res = await fetch('/api/cached-scan');
-        if (res.ok) {
-          const data: CachedScanResponse = await res.json();
-          
-          // Update auto-scan status
-          setAutoScanEnabled(data.autoScanEnabled || false);
-          setIsAutoScanning(data.isScanning || false);
-          setNextScanIn(data.nextScanIn ?? null);
-          if (data.remainingCredits !== undefined) {
-            setAutoScanCredits(data.remainingCredits);
-            // Also update remainingRequests for header display
-            setRemainingRequests(data.remainingCredits);
-          }
-          
-          if (data.hasCachedResults && data.opportunities && data.opportunities.length > 0) {
-            // Check if this is new data (different scannedAt)
-            const isNewData = data.scannedAt !== lastCachedScannedAt;
-            
-            // Parse dates in opportunities
-            const parsed = data.opportunities.map(opp => ({
-              ...opp,
-              event: {
-                ...opp.event,
-                commenceTime: new Date(opp.event.commenceTime),
-              },
-              lastUpdated: new Date(opp.lastUpdated),
-            }));
+  // Fetch global arbs - main data fetching function
+  const fetchGlobalArbs = useCallback(async (showLoading = false) => {
+    if (showLoading) {
+      setIsLoadingGlobal(true);
+    }
+    setError(null);
 
-            const parsedValueBets = (data.valueBets || []).map(vb => ({
-              ...vb,
-              event: {
-                ...vb.event,
-                commenceTime: new Date(vb.event.commenceTime),
-              },
-              lastUpdated: new Date(vb.lastUpdated),
-            }));
+    try {
+      const res = await fetch('/api/global-arbs');
+      const data: GlobalArbsResponse = await res.json();
 
-            setOpportunities(parsed);
-            setValueBets(parsedValueBets);
-            if (data.stats) setStats(data.stats);
-            if (data.scannedAt) {
-              setLastUpdated(new Date(data.scannedAt));
-              setLastCachedScannedAt(data.scannedAt);
-            }
-            if (data.ageMinutes !== undefined) setCachedScanAge(data.ageMinutes);
-            if (data.regions) setCachedRegions(data.regions);
-            setHasFetchedArbs(true);
+      // Check for subscription required
+      if (data.subscriptionRequired) {
+        setShowSubscriptionModal(true);
+        setIsLoadingGlobal(false);
+        return;
+      }
 
-            // Extract bookmakers
-            const uniqueBookmakers = new Set<string>();
-            parsed.forEach(opp => {
-              getBookmakersFromArb(opp).forEach(bm => uniqueBookmakers.add(bm));
-            });
-            setBookmakers(Array.from(uniqueBookmakers));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to fetch opportunities');
+      }
 
-            // Show flash animation if new data arrived during polling
-            if (isNewData && lastCachedScannedAt !== null) {
-              setShowNewResultsFlash(true);
-              setTimeout(() => setShowNewResultsFlash(false), 2000);
-            }
+      if (data.hasCachedResults && data.opportunities) {
+        // Check if this is new data
+        const isNewData = data.scannedAt !== lastScannedAt;
 
-            console.log(`[Dashboard] Loaded ${parsed.length} cached opportunities (${data.ageMinutes} min old)`);
-          } else if (data.ageMinutes !== undefined) {
-            setCachedScanAge(data.ageMinutes);
-          }
+        // Parse dates in opportunities
+        const parsed = data.opportunities.map(opp => ({
+          ...opp,
+          event: {
+            ...opp.event,
+            commenceTime: new Date(opp.event.commenceTime),
+          },
+          lastUpdated: new Date(opp.lastUpdated),
+        }));
+
+        const parsedValueBets = (data.valueBets || []).map(vb => ({
+          ...vb,
+          event: {
+            ...vb.event,
+            commenceTime: new Date(vb.event.commenceTime),
+          },
+          lastUpdated: new Date(vb.lastUpdated),
+        }));
+
+        setOpportunities(parsed);
+        setValueBets(parsedValueBets);
+        if (data.stats) setStats(data.stats);
+        if (data.scannedAt) {
+          setLastUpdated(new Date(data.scannedAt));
+          setLastScannedAt(data.scannedAt);
         }
-      } catch (err) {
-        console.error('Failed to fetch cached results:', err);
-      } finally {
-        setIsLoadingCached(false);
-      }
-    };
+        if (data.ageSeconds !== undefined) setScanAgeSeconds(data.ageSeconds);
+        if (data.remainingCredits !== undefined) setRemainingCredits(data.remainingCredits);
+        setHasFetchedArbs(true);
 
+        // Extract bookmakers
+        const uniqueBookmakers = new Set<string>();
+        parsed.forEach(opp => {
+          getBookmakersFromArb(opp).forEach(bm => uniqueBookmakers.add(bm));
+        });
+        setBookmakers(Array.from(uniqueBookmakers));
+
+        // Show flash animation if new data arrived during polling
+        if (isNewData && lastScannedAt !== null) {
+          setShowNewResultsFlash(true);
+          setTimeout(() => setShowNewResultsFlash(false), 2000);
+        }
+
+        console.log(`[Dashboard] Loaded ${parsed.length} opportunities (${data.ageSeconds}s old)`);
+      }
+    } catch (err) {
+      console.error('Failed to fetch global arbs:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load opportunities');
+    } finally {
+      setIsLoadingGlobal(false);
+    }
+  }, [lastScannedAt]);
+
+  // Initial fetch and polling
+  useEffect(() => {
     // Initial fetch
-    fetchCachedResults();
+    fetchGlobalArbs(true);
 
-    // Poll for updates when auto-scan is enabled (every 5 seconds)
+    // Poll for updates every 5 seconds
     const pollInterval = setInterval(() => {
-      if (autoScanEnabled && !isLoadingArbs) {
-        fetchCachedResults();
-      }
+      fetchGlobalArbs(false);
     }, 5000);
 
     return () => clearInterval(pollInterval);
-  }, [autoScanEnabled, isLoadingArbs, lastCachedScannedAt]);
+  }, [fetchGlobalArbs]);
 
-  // Countdown timer for next scan
+  // Increment age counter every second
   useEffect(() => {
-    if (!autoScanEnabled || nextScanIn === null || nextScanIn <= 0) return;
-    
-    const countdownInterval = setInterval(() => {
-      setNextScanIn(prev => {
-        if (prev === null || prev <= 0) return null;
-        return prev - 1;
-      });
+    if (scanAgeSeconds === null) return;
+
+    const ageInterval = setInterval(() => {
+      setScanAgeSeconds(prev => (prev !== null ? prev + 1 : null));
     }, 1000);
-    
-    return () => clearInterval(countdownInterval);
-  }, [autoScanEnabled, nextScanIn]);
+
+    return () => clearInterval(ageInterval);
+  }, [scanAgeSeconds !== null]);
 
   const isGlobalMode = selectedRegions.length === config.regionOrder.length;
 
@@ -441,240 +377,10 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // Cancel scan function
-  const cancelScan = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
-    }
-    setIsLoadingArbs(false);
-    setIsLoadingLines(false);
-    setArbsProgress('');
-    setLinesProgress('');
-  }, []);
-
-  const fetchArbs = useCallback(async (quickScan: boolean = false) => {
-    // ✅ CHECK SUBSCRIPTION BEFORE ANY SCAN ATTEMPT
-    if (!hasAccess) {
-      setShowSubscriptionModal(true);
-      return; // Don't proceed with scan
-    }
-
-    // Cancel any existing scan
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    // Create new AbortController for this scan
-    abortControllerRef.current = new AbortController();
-    const signal = abortControllerRef.current.signal;
-
-    setError(null);
-    setLinesError(null);
-    
-    // Clear cached scan indicator when doing a fresh scan
-    setCachedScanAge(null);
-    
-    setIsLoadingArbs(true);
-    setIsLoadingLines(false);
-    setArbsProgress(quickScan ? 'Quick scan initializing...' : 'Initializing scan...');
-    setLinesProgress('');
-
-    try {
-      if (sports.length === 0) {
-        setArbsProgress('Fetching available sports...');
-        await fetchSports();
-      }
-
-      // Check if aborted
-      if (signal.aborted) {
-        return;
-      }
-
-      const apiRegions = getApiRegionsForUserRegions(selectedRegions);
-
-      const params = new URLSearchParams({
-        minProfit: filters.minProfit.toString(),
-        maxHours: filters.maxHoursUntilStart.toString(),
-        refresh: 'true',
-        nearArbs: filters.showNearArbs ? 'true' : 'false',
-        valueBets: filters.showValueBets ? 'true' : 'false',
-        regions: apiRegions,
-      });
-      
-      const sportsToScan = quickScan ? QUICK_SCAN_SPORTS : filters.sports;
-      if (sportsToScan.length > 0) {
-        params.set('sports', sportsToScan.join(','));
-      }
-
-      const scanType = quickScan ? 'Quick scanning' : 'Scanning';
-      const sportCount = quickScan ? `${QUICK_SCAN_SPORTS.length} priority sports` : 'all sports';
-      setArbsProgress(`${scanType} ${selectedRegions.join(', ')} - ${sportCount}...`);
-
-      const arbsRes = await fetch(`/api/arbs?${params}`, { signal });
-      
-      // Check if aborted
-      if (signal.aborted) {
-        return;
-      }
-
-      setArbsProgress('Processing H2H results...');
-      const arbsData: ArbsResponse = await arbsRes.json();
-
-      // Check for subscription required (fallback - API also checks)
-      if (arbsData.subscriptionRequired) {
-        setIsLoadingArbs(false);
-        setArbsProgress('');
-        setShowSubscriptionModal(true);
-        return;
-      }
-
-      if (!arbsRes.ok) {
-        throw new Error(arbsData.error || 'Failed to fetch arbs');
-      }
-
-      // Check for no API key (user has subscription but hasn't added key)
-      if (arbsData.noApiKey) {
-        setError(arbsData.message || 'No API key configured. Go to Settings to add your Odds API key.');
-        setIsLoadingArbs(false);
-        setArbsProgress('');
-        return;
-      }
-
-      const parsed = arbsData.opportunities.map(opp => ({
-        ...opp,
-        event: {
-          ...opp.event,
-          commenceTime: new Date(opp.event.commenceTime),
-        },
-        lastUpdated: new Date(opp.lastUpdated),
-      }));
-
-      const parsedValueBets = arbsData.valueBets.map(vb => ({
-        ...vb,
-        event: {
-          ...vb.event,
-          commenceTime: new Date(vb.event.commenceTime),
-        },
-        lastUpdated: new Date(vb.lastUpdated),
-      }));
-
-      setOpportunities(parsed);
-      setValueBets(parsedValueBets);
-      setStats(arbsData.stats);
-      setLastUpdated(arbsData.lastUpdated ? new Date(arbsData.lastUpdated) : new Date());
-      setIsUsingMockData(arbsData.isUsingMockData || false);
-      setRemainingRequests(arbsData.remainingApiRequests);
-      setHasFetchedArbs(true);
-      setIsLoadingArbs(false);
-      setArbsProgress('');
-
-      const uniqueBookmakers = new Set<string>();
-      parsed.forEach(opp => {
-        getBookmakersFromArb(opp).forEach(bm => uniqueBookmakers.add(bm));
-      });
-      setBookmakers(Array.from(uniqueBookmakers));
-
-      console.log(`[Dashboard] H2H complete: ${parsed.length} opportunities`);
-
-      // Check if aborted before starting lines scan
-      if (signal.aborted) {
-        return;
-      }
-
-      setIsLoadingLines(true);
-      setLinesProgress('Scanning spreads & totals...');
-
-      fetch(`/api/lines?${params}&middles=${showMiddles}`, { signal })
-        .then(async (linesRes) => {
-          // Check if aborted
-          if (signal.aborted) {
-            return;
-          }
-
-          setLinesProgress('Processing spreads & totals...');
-          const linesData: LinesResponse = await linesRes.json();
-
-          if (!linesRes.ok) {
-            throw new Error(linesData.error || 'Failed to fetch lines');
-          }
-
-          const parsedSpreads = (linesData.spreadArbs || []).map(s => ({
-            ...s,
-            event: {
-              ...s.event,
-              commenceTime: new Date(s.event.commenceTime),
-            },
-            lastUpdated: new Date(s.lastUpdated),
-          }));
-
-          const parsedTotals = (linesData.totalsArbs || []).map(t => ({
-            ...t,
-            event: {
-              ...t.event,
-              commenceTime: new Date(t.event.commenceTime),
-            },
-            lastUpdated: new Date(t.lastUpdated),
-          }));
-
-          const parsedMiddles = (linesData.middles || []).map(m => ({
-            ...m,
-            event: {
-              ...m.event,
-              commenceTime: new Date(m.event.commenceTime),
-            },
-            lastUpdated: new Date(m.lastUpdated),
-          }));
-
-          setSpreadArbs(parsedSpreads);
-          setTotalsArbs(parsedTotals);
-          setMiddles(parsedMiddles);
-          setLineStats(linesData.stats);
-          setHasFetchedLines(true);
-
-          if (linesData.remainingApiRequests !== undefined) {
-            setRemainingRequests(prev => 
-              prev === undefined ? linesData.remainingApiRequests : Math.min(prev, linesData.remainingApiRequests!)
-            );
-          }
-
-          console.log(`[Dashboard] Lines complete: ${parsedSpreads.length} spreads, ${parsedTotals.length} totals, ${parsedMiddles.length} middles`);
-        })
-        .catch(err => {
-          // Ignore abort errors
-          if (err.name === 'AbortError') {
-            console.log('[Dashboard] Lines scan cancelled');
-            return;
-          }
-          console.error('Failed to fetch lines:', err);
-          setLinesError(err instanceof Error ? err.message : 'Failed to scan lines');
-        })
-        .finally(() => {
-          setIsLoadingLines(false);
-          setLinesProgress('');
-        });
-
-    } catch (err) {
-      // Ignore abort errors
-      if (err instanceof Error && err.name === 'AbortError') {
-        console.log('[Dashboard] Scan cancelled');
-        return;
-      }
-      console.error('Failed to fetch arbs:', err);
-      setError(err instanceof Error ? err.message : 'Failed to scan H2H');
-      setIsLoadingArbs(false);
-      setArbsProgress('');
-    }
-  }, [filters, sports, fetchSports, showMiddles, selectedRegions, hasAccess]);
-
-  // Cleanup abort controller on unmount
-  useEffect(() => {
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, []);
+  // Manual refresh - just re-fetch global data
+  const handleRefresh = useCallback(() => {
+    fetchGlobalArbs(true);
+  }, [fetchGlobalArbs]);
 
   const handleLogBet = (bet: Omit<PlacedBet, 'id' | 'createdAt'>) => {
     addBet(bet);
@@ -683,14 +389,31 @@ export default function DashboardPage() {
     setSelectedLineOpp(null);
   };
 
+  // Filter opportunities by selected regions
   const filteredOpportunities = opportunities.filter(opp => {
+    // Filter by profit
     if (filters.profitableOnly && opp.profitPercentage < 0) return false;
     if (!filters.showNearArbs && opp.type === 'near-arb') return false;
+    
+    // Filter by sport
     if (filters.sports.length > 0 && !filters.sports.includes(opp.event.sportKey)) return false;
+    
+    // Filter by bookmaker
     if (filters.bookmakers.length > 0) {
       const oppBookmakers = getBookmakersFromArb(opp);
       if (!filters.bookmakers.some(b => oppBookmakers.includes(b))) return false;
     }
+    
+    // Filter by region - check if any bookmaker is from selected regions
+    const oppBookmakers = getBookmakersFromArb(opp);
+    const selectedRegionBookmakers = new Set<string>();
+    selectedRegions.forEach(region => {
+      config.bookmakersByRegion[region].forEach(b => selectedRegionBookmakers.add(b));
+    });
+    
+    const hasBookmakerFromSelectedRegion = oppBookmakers.some(b => selectedRegionBookmakers.has(b));
+    if (!hasBookmakerFromSelectedRegion) return false;
+    
     return true;
   });
 
@@ -713,12 +436,6 @@ export default function DashboardPage() {
 
   const selectedBookmakerCount = countBookmakersForRegions(selectedRegions);
 
-  const getScanProgress = () => {
-    if (arbsProgress) return arbsProgress;
-    if (linesProgress && isLoadingLines) return linesProgress;
-    return 'Please wait...';
-  };
-
   const getPlanDisplayName = (plan: string) => {
     switch (plan) {
       case 'trial': return '3-Day Trial';
@@ -728,13 +445,12 @@ export default function DashboardPage() {
     }
   };
 
-  const formatCachedAge = (minutes: number) => {
-    if (minutes < 1) return 'just now';
-    if (minutes === 1) return '1 minute ago';
-    if (minutes < 60) return `${minutes} minutes ago`;
+  const formatScanAge = (seconds: number) => {
+    if (seconds < 60) return `${seconds}s ago`;
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
     const hours = Math.floor(minutes / 60);
-    if (hours === 1) return '1 hour ago';
-    return `${hours} hours ago`;
+    return `${hours}h ${minutes % 60}m ago`;
   };
 
   return (
@@ -744,11 +460,11 @@ export default function DashboardPage() {
     >
       <Header
         lastUpdated={lastUpdated}
-        isLoading={isLoadingArbs || isLoadingLines}
-        isUsingMockData={isUsingMockData}
-        remainingRequests={remainingRequests}
-        onRefresh={() => fetchArbs(false)}
-        onQuickScan={() => fetchArbs(true)}
+        isLoading={isLoadingGlobal}
+        isUsingMockData={false}
+        remainingRequests={remainingCredits}
+        onRefresh={handleRefresh}
+        onQuickScan={handleRefresh}
       />
 
       {/* Session Refresh Overlay (after checkout) */}
@@ -777,97 +493,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Scanning Overlay */}
-      {isLoadingArbs && (
-        <div 
-          className="fixed inset-0 z-40 flex items-center justify-center p-4"
-          style={{ backgroundColor: 'rgba(0, 0, 0, 0.7)' }}
-        >
-          <div 
-            className="flex flex-col items-center gap-4 sm:gap-6 p-6 sm:p-8 rounded-xl border w-full max-w-sm"
-            style={{ 
-              backgroundColor: 'var(--surface)',
-              borderColor: 'var(--border)'
-            }}
-          >
-            {/* Animated Scanner */}
-            <div className="relative w-16 h-16 sm:w-20 sm:h-20">
-              <div 
-                className="absolute inset-0 rounded-full border-2 animate-ping"
-                style={{ 
-                  borderColor: '#22c55e',
-                  opacity: 0.2,
-                  animationDuration: '2s'
-                }}
-              />
-              <div 
-                className="absolute inset-2 rounded-full border-2 animate-ping"
-                style={{ 
-                  borderColor: '#22c55e',
-                  opacity: 0.4,
-                  animationDuration: '2s',
-                  animationDelay: '0.3s'
-                }}
-              />
-              <div 
-                className="absolute inset-4 rounded-full border-2 border-t-transparent animate-spin"
-                style={{ 
-                  borderColor: '#22c55e',
-                  borderTopColor: 'transparent',
-                  animationDuration: '1s'
-                }}
-              />
-              <div 
-                className="absolute inset-[38%] rounded-full animate-pulse"
-                style={{ backgroundColor: '#22c55e' }}
-              />
-            </div>
-
-            {/* Text */}
-            <div className="text-center">
-              <h3 
-                className="text-base sm:text-lg font-medium mb-2"
-                style={{ color: 'var(--foreground)' }}
-              >
-                Scanning Markets
-              </h3>
-              <p 
-                className="text-xs sm:text-sm flex items-center justify-center gap-2"
-                style={{ color: 'var(--muted)' }}
-              >
-                <Loader2 className="w-3 h-3 animate-spin" />
-                <span className="truncate max-w-[200px]">{getScanProgress()}</span>
-              </p>
-            </div>
-
-            {/* Region indicator */}
-            <div 
-              className="flex items-center gap-2 px-3 py-1.5 rounded-full text-xs"
-              style={{ 
-                backgroundColor: 'var(--background)',
-                color: 'var(--muted)'
-              }}
-            >
-              <Globe className="w-3 h-3 shrink-0" />
-              <span className="truncate">{selectedRegions.join(', ')} ({selectedBookmakerCount} books)</span>
-            </div>
-
-            {/* Cancel Button */}
-            <button
-              onClick={cancelScan}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors hover:bg-[var(--background)]"
-              style={{
-                borderColor: 'var(--border)',
-                color: 'var(--muted)'
-              }}
-            >
-              <X className="w-4 h-4" />
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
       <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6">
         {/* Checkout Success Banner */}
         {checkoutSuccess && !isRefreshingSession && (
@@ -885,7 +510,7 @@ export default function DashboardPage() {
                   🎉 {getPlanDisplayName(checkoutSuccess)} Activated!
                 </div>
                 <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                  Your subscription is now active. Start scanning for arbitrage opportunities!
+                  Your subscription is now active. Live arbitrage data is loading automatically!
                 </div>
               </div>
               <button
@@ -899,77 +524,62 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Auto-Scan Status Banner */}
-        {autoScanEnabled && hasFetchedArbs && !isLoadingArbs && (
+        {/* Live Scan Status Banner */}
+        {hasFetchedArbs && !isLoadingGlobal && (
           <div 
             className={`border px-4 py-3 rounded-lg transition-all duration-500 ${showNewResultsFlash ? 'ring-2 ring-green-500' : ''}`}
             style={{
-              borderColor: isAutoScanning 
-                ? 'color-mix(in srgb, #22c55e 50%, transparent)' 
-                : 'color-mix(in srgb, #14b8a6 50%, transparent)',
-              backgroundColor: isAutoScanning 
-                ? 'color-mix(in srgb, #22c55e 10%, transparent)' 
-                : 'color-mix(in srgb, #14b8a6 10%, transparent)'
+              borderColor: 'color-mix(in srgb, #22c55e 50%, transparent)',
+              backgroundColor: 'color-mix(in srgb, #22c55e 10%, transparent)'
             }}
           >
             <div className="flex items-center gap-3">
-              {/* Scanning indicator */}
-              {isAutoScanning ? (
-                <div className="relative w-5 h-5 shrink-0">
-                  <div 
-                    className="absolute inset-0 rounded-full border-2 animate-ping"
-                    style={{ borderColor: '#22c55e', opacity: 0.4 }}
-                  />
-                  <div 
-                    className="absolute inset-0 rounded-full border-2 border-t-transparent animate-spin"
-                    style={{ borderColor: '#22c55e', borderTopColor: 'transparent' }}
-                  />
-                </div>
-              ) : (
-                <Clock className="w-5 h-5 shrink-0" style={{ color: '#14b8a6' }} />
-              )}
+              {/* Live indicator */}
+              <div className="relative w-5 h-5 shrink-0 flex items-center justify-center">
+                <div 
+                  className="absolute inset-0 rounded-full animate-ping"
+                  style={{ backgroundColor: '#22c55e', opacity: 0.3 }}
+                />
+                <div 
+                  className="w-2.5 h-2.5 rounded-full"
+                  style={{ backgroundColor: '#22c55e' }}
+                />
+              </div>
               
               <div className="flex-1">
-                <div className="font-medium text-sm" style={{ color: isAutoScanning ? '#22c55e' : '#14b8a6' }}>
-                  {isAutoScanning ? 'Auto-Scanning...' : 'Auto-Scan Active'}
+                <div className="font-medium text-sm" style={{ color: '#22c55e' }}>
+                  Live Scanner Active
                 </div>
                 <div className="text-xs mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5" style={{ color: 'var(--muted)' }}>
-                  {cachedScanAge !== null && !isAutoScanning && (
-                    <span>Updated {formatCachedAge(cachedScanAge)}</span>
+                  {scanAgeSeconds !== null && (
+                    <span>Updated {formatScanAge(scanAgeSeconds)}</span>
                   )}
-                  {cachedRegions && cachedRegions.length > 0 && (
-                    <span>• {cachedRegions.join(', ')}</span>
-                  )}
-                  {nextScanIn !== null && nextScanIn > 0 && !isAutoScanning && (
-                    <span>• Next scan in {nextScanIn}s</span>
-                  )}
-                  {autoScanCredits !== undefined && (
-                    <span className="font-mono">• {autoScanCredits.toLocaleString()} credits</span>
-                  )}
+                  <span>• All regions (AU, UK, US, EU)</span>
+                  <span>• Auto-refreshing every ~44s</span>
                 </div>
               </div>
               
-              {/* Credits badge */}
-              {autoScanCredits !== undefined && (
-                <div 
-                  className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono"
-                  style={{ 
-                    backgroundColor: 'var(--background)',
-                    color: autoScanCredits < 10000 ? 'var(--warning)' : 'var(--muted)'
-                  }}
-                >
-                  <Key className="w-3 h-3" />
-                  {autoScanCredits.toLocaleString()}
-                </div>
-              )}
+              {/* Manual refresh button */}
+              <button
+                onClick={handleRefresh}
+                disabled={isLoadingGlobal}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-[var(--background)]"
+                style={{ 
+                  color: 'var(--muted)',
+                  border: '1px solid var(--border)'
+                }}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingGlobal ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">Refresh</span>
+              </button>
             </div>
           </div>
         )}
 
-        {/* Region Tabs */}
-        {settingsLoaded && (
+        {/* Region Tabs - for filtering results */}
+        {settingsLoaded && hasFetchedArbs && (
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <span className="text-xs sm:text-sm mr-1 sm:mr-2" style={{ color: 'var(--muted)' }}>Regions:</span>
+            <span className="text-xs sm:text-sm mr-1 sm:mr-2" style={{ color: 'var(--muted)' }}>Filter:</span>
             {config.regionOrder.map(region => (
               <RegionTab
                 key={region}
@@ -986,56 +596,8 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Multi-Region Warning */}
-        {selectedRegions.length > 1 && (
-          <div 
-            className="border px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm rounded-lg"
-            style={{
-              borderColor: 'var(--info)',
-              backgroundColor: 'color-mix(in srgb, var(--info) 10%, transparent)'
-            }}
-          >
-            <div className="flex items-start gap-2 sm:gap-3">
-              <Globe className="w-4 h-4 sm:w-5 sm:h-5 shrink-0 mt-0.5" style={{ color: 'var(--info)' }} />
-              <div>
-                <div className="font-medium" style={{ color: 'var(--info)' }}>
-                  Multi-Region: {selectedRegions.join(', ')}
-                </div>
-                <div className="text-[10px] sm:text-xs mt-0.5 sm:mt-1" style={{ color: 'var(--muted)' }}>
-                  {selectedBookmakerCount} bookmakers
-                  <span className="hidden sm:inline">
-                    {selectedRegions.some(r => r !== userDefaultRegion) && (
-                      <>. Bookmakers outside your region ({userDefaultRegion}) may require local ID.</>
-                    )}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Initial State - Only show if no cached results and not loading */}
-        {!hasFetched && !isLoadingArbs && !isLoadingCached && activeTab === 'opportunities' && (
-          <div 
-            className="border p-8 sm:p-12 text-center rounded-lg"
-            style={{
-              borderColor: 'var(--border-light)',
-              backgroundColor: 'var(--surface-secondary)'
-            }}
-          >
-            <div className="text-3xl sm:text-4xl mb-4">📡</div>
-            <h2 className="text-lg sm:text-xl font-medium mb-2" style={{ color: 'var(--foreground)' }}>Ready to scan</h2>
-            <p className="text-xs sm:text-sm mb-4" style={{ color: 'var(--muted)' }}>
-              Tap <span className="font-medium" style={{ color: 'var(--foreground)' }}>Scan</span> to search markets
-            </p>
-            <p className="text-[10px] sm:text-xs" style={{ color: 'var(--muted-foreground)' }}>
-              {selectedRegions.join(', ')} ({selectedBookmakerCount} bookmakers)
-            </p>
-          </div>
-        )}
-
-        {/* Loading Cached Results */}
-        {isLoadingCached && !hasFetched && activeTab === 'opportunities' && (
+        {/* Initial Loading State */}
+        {isLoadingGlobal && !hasFetchedArbs && (
           <div 
             className="border p-8 sm:p-12 text-center rounded-lg"
             style={{
@@ -1043,22 +605,13 @@ export default function DashboardPage() {
               backgroundColor: 'var(--surface)'
             }}
           >
-            <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin mx-auto mb-4" style={{ color: 'var(--muted)' }} />
-            <p className="text-sm" style={{ color: 'var(--muted)' }}>Loading latest scan results...</p>
-          </div>
-        )}
-
-        {/* Demo Mode Notice */}
-        {isUsingMockData && hasFetched && (
-          <div 
-            className="border px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm rounded-lg"
-            style={{
-              borderColor: 'var(--border)',
-              backgroundColor: 'var(--surface)',
-              color: 'var(--muted)'
-            }}
-          >
-            Demo mode — add API key for live data
+            <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: 'var(--muted)' }} />
+            <h3 className="text-lg font-medium mb-2" style={{ color: 'var(--foreground)' }}>
+              Loading Live Opportunities...
+            </h3>
+            <p className="text-sm" style={{ color: 'var(--muted)' }}>
+              Connecting to the live arbitrage scanner
+            </p>
           </div>
         )}
 
@@ -1090,8 +643,8 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Stats Grid - Responsive: 2 cols mobile, 4 tablet, 8 desktop */}
-        {hasFetched && stats && (
+        {/* Stats Grid */}
+        {hasFetchedArbs && stats && (
           <div 
             className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-px rounded-lg overflow-hidden"
             style={{ backgroundColor: 'var(--border-light)' }}
@@ -1130,59 +683,61 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Tabs - Scrollable on mobile */}
-        <div 
-          className="flex gap-1 border-b overflow-x-auto scrollbar-hide -mx-3 sm:mx-0 px-3 sm:px-0"
-          style={{ borderColor: 'var(--border-light)' }}
-        >
-          <TabButton 
-            active={activeTab === 'opportunities'} 
-            onClick={() => setActiveTab('opportunities')}
-            count={filteredOpportunities.length}
+        {/* Tabs */}
+        {hasFetchedArbs && (
+          <div 
+            className="flex gap-1 border-b overflow-x-auto scrollbar-hide -mx-3 sm:mx-0 px-3 sm:px-0"
+            style={{ borderColor: 'var(--border-light)' }}
           >
-            H2H
-          </TabButton>
-          <TabButton 
-            active={activeTab === 'spreads'} 
-            onClick={() => setActiveTab('spreads')}
-            count={isLoadingLines ? undefined : filteredSpreads.length + spreadMiddles.length}
-            loading={isLoadingLines}
-          >
-            Lines
-          </TabButton>
-          <TabButton 
-            active={activeTab === 'totals'} 
-            onClick={() => setActiveTab('totals')}
-            count={isLoadingLines ? undefined : filteredTotals.length + totalsMiddles.length}
-            loading={isLoadingLines}
-          >
-            Totals
-          </TabButton>
-          <TabButton 
-            active={activeTab === 'value-bets'} 
-            onClick={() => setActiveTab('value-bets')}
-            count={valueBets.length}
-          >
-            Value
-          </TabButton>
-          <TabButton 
-            active={activeTab === 'history'} 
-            onClick={() => setActiveTab('history')}
-            count={bets.length}
-          >
-            History
-          </TabButton>
-          <TabButton 
-            active={activeTab === 'accounts'} 
-            onClick={() => setActiveTab('accounts')}
-            count={activeAccountsCount}
-          >
-            Accounts
-          </TabButton>
-        </div>
+            <TabButton 
+              active={activeTab === 'opportunities'} 
+              onClick={() => setActiveTab('opportunities')}
+              count={filteredOpportunities.length}
+            >
+              H2H
+            </TabButton>
+            <TabButton 
+              active={activeTab === 'spreads'} 
+              onClick={() => setActiveTab('spreads')}
+              count={isLoadingLines ? undefined : filteredSpreads.length + spreadMiddles.length}
+              loading={isLoadingLines}
+            >
+              Lines
+            </TabButton>
+            <TabButton 
+              active={activeTab === 'totals'} 
+              onClick={() => setActiveTab('totals')}
+              count={isLoadingLines ? undefined : filteredTotals.length + totalsMiddles.length}
+              loading={isLoadingLines}
+            >
+              Totals
+            </TabButton>
+            <TabButton 
+              active={activeTab === 'value-bets'} 
+              onClick={() => setActiveTab('value-bets')}
+              count={valueBets.length}
+            >
+              Value
+            </TabButton>
+            <TabButton 
+              active={activeTab === 'history'} 
+              onClick={() => setActiveTab('history')}
+              count={bets.length}
+            >
+              History
+            </TabButton>
+            <TabButton 
+              active={activeTab === 'accounts'} 
+              onClick={() => setActiveTab('accounts')}
+              count={activeAccountsCount}
+            >
+              Accounts
+            </TabButton>
+          </div>
+        )}
 
         {/* Filters */}
-        {hasFetched && (activeTab === 'opportunities' || activeTab === 'spreads' || activeTab === 'totals') && (
+        {hasFetchedArbs && (activeTab === 'opportunities' || activeTab === 'spreads' || activeTab === 'totals') && (
           <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
             <ArbFilters
               filters={filters}
@@ -1207,7 +762,7 @@ export default function DashboardPage() {
         )}
 
         {/* Tab Content */}
-        {hasFetched && activeTab === 'opportunities' && (
+        {hasFetchedArbs && activeTab === 'opportunities' && (
           <ArbTable
             opportunities={filteredOpportunities}
             onSelectArb={setSelectedArb}
@@ -1215,7 +770,7 @@ export default function DashboardPage() {
           />
         )}
 
-        {hasFetched && activeTab === 'spreads' && (
+        {hasFetchedArbs && activeTab === 'spreads' && (
           isLoadingLines ? (
             <LoadingPlaceholder message="Loading spreads & middles..." />
           ) : (
@@ -1230,7 +785,7 @@ export default function DashboardPage() {
           )
         )}
 
-        {hasFetched && activeTab === 'totals' && (
+        {hasFetchedArbs && activeTab === 'totals' && (
           isLoadingLines ? (
             <LoadingPlaceholder message="Loading totals & middles..." />
           ) : (
@@ -1245,7 +800,7 @@ export default function DashboardPage() {
           )
         )}
 
-        {hasFetched && activeTab === 'value-bets' && (
+        {hasFetchedArbs && activeTab === 'value-bets' && (
           <ValueBetsTable valueBets={valueBets} onSelectValueBet={setSelectedValueBet} globalMode={selectedRegions.length > 1} />
         )}
 
