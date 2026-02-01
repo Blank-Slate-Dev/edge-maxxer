@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Globe, Loader2, X, CheckCircle, RefreshCw } from 'lucide-react';
+import { Loader2, X, CheckCircle, RefreshCw } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal, Flag, SubscriptionRequiredModal } from '@/components';
 import { useBets } from '@/hooks/useBets';
@@ -59,7 +59,7 @@ const POLL_INTERVAL_SECONDS = 5;
 const SCAN_INTERVAL_AU = 44; // AU scans every cron run
 const SCAN_INTERVAL_OTHER = 180; // UK/US/EU rotate every ~3 minutes
 
-// Region tab component
+// Region tab component - now acts as radio button
 function RegionTab({ 
   region, 
   isSelected, 
@@ -88,29 +88,6 @@ function RegionTab({
   );
 }
 
-// Global toggle button
-function GlobalToggle({ 
-  isGlobal, 
-  onClick 
-}: { 
-  isGlobal: boolean; 
-  onClick: () => void;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium border rounded-lg transition-all ${
-        isGlobal 
-          ? 'bg-gradient-to-r from-red-600 via-purple-600 to-green-600 border-transparent text-white' 
-          : 'border-zinc-600 text-zinc-400 hover:bg-zinc-800/50'
-      }`}
-    >
-      <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-      <span className="hidden sm:inline">Global</span>
-    </button>
-  );
-}
-
 // Helper function to extract bookmakers from an ArbOpportunity
 function getBookmakersFromArb(opp: ArbOpportunity): string[] {
   if (opp.mode === 'book-vs-book') {
@@ -122,45 +99,6 @@ function getBookmakersFromArb(opp: ArbOpportunity): string[] {
   } else {
     return [opp.backOutcome.bookmaker];
   }
-}
-
-// Helper to get region for a bookmaker (handles both API keys and display names)
-function getBookmakerRegionFromConfig(bookmaker: string): UserRegion | null {
-  const lowerBookmaker = bookmaker.toLowerCase();
-  
-  for (const region of config.regionOrder) {
-    const regionBookmakers = config.bookmakersByRegion[region];
-    for (const bk of regionBookmakers) {
-      // Check API key
-      if (bk.toLowerCase() === lowerBookmaker) {
-        return region;
-      }
-      // Check display name
-      const displayName = config.bookmakerNames[bk];
-      if (displayName && displayName.toLowerCase() === lowerBookmaker) {
-        return region;
-      }
-    }
-  }
-  return null;
-}
-
-// Check if all bookmakers in an arb are from the same region
-function areAllBookmakersFromSameRegion(bookmakers: string[]): boolean {
-  if (bookmakers.length === 0) return true;
-  
-  const firstRegion = getBookmakerRegionFromConfig(bookmakers[0]);
-  if (!firstRegion) return false;
-  
-  return bookmakers.every(bk => getBookmakerRegionFromConfig(bk) === firstRegion);
-}
-
-// Check if all bookmakers in an arb are from the selected regions
-function areAllBookmakersFromSelectedRegions(bookmakers: string[], selectedRegions: UserRegion[]): boolean {
-  return bookmakers.every(bk => {
-    const region = getBookmakerRegionFromConfig(bk);
-    return region && selectedRegions.includes(region);
-  });
 }
 
 export default function DashboardPage() {
@@ -198,7 +136,8 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<Tab>('opportunities');
   const [showMiddles, setShowMiddles] = useState(true);
   
-  const [selectedRegions, setSelectedRegions] = useState<UserRegion[]>(['AU']);
+  // Single region selection (not array)
+  const [selectedRegion, setSelectedRegion] = useState<UserRegion>('AU');
   const [userDefaultRegion, setUserDefaultRegion] = useState<UserRegion>('AU');
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   
@@ -232,19 +171,10 @@ export default function DashboardPage() {
   // Get hasAccess from session (computed server-side in auth.ts)
   const hasAccess = (session?.user as { hasAccess?: boolean } | undefined)?.hasAccess ?? false;
 
-  // Calculate scan interval based on selected regions
+  // Calculate scan interval based on selected region
   const getScanInterval = useCallback(() => {
-    // If only AU is selected, use AU interval
-    if (selectedRegions.length === 1 && selectedRegions[0] === 'AU') {
-      return SCAN_INTERVAL_AU;
-    }
-    // If AU is included with others, use AU interval (most frequent)
-    if (selectedRegions.includes('AU')) {
-      return SCAN_INTERVAL_AU;
-    }
-    // Otherwise use the longer interval for other regions
-    return SCAN_INTERVAL_OTHER;
-  }, [selectedRegions]);
+    return selectedRegion === 'AU' ? SCAN_INTERVAL_AU : SCAN_INTERVAL_OTHER;
+  }, [selectedRegion]);
 
   // Handle checkout success - refresh session to get updated subscription status
   useEffect(() => {
@@ -283,7 +213,7 @@ export default function DashboardPage() {
           const data = await res.json();
           const region = data.region || 'AU';
           setUserDefaultRegion(region);
-          setSelectedRegions([region]);
+          setSelectedRegion(region);
         }
       } catch (err) {
         console.error('Failed to fetch user settings:', err);
@@ -407,25 +337,9 @@ export default function DashboardPage() {
     return () => clearInterval(ageInterval);
   }, [scanAgeSeconds !== null]);
 
-  const isGlobalMode = selectedRegions.length === config.regionOrder.length;
-
-  const toggleRegion = (region: UserRegion) => {
-    setSelectedRegions(prev => {
-      if (prev.includes(region)) {
-        if (prev.length === 1) return prev;
-        return prev.filter(r => r !== region);
-      } else {
-        return [...prev, region];
-      }
-    });
-  };
-
-  const toggleGlobal = () => {
-    if (isGlobalMode) {
-      setSelectedRegions([userDefaultRegion]);
-    } else {
-      setSelectedRegions([...config.regionOrder]);
-    }
+  // Single region selection - clicking a region selects it (radio button style)
+  const selectRegion = (region: UserRegion) => {
+    setSelectedRegion(region);
   };
 
   const fetchSports = useCallback(async () => {
@@ -452,9 +366,7 @@ export default function DashboardPage() {
     setSelectedLineOpp(null);
   };
 
-  // Filter opportunities by selected regions
-  // When a single region is selected, ALL bookmakers in the arb must be from that region
-  // When multiple regions are selected (global mode), allow mixed region arbs
+  // Filter opportunities - ALL bookmakers must be from selected region
   const filteredOpportunities = opportunities.filter(opp => {
     // Filter by profit
     if (filters.profitableOnly && opp.profitPercentage < 0) return false;
@@ -469,47 +381,39 @@ export default function DashboardPage() {
       if (!filters.bookmakers.some(b => oppBookmakers.includes(b))) return false;
     }
     
-    const oppBookmakers = getBookmakersFromArb(opp);
+    // Build set of bookmakers for selected region (both API keys and display names)
+    const regionBookmakers = new Set<string>();
+    config.bookmakersByRegion[selectedRegion].forEach(b => {
+      regionBookmakers.add(b.toLowerCase());
+      const displayName = config.bookmakerNames[b];
+      if (displayName) {
+        regionBookmakers.add(displayName.toLowerCase());
+      }
+    });
     
-    // If single region selected, ALL bookmakers must be from that region
-    if (selectedRegions.length === 1) {
-      const selectedRegion = selectedRegions[0];
-      const regionBookmakers = new Set<string>();
-      
-      config.bookmakersByRegion[selectedRegion].forEach(b => {
-        regionBookmakers.add(b.toLowerCase());
-        const displayName = config.bookmakerNames[b];
-        if (displayName) {
-          regionBookmakers.add(displayName.toLowerCase());
-        }
-      });
-      
-      // Every bookmaker in the arb must be from the selected region
-      const allFromSelectedRegion = oppBookmakers.every(bk => 
-        regionBookmakers.has(bk.toLowerCase())
-      );
-      
-      if (!allFromSelectedRegion) return false;
-    } else {
-      // Multiple regions selected - at least one bookmaker must be from selected regions
-      const selectedRegionBookmakers = new Set<string>();
-      selectedRegions.forEach(region => {
-        config.bookmakersByRegion[region].forEach(b => {
-          selectedRegionBookmakers.add(b.toLowerCase());
-          const displayName = config.bookmakerNames[b];
-          if (displayName) {
-            selectedRegionBookmakers.add(displayName.toLowerCase());
-          }
-        });
-      });
-      
-      const hasBookmakerFromSelectedRegion = oppBookmakers.some(b => 
-        selectedRegionBookmakers.has(b.toLowerCase())
-      );
-      if (!hasBookmakerFromSelectedRegion) return false;
-    }
+    // ALL bookmakers in the arb must be from the selected region
+    const oppBookmakers = getBookmakersFromArb(opp);
+    const allFromSelectedRegion = oppBookmakers.every(bk => 
+      regionBookmakers.has(bk.toLowerCase())
+    );
+    
+    if (!allFromSelectedRegion) return false;
     
     return true;
+  });
+
+  // Filter value bets - bookmaker must be from selected region
+  const filteredValueBets = valueBets.filter(vb => {
+    const regionBookmakers = new Set<string>();
+    config.bookmakersByRegion[selectedRegion].forEach(b => {
+      regionBookmakers.add(b.toLowerCase());
+      const displayName = config.bookmakerNames[b];
+      if (displayName) {
+        regionBookmakers.add(displayName.toLowerCase());
+      }
+    });
+    
+    return regionBookmakers.has(vb.outcome.bookmaker.toLowerCase());
   });
 
   const filteredSpreads = spreadArbs.filter(s => {
@@ -529,7 +433,7 @@ export default function DashboardPage() {
   const spreadMiddles = middles.filter(m => m.marketType === 'spreads');
   const totalsMiddles = middles.filter(m => m.marketType === 'totals');
 
-  const selectedBookmakerCount = countBookmakersForRegions(selectedRegions);
+  const selectedBookmakerCount = countBookmakersForRegions([selectedRegion]);
 
   const getPlanDisplayName = (plan: string) => {
     switch (plan) {
@@ -560,7 +464,7 @@ export default function DashboardPage() {
   // Combined loading state for header
   const isLoading = isInitialLoading || isManualRefreshing;
   
-  // Get current scan interval based on selected regions
+  // Get current scan interval based on selected region
   const currentScanInterval = getScanInterval();
 
   return (
@@ -714,20 +618,18 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Region Tabs - for filtering results */}
+        {/* Region Tabs - single selection (radio style) */}
         {settingsLoaded && hasFetchedArbs && (
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <span className="text-xs sm:text-sm mr-1 sm:mr-2" style={{ color: 'var(--muted)' }}>Filter:</span>
+            <span className="text-xs sm:text-sm mr-1 sm:mr-2" style={{ color: 'var(--muted)' }}>Region:</span>
             {config.regionOrder.map(region => (
               <RegionTab
                 key={region}
                 region={region}
-                isSelected={selectedRegions.includes(region)}
-                onClick={() => toggleRegion(region)}
+                isSelected={selectedRegion === region}
+                onClick={() => selectRegion(region)}
               />
             ))}
-            <div className="w-px h-5 sm:h-6 mx-1 sm:mx-2 hidden sm:block" style={{ backgroundColor: 'var(--border)' }} />
-            <GlobalToggle isGlobal={isGlobalMode} onClick={toggleGlobal} />
             <span className="text-[10px] sm:text-xs ml-1 sm:ml-2 hidden sm:inline" style={{ color: 'var(--muted)' }}>
               {selectedBookmakerCount} bookmakers
             </span>
@@ -815,7 +717,7 @@ export default function DashboardPage() {
             />
             <StatBox 
               label="Value Bets" 
-              value={valueBets.length}
+              value={filteredValueBets.length}
               subtitle="> 5% edge"
             />
           </div>
@@ -853,7 +755,7 @@ export default function DashboardPage() {
             <TabButton 
               active={activeTab === 'value-bets'} 
               onClick={() => setActiveTab('value-bets')}
-              count={valueBets.length}
+              count={filteredValueBets.length}
             >
               Value
             </TabButton>
@@ -905,7 +807,7 @@ export default function DashboardPage() {
             <ArbTable
               opportunities={filteredOpportunities}
               onSelectArb={setSelectedArb}
-              globalMode={selectedRegions.length > 1}
+              globalMode={false}
             />
           )}
 
@@ -919,7 +821,7 @@ export default function DashboardPage() {
                 onSelectSpread={(s) => setSelectedLineOpp(s)}
                 onSelectMiddle={(m) => setSelectedLineOpp(m)}
                 showMiddles={showMiddles}
-                globalMode={selectedRegions.length > 1}
+                globalMode={false}
               />
             )
           )}
@@ -934,13 +836,13 @@ export default function DashboardPage() {
                 onSelectTotals={(t) => setSelectedLineOpp(t)}
                 onSelectMiddle={(m) => setSelectedLineOpp(m)}
                 showMiddles={showMiddles}
-                globalMode={selectedRegions.length > 1}
+                globalMode={false}
               />
             )
           )}
 
           {hasFetchedArbs && activeTab === 'value-bets' && (
-            <ValueBetsTable valueBets={valueBets} onSelectValueBet={setSelectedValueBet} globalMode={selectedRegions.length > 1} />
+            <ValueBetsTable valueBets={filteredValueBets} onSelectValueBet={setSelectedValueBet} />
           )}
         </div>
 
@@ -1088,7 +990,7 @@ function TabButton({
   );
 }
 
-function ValueBetsTable({ valueBets, onSelectValueBet, globalMode }: { valueBets: ValueBet[]; onSelectValueBet: (vb: ValueBet) => void; globalMode?: boolean }) {
+function ValueBetsTable({ valueBets, onSelectValueBet }: { valueBets: ValueBet[]; onSelectValueBet: (vb: ValueBet) => void }) {
   if (valueBets.length === 0) {
     return (
       <div 
