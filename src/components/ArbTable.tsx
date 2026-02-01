@@ -1,117 +1,15 @@
 // src/components/ArbTable.tsx
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
 import type { ArbOpportunity } from '@/lib/types';
 import { getBookmakerName, getBookmakerRegion } from '@/lib/config';
-import { buildBookmakerSearchUrl, getCanonicalBookmaker } from '@/lib/bookmakerLinks';
+import { buildBookmakerSearchUrl } from '@/lib/bookmakerLinks';
 import { BookLogo } from './BookLogo';
 
 interface ArbTableProps {
   opportunities: ArbOpportunity[];
   onSelectArb: (arb: ArbOpportunity) => void;
   globalMode?: boolean;
-}
-
-// Global cache for deep links - persists across re-renders
-const deepLinkCache = new Map<string, string | null>();
-const pendingRequests = new Map<string, Promise<Record<string, string | null>>>();
-
-// Batch fetch deep links for an event
-async function fetchDeepLinks(
-  homeTeam: string,
-  awayTeam: string,
-  bookmakers: string[],
-  sport?: string
-): Promise<Record<string, string | null>> {
-  const cacheKey = `${homeTeam}|${awayTeam}|${sport || ''}`;
-  
-  // Check if we already have a pending request for this event
-  if (pendingRequests.has(cacheKey)) {
-    return pendingRequests.get(cacheKey)!;
-  }
-  
-  // Check cache first
-  const cached: Record<string, string | null> = {};
-  let allCached = true;
-  for (const bookie of bookmakers) {
-    const key = `${cacheKey}|${getCanonicalBookmaker(bookie)}`;
-    if (deepLinkCache.has(key)) {
-      cached[getCanonicalBookmaker(bookie)] = deepLinkCache.get(key)!;
-    } else {
-      allCached = false;
-    }
-  }
-  
-  if (allCached) {
-    return cached;
-  }
-  
-  // Fetch from API
-  const promise = (async () => {
-    try {
-      const params = new URLSearchParams({
-        homeTeam,
-        awayTeam,
-        bookmakers: bookmakers.map(getCanonicalBookmaker).join(','),
-      });
-      if (sport) params.set('sport', sport);
-      
-      const res = await fetch(`/api/event-url?${params}`);
-      if (!res.ok) return cached;
-      
-      const data = await res.json();
-      const links = data.urls || {};
-      
-      // Cache the results
-      for (const bookie of bookmakers) {
-        const canonical = getCanonicalBookmaker(bookie);
-        const key = `${cacheKey}|${canonical}`;
-        deepLinkCache.set(key, links[canonical] || null);
-      }
-      
-      return { ...cached, ...links };
-    } catch (err) {
-      console.error('[DeepLinks] Error fetching:', err);
-      return cached;
-    } finally {
-      pendingRequests.delete(cacheKey);
-    }
-  })();
-  
-  pendingRequests.set(cacheKey, promise);
-  return promise;
-}
-
-// Hook for fetching deep links on-demand
-function useDeepLinks(
-  event: { homeTeam: string; awayTeam: string; sportKey?: string },
-  bookmakers: string[]
-) {
-  const [links, setLinks] = useState<Record<string, string | null>>({});
-  const [loading, setLoading] = useState(false);
-  
-  useEffect(() => {
-    if (bookmakers.length === 0) return;
-    
-    let cancelled = false;
-    setLoading(true);
-    
-    fetchDeepLinks(event.homeTeam, event.awayTeam, bookmakers, event.sportKey)
-      .then((result) => {
-        if (!cancelled) {
-          setLinks(result);
-          setLoading(false);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) setLoading(false);
-      });
-    
-    return () => { cancelled = true; };
-  }, [event.homeTeam, event.awayTeam, event.sportKey, bookmakers.join(',')]);
-  
-  return { links, loading };
 }
 
 function RegionBadge({ bookmaker }: { bookmaker: string }) {
@@ -123,7 +21,7 @@ function RegionBadge({ bookmaker }: { bookmaker: string }) {
     EU: 'bg-purple-900/50 text-purple-400',
     INT: 'bg-zinc-700 text-zinc-300',
   };
-  
+
   return (
     <span className={`text-[10px] sm:text-xs px-1 py-0.5 rounded ${colors[region] || colors.INT}`}>
       {region}
@@ -160,12 +58,12 @@ function isEventSoon(date: Date): boolean {
 function getTimeUntil(date: Date): string {
   const now = new Date();
   const diff = date.getTime() - now.getTime();
-  
+
   if (diff < 0) return 'Started';
-  
+
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  
+
   if (hours > 24) {
     const days = Math.floor(hours / 24);
     return `${days}d ${hours % 24}h`;
@@ -179,14 +77,16 @@ function getTimeUntil(date: Date): string {
 export function ArbTable({ opportunities, onSelectArb, globalMode = false }: ArbTableProps) {
   if (opportunities.length === 0) {
     return (
-      <div 
+      <div
         className="border p-8 sm:p-12 text-center rounded-lg"
         style={{
           borderColor: 'var(--border)',
-          backgroundColor: 'var(--surface)'
+          backgroundColor: 'var(--surface)',
         }}
       >
-        <p style={{ color: 'var(--muted)' }} className="mb-2 text-sm">No arbitrage opportunities found</p>
+        <p style={{ color: 'var(--muted)' }} className="mb-2 text-sm">
+          No arbitrage opportunities found
+        </p>
         <p className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
           Click Scan to search for opportunities, or adjust filters
         </p>
@@ -204,32 +104,50 @@ export function ArbTable({ opportunities, onSelectArb, globalMode = false }: Arb
       </div>
 
       {/* Desktop Table View */}
-      <div 
+      <div
         className="hidden md:block border overflow-x-auto rounded-lg"
         style={{
           borderColor: 'var(--border)',
-          backgroundColor: 'var(--surface)'
+          backgroundColor: 'var(--surface)',
         }}
       >
         <table className="w-full text-sm">
           <thead>
             <tr style={{ borderBottom: '1px solid var(--border)' }}>
-              <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
+              <th
+                className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium"
+                style={{ color: 'var(--muted)' }}
+              >
                 Type
               </th>
-              <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
+              <th
+                className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium"
+                style={{ color: 'var(--muted)' }}
+              >
                 Event
               </th>
-              <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
+              <th
+                className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium"
+                style={{ color: 'var(--muted)' }}
+              >
                 Time (AEST)
               </th>
-              <th className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
+              <th
+                className="text-left px-4 py-3 text-xs uppercase tracking-wide font-medium"
+                style={{ color: 'var(--muted)' }}
+              >
                 Bets Required
               </th>
-              <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
+              <th
+                className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium"
+                style={{ color: 'var(--muted)' }}
+              >
                 Profit
               </th>
-              <th className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
+              <th
+                className="text-right px-4 py-3 text-xs uppercase tracking-wide font-medium"
+                style={{ color: 'var(--muted)' }}
+              >
                 Action
               </th>
             </tr>
@@ -246,55 +164,59 @@ export function ArbTable({ opportunities, onSelectArb, globalMode = false }: Arb
 }
 
 // Mobile Card Component
-function ArbCard({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: (arb: ArbOpportunity) => void; globalMode: boolean }) {
+function ArbCard({
+  opp,
+  onSelect,
+  globalMode,
+}: {
+  opp: ArbOpportunity;
+  onSelect: (arb: ArbOpportunity) => void;
+  globalMode: boolean;
+}) {
   const eventDate = new Date(opp.event.commenceTime);
   const soon = isEventSoon(eventDate);
   const timeUntil = getTimeUntil(eventDate);
-  
-  // Get bookmakers from the arb
-  const bookmakers = opp.mode === 'book-vs-book' 
-    ? [opp.outcome1.bookmaker, opp.outcome2.bookmaker, opp.outcome3?.bookmaker].filter(Boolean) as string[]
-    : [opp.backOutcome.bookmaker];
-  
-  const { links, loading } = useDeepLinks(opp.event, bookmakers);
 
   return (
-    <div 
+    <div
       className="border rounded-lg overflow-hidden"
       style={{
         borderColor: 'var(--border)',
-        backgroundColor: 'var(--surface)'
+        backgroundColor: 'var(--surface)',
       }}
     >
       {/* Card Header */}
-      <div 
-        className="px-3 py-2 flex items-center justify-between"
-        style={{ borderBottom: '1px solid var(--border)' }}
-      >
+      <div className="px-3 py-2 flex items-center justify-between" style={{ borderBottom: '1px solid var(--border)' }}>
         <div className="flex items-center gap-2 min-w-0">
           <TypeBadge type={opp.type} />
           {opp.mode === 'book-vs-betfair' && (
-            <span className="text-[10px] px-1.5 py-0.5 bg-purple-900/50 text-purple-400 rounded">
-              BF
-            </span>
+            <span className="text-[10px] px-1.5 py-0.5 bg-purple-900/50 text-purple-400 rounded">BF</span>
           )}
           <span className="text-xs truncate" style={{ color: 'var(--muted-foreground)' }}>
             {opp.event.sportTitle}
           </span>
         </div>
-        <span 
+        <span
           className="font-mono font-bold text-base shrink-0"
           style={{ color: opp.profitPercentage >= 0 ? 'var(--success)' : 'var(--muted)' }}
         >
-          {opp.profitPercentage >= 0 ? '+' : ''}{opp.profitPercentage.toFixed(2)}%
+          {opp.profitPercentage >= 0 ? '+' : ''}
+          {opp.profitPercentage.toFixed(2)}%
         </span>
       </div>
 
       {/* Event Info */}
       <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
-        <div className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>{opp.event.homeTeam}</div>
-        <div className="text-sm" style={{ color: 'var(--muted)' }}>vs {opp.event.awayTeam}</div>
-        <div className={`text-xs mt-1 ${soon ? 'text-yellow-500' : ''}`} style={soon ? {} : { color: 'var(--muted-foreground)' }}>
+        <div className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
+          {opp.event.homeTeam}
+        </div>
+        <div className="text-sm" style={{ color: 'var(--muted)' }}>
+          vs {opp.event.awayTeam}
+        </div>
+        <div
+          className={`text-xs mt-1 ${soon ? 'text-yellow-500' : ''}`}
+          style={soon ? {} : { color: 'var(--muted-foreground)' }}
+        >
           {formatEventTimeShort(eventDate)} • {timeUntil === 'Started' ? 'In progress' : `in ${timeUntil}`}
         </div>
       </div>
@@ -302,56 +224,53 @@ function ArbCard({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect:
       {/* Bets Required */}
       <div className="px-3 py-2" style={{ backgroundColor: 'var(--surface-secondary)' }}>
         <div className="text-[10px] uppercase tracking-wide mb-2" style={{ color: 'var(--muted-foreground)' }}>
-          Bets Required {loading && <span className="text-blue-400">(loading links...)</span>}
+          Bets Required
         </div>
+
         {opp.mode === 'book-vs-book' ? (
           <div className="space-y-2">
-            <BetLineMobile 
-              name={opp.outcome1.name} 
-              odds={opp.outcome1.odds} 
+            <BetLineMobile
+              name={opp.outcome1.name}
+              odds={opp.outcome1.odds}
               bookmaker={opp.outcome1.bookmaker}
               showRegion={globalMode}
-              deepLink={links[getCanonicalBookmaker(opp.outcome1.bookmaker)]}
-              event={opp.event}
             />
-            <BetLineMobile 
-              name={opp.outcome2.name} 
-              odds={opp.outcome2.odds} 
+            <BetLineMobile
+              name={opp.outcome2.name}
+              odds={opp.outcome2.odds}
               bookmaker={opp.outcome2.bookmaker}
               showRegion={globalMode}
-              deepLink={links[getCanonicalBookmaker(opp.outcome2.bookmaker)]}
-              event={opp.event}
             />
             {opp.outcome3 && (
-              <BetLineMobile 
-                name={opp.outcome3.name} 
-                odds={opp.outcome3.odds} 
+              <BetLineMobile
+                name={opp.outcome3.name}
+                odds={opp.outcome3.odds}
                 bookmaker={opp.outcome3.bookmaker}
                 showRegion={globalMode}
-                deepLink={links[getCanonicalBookmaker(opp.outcome3.bookmaker)]}
-                event={opp.event}
               />
             )}
           </div>
         ) : (
           <div className="space-y-2">
-            <BetLineMobile 
-              name={`Back ${opp.backOutcome.name}`} 
-              odds={opp.backOutcome.odds} 
+            <BetLineMobile
+              name={`Back ${opp.backOutcome.name}`}
+              odds={opp.backOutcome.odds}
               bookmaker={opp.backOutcome.bookmaker}
               showRegion={globalMode}
-              deepLink={links[getCanonicalBookmaker(opp.backOutcome.bookmaker)]}
-              event={opp.event}
             />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <BookLogo bookKey="betfair_ex_au" size={20} />
                 <div>
                   <span className="text-purple-400 text-xs">Lay</span>
-                  <span className="text-[10px] ml-1" style={{ color: 'var(--muted-foreground)' }}>Betfair</span>
+                  <span className="text-[10px] ml-1" style={{ color: 'var(--muted-foreground)' }}>
+                    Betfair
+                  </span>
                 </div>
               </div>
-              <span className="font-mono text-sm" style={{ color: 'var(--foreground)' }}>{opp.layOutcome.odds.toFixed(2)}</span>
+              <span className="font-mono text-sm" style={{ color: 'var(--foreground)' }}>
+                {opp.layOutcome.odds.toFixed(2)}
+              </span>
             </div>
           </div>
         )}
@@ -364,7 +283,7 @@ function ArbCard({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect:
           className="w-full py-2 text-sm font-medium rounded transition-colors"
           style={{
             backgroundColor: 'var(--foreground)',
-            color: 'var(--background)'
+            color: 'var(--background)',
           }}
         >
           Calculate Stakes
@@ -374,92 +293,80 @@ function ArbCard({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect:
   );
 }
 
-// Mobile-optimized bet line
+// Mobile-optimized bet line - links to bookmaker homepage
 function BetLineMobile({
   name,
   odds,
   bookmaker,
   showRegion,
-  deepLink,
-  event,
 }: {
   name: string;
   odds: number;
   bookmaker: string;
   showRegion?: boolean;
-  deepLink?: string | null;
-  event: { homeTeam: string; awayTeam: string; sportTitle?: string; sportKey?: string; commenceTime?: Date };
 }) {
-  const href = deepLink || buildBookmakerSearchUrl(bookmaker, {
-    home_team: event.homeTeam,
-    away_team: event.awayTeam,
-    sport_title: event.sportTitle || event.sportKey,
-    commence_time: event.commenceTime ? new Date(event.commenceTime).toISOString() : undefined,
-  }) || undefined;
-  
-  const hasDeepLink = !!deepLink;
+  const href = buildBookmakerSearchUrl(bookmaker, {}) || undefined;
 
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0">
         <BookLogo bookKey={bookmaker} size={24} />
         <div className="min-w-0">
-          <div className="font-medium text-sm truncate" style={{ color: 'var(--foreground)' }}>{name}</div>
+          <div className="font-medium text-sm truncate" style={{ color: 'var(--foreground)' }}>
+            {name}
+          </div>
           <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
-            <a 
-              href={href} 
-              target="_blank" 
-              rel="noreferrer" 
-              className="hover:underline truncate"
-              title={hasDeepLink ? 'Direct link to event' : 'Opens bookmaker search'}
-            >
-              {getBookmakerName(bookmaker)}
-            </a>
-            {hasDeepLink && (
-              <span className="px-1 py-0.5 text-[8px] bg-green-900/50 text-green-400 rounded">
-                Direct
-              </span>
+            {href ? (
+              <a href={href} target="_blank" rel="noreferrer" className="hover:underline truncate">
+                {getBookmakerName(bookmaker)}
+              </a>
+            ) : (
+              <span className="truncate">{getBookmakerName(bookmaker)}</span>
             )}
             {showRegion && <RegionBadge bookmaker={bookmaker} />}
           </div>
         </div>
       </div>
-      <span className="font-mono text-sm font-medium shrink-0" style={{ color: 'var(--foreground)' }}>{odds.toFixed(2)}</span>
+      <span className="font-mono text-sm font-medium shrink-0" style={{ color: 'var(--foreground)' }}>
+        {odds.toFixed(2)}
+      </span>
     </div>
   );
 }
 
 // Desktop Row Component
-function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: (arb: ArbOpportunity) => void; globalMode: boolean }) {
+function ArbRow({
+  opp,
+  onSelect,
+  globalMode,
+}: {
+  opp: ArbOpportunity;
+  onSelect: (arb: ArbOpportunity) => void;
+  globalMode: boolean;
+}) {
   const eventDate = new Date(opp.event.commenceTime);
   const soon = isEventSoon(eventDate);
   const timeUntil = getTimeUntil(eventDate);
-  
-  // Get bookmakers from the arb
-  const bookmakers = opp.mode === 'book-vs-book' 
-    ? [opp.outcome1.bookmaker, opp.outcome2.bookmaker, opp.outcome3?.bookmaker].filter(Boolean) as string[]
-    : [opp.backOutcome.bookmaker];
-  
-  const { links, loading } = useDeepLinks(opp.event, bookmakers);
 
   return (
-    <tr 
-      className="hover:bg-[var(--background)] transition-colors"
-      style={{ borderBottom: '1px solid var(--border)' }}
-    >
+    <tr className="hover:bg-[var(--background)] transition-colors" style={{ borderBottom: '1px solid var(--border)' }}>
       <td className="px-4 py-3">
         <TypeBadge type={opp.type} />
         {opp.mode === 'book-vs-betfair' && (
-          <span className="ml-1 text-xs px-1.5 py-0.5 bg-purple-900/50 text-purple-400 rounded">
-            BF
-          </span>
+          <span className="ml-1 text-xs px-1.5 py-0.5 bg-purple-900/50 text-purple-400 rounded">BF</span>
         )}
       </td>
+
       <td className="px-4 py-3">
-        <div className="font-medium" style={{ color: 'var(--foreground)' }}>{opp.event.homeTeam}</div>
+        <div className="font-medium" style={{ color: 'var(--foreground)' }}>
+          {opp.event.homeTeam}
+        </div>
         <div style={{ color: 'var(--muted)' }}>vs {opp.event.awayTeam}</div>
-        <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>{opp.event.sportTitle}</div>
+        <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
+          {opp.event.sportTitle}
+        </div>
       </td>
+
       <td className="px-4 py-3">
         <div className={soon ? 'text-yellow-500' : ''} style={soon ? {} : { color: 'var(--muted)' }}>
           {formatEventTime(eventDate)}
@@ -468,75 +375,74 @@ function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: 
           {timeUntil === 'Started' ? 'In progress' : `Starts in ${timeUntil}`}
         </div>
       </td>
+
       <td className="px-4 py-3">
-        {loading && <div className="text-xs text-blue-400 mb-1">Loading links...</div>}
         {opp.mode === 'book-vs-book' ? (
           <div className="space-y-2">
-            <BetLine 
-              name={opp.outcome1.name} 
-              odds={opp.outcome1.odds} 
+            <BetLine
+              name={opp.outcome1.name}
+              odds={opp.outcome1.odds}
               bookmaker={opp.outcome1.bookmaker}
               showRegion={globalMode}
-              deepLink={links[getCanonicalBookmaker(opp.outcome1.bookmaker)]}
-              event={opp.event}
             />
-            <BetLine 
-              name={opp.outcome2.name} 
-              odds={opp.outcome2.odds} 
+            <BetLine
+              name={opp.outcome2.name}
+              odds={opp.outcome2.odds}
               bookmaker={opp.outcome2.bookmaker}
               showRegion={globalMode}
-              deepLink={links[getCanonicalBookmaker(opp.outcome2.bookmaker)]}
-              event={opp.event}
             />
             {opp.outcome3 && (
-              <BetLine 
-                name={opp.outcome3.name} 
-                odds={opp.outcome3.odds} 
+              <BetLine
+                name={opp.outcome3.name}
+                odds={opp.outcome3.odds}
                 bookmaker={opp.outcome3.bookmaker}
                 showRegion={globalMode}
-                deepLink={links[getCanonicalBookmaker(opp.outcome3.bookmaker)]}
-                event={opp.event}
               />
             )}
           </div>
         ) : (
           <div className="space-y-2">
-            <BetLine 
-              name={`Back ${opp.backOutcome.name}`} 
-              odds={opp.backOutcome.odds} 
+            <BetLine
+              name={`Back ${opp.backOutcome.name}`}
+              odds={opp.backOutcome.odds}
               bookmaker={opp.backOutcome.bookmaker}
               showRegion={globalMode}
-              deepLink={links[getCanonicalBookmaker(opp.backOutcome.bookmaker)]}
-              event={opp.event}
             />
             <div className="flex items-center gap-2">
               <BookLogo bookKey="betfair_ex_au" size={24} />
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-purple-400">Lay</span>
-                  <span className="font-mono" style={{ color: 'var(--foreground)' }}>{opp.layOutcome.odds.toFixed(2)}</span>
+                  <span className="font-mono" style={{ color: 'var(--foreground)' }}>
+                    {opp.layOutcome.odds.toFixed(2)}
+                  </span>
                 </div>
-                <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>Betfair Exchange</div>
+                <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                  Betfair Exchange
+                </div>
               </div>
             </div>
           </div>
         )}
       </td>
+
       <td className="px-4 py-3 text-right">
-        <span 
+        <span
           className="font-mono font-medium"
           style={{ color: opp.profitPercentage >= 0 ? 'var(--foreground)' : 'var(--muted)' }}
         >
-          {opp.profitPercentage >= 0 ? '+' : ''}{opp.profitPercentage.toFixed(2)}%
+          {opp.profitPercentage >= 0 ? '+' : ''}
+          {opp.profitPercentage.toFixed(2)}%
         </span>
       </td>
+
       <td className="px-4 py-3 text-right">
         <button
           onClick={() => onSelect(opp)}
           className="px-3 py-1 text-xs font-medium rounded transition-colors"
           style={{
             backgroundColor: 'var(--foreground)',
-            color: 'var(--background)'
+            color: 'var(--background)',
           }}
         >
           Calculate
@@ -546,53 +452,40 @@ function ArbRow({ opp, onSelect, globalMode }: { opp: ArbOpportunity; onSelect: 
   );
 }
 
-// Desktop bet line
+// Desktop bet line - links to bookmaker homepage
 function BetLine({
   name,
   odds,
   bookmaker,
   showRegion,
-  deepLink,
-  event,
 }: {
   name: string;
   odds: number;
   bookmaker: string;
   showRegion?: boolean;
-  deepLink?: string | null;
-  event: { homeTeam: string; awayTeam: string; sportTitle?: string; sportKey?: string; commenceTime?: Date };
 }) {
-  const href = deepLink || buildBookmakerSearchUrl(bookmaker, {
-    home_team: event.homeTeam,
-    away_team: event.awayTeam,
-    sport_title: event.sportTitle || event.sportKey,
-    commence_time: event.commenceTime ? new Date(event.commenceTime).toISOString() : undefined,
-  }) || undefined;
-  
-  const hasDeepLink = !!deepLink;
+  const href = buildBookmakerSearchUrl(bookmaker, {}) || undefined;
 
   return (
     <div className="flex items-center gap-2">
       <BookLogo bookKey={bookmaker} size={28} />
       <div>
         <div className="flex items-center gap-2">
-          <span className="font-medium" style={{ color: 'var(--foreground)' }}>{name}</span>
-          <span className="font-mono" style={{ color: 'var(--foreground)' }}>{odds.toFixed(2)}</span>
+          <span className="font-medium" style={{ color: 'var(--foreground)' }}>
+            {name}
+          </span>
+          <span className="font-mono" style={{ color: 'var(--foreground)' }}>
+            {odds.toFixed(2)}
+          </span>
         </div>
+
         <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-          <a
-            href={href}
-            target="_blank"
-            rel="noreferrer"
-            className="hover:underline"
-            title={hasDeepLink ? 'Direct link to event' : 'Opens bookmaker search'}
-          >
-            {getBookmakerName(bookmaker)}
-          </a>
-          {hasDeepLink && (
-            <span className="px-1 py-0.5 text-[9px] bg-green-900/50 text-green-400 rounded">
-              Direct
-            </span>
+          {href ? (
+            <a href={href} target="_blank" rel="noreferrer" className="hover:underline">
+              {getBookmakerName(bookmaker)}
+            </a>
+          ) : (
+            <span>{getBookmakerName(bookmaker)}</span>
           )}
           {showRegion && <RegionBadge bookmaker={bookmaker} />}
         </div>
@@ -604,11 +497,11 @@ function BetLine({
 function TypeBadge({ type }: { type: string }) {
   if (type === 'arb') {
     return (
-      <span 
+      <span
         className="inline-block px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-medium rounded"
         style={{
           backgroundColor: 'var(--foreground)',
-          color: 'var(--background)'
+          color: 'var(--background)',
         }}
       >
         ARB
@@ -616,11 +509,11 @@ function TypeBadge({ type }: { type: string }) {
     );
   }
   return (
-    <span 
+    <span
       className="inline-block px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-medium rounded"
       style={{
         backgroundColor: 'var(--surface-secondary)',
-        color: 'var(--muted)'
+        color: 'var(--muted)',
       }}
     >
       NEAR

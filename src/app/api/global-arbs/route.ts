@@ -3,122 +3,71 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
-import User from '@/lib/models/User';
 import GlobalScanCache from '@/lib/models/GlobalScanCache';
+import type { ArbOpportunity } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
-
-const NO_STORE_HEADERS = {
-  'Cache-Control': 'no-store, no-cache, must-revalidate, max-age=0',
-  Pragma: 'no-cache',
-};
 
 export async function GET() {
   try {
     // Check authentication
     const session = await getServerSession(authOptions);
 
-    if (!session?.user) {
+    if (!session?.user?.email) {
       return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401, headers: NO_STORE_HEADERS }
+        { error: 'Unauthorized', subscriptionRequired: true },
+        { status: 401 }
       );
     }
 
     await dbConnect();
 
-    // Check subscription status
-    const userId = (session.user as { id: string }).id;
-    const user = await User.findById(userId).select('subscriptionStatus subscriptionEndsAt');
+    // Get merged scan from all regions (max 10 min age per region)
+    const mergedScan = await GlobalScanCache.getMergedScan(600);
 
-    if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404, headers: NO_STORE_HEADERS }
-      );
+    if (!mergedScan || mergedScan.opportunities.length === 0) {
+      return NextResponse.json({
+        hasCachedResults: false,
+        message: 'No scan data available yet. Scanner starting soon...',
+        opportunities: [],
+        valueBets: [],
+        regionAges: { AU: null, UK: null, US: null, EU: null },
+      });
     }
 
-    // Check if user has active subscription
-    const hasActiveSubscription =
-      user.subscriptionStatus === 'active' &&
-      user.subscriptionEndsAt !== undefined &&
-      user.subscriptionEndsAt !== null &&
-      new Date(user.subscriptionEndsAt) > new Date();
-
-    if (!hasActiveSubscription) {
-      return NextResponse.json(
-        {
-          error: 'Active subscription required',
-          subscriptionRequired: true,
-          message: 'Please subscribe to access the arbitrage scanner.',
-        },
-        { status: 403, headers: NO_STORE_HEADERS }
-      );
-    }
-
-    // Get the global scan cache
-    const cachedScan = await GlobalScanCache.getCurrentScan();
-
-    if (!cachedScan || !cachedScan.scannedAt) {
-      return NextResponse.json(
-        {
-          hasCachedResults: false,
-          message: 'No scan results available yet. Please wait for the next scan.',
-          opportunities: [],
-          valueBets: [],
-        },
-        { headers: NO_STORE_HEADERS }
-      );
-    }
-
-    // Filter out expired opportunities (events that have already started)
+    // Filter out expired opportunities
     const now = new Date();
-
-    const opportunities = (cachedScan.opportunities || []) as Array<{
-      event?: { commenceTime?: string | Date };
-    }>;
-    const valueBets = (cachedScan.valueBets || []) as Array<{
-      event?: { commenceTime?: string | Date };
-    }>;
-
-    const validOpportunities = opportunities.filter((opp) => {
-      if (!opp.event?.commenceTime) return false;
+    const validOpportunities = (mergedScan.opportunities as ArbOpportunity[]).filter(opp => {
       const commenceTime = new Date(opp.event.commenceTime);
       return commenceTime > now;
     });
 
-    const validValueBets = valueBets.filter((vb) => {
-      if (!vb.event?.commenceTime) return false;
+    const validValueBets = (mergedScan.valueBets as { event: { commenceTime: Date } }[]).filter(vb => {
       const commenceTime = new Date(vb.event.commenceTime);
       return commenceTime > now;
     });
 
-    // Calculate age
-    const scannedAt = new Date(cachedScan.scannedAt);
-    const ageSeconds = Math.floor((Date.now() - scannedAt.getTime()) / 1000);
-    const ageMinutes = Math.floor(ageSeconds / 60);
+    // Calculate overall age (from most recent region)
+    const ageSeconds = Math.round((now.getTime() - new Date(mergedScan.scannedAt).getTime()) / 1000);
 
-    return NextResponse.json(
-      {
-        hasCachedResults: true,
-        opportunities: validOpportunities,
-        valueBets: validValueBets,
-        stats: cachedScan.stats,
-        regions: cachedScan.regions,
-        scannedAt: scannedAt.toISOString(),
-        ageSeconds,
-        ageMinutes,
-        remainingCredits: cachedScan.remainingCredits,
-        scanDurationMs: cachedScan.scanDurationMs,
-      },
-      { headers: NO_STORE_HEADERS }
-    );
+    console.log(`[API /global-arbs] Returning ${validOpportunities.length} opportunities, region ages: AU=${mergedScan.regionAges.AU}s, UK=${mergedScan.regionAges.UK}s, US=${mergedScan.regionAges.US}s, EU=${mergedScan.regionAges.EU}s`);
+
+    return NextResponse.json({
+      hasCachedResults: true,
+      opportunities: validOpportunities,
+      valueBets: validValueBets,
+      stats: mergedScan.stats,
+      regionAges: mergedScan.regionAges,
+      scannedAt: mergedScan.scannedAt.toISOString(),
+      ageSeconds,
+      remainingCredits: mergedScan.remainingCredits,
+    });
 
   } catch (error) {
     console.error('[API /global-arbs] Error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch opportunities', details: String(error) },
-      { status: 500, headers: NO_STORE_HEADERS }
+      { error: 'Failed to fetch global arbs' },
+      { status: 500 }
     );
   }
 }
