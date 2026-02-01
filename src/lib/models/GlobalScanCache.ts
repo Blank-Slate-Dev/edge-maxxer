@@ -21,7 +21,8 @@ export interface ILineStats {
 }
 
 export interface IGlobalScanCache {
-  _id: string; // We'll use a fixed ID like 'global-scan'
+  _id: string; // Region-specific: 'scan-AU', 'scan-UK', 'scan-US', 'scan-EU'
+  region: UserRegion;
   opportunities: unknown[]; // BookVsBookArb[] stored as JSON
   valueBets: unknown[]; // ValueBet[] stored as JSON
   spreadArbs: unknown[]; // SpreadArb[] stored as JSON
@@ -29,7 +30,6 @@ export interface IGlobalScanCache {
   middles: unknown[]; // MiddleOpportunity[] stored as JSON
   stats: IGlobalScanStats;
   lineStats?: ILineStats;
-  regions: UserRegion[];
   scannedAt: Date;
   scanDurationMs: number;
   remainingCredits?: number;
@@ -37,8 +37,11 @@ export interface IGlobalScanCache {
 }
 
 interface GlobalScanCacheModel extends Model<IGlobalScanCache> {
+  getScanForRegion(region: UserRegion): Promise<IGlobalScanCache | null>;
+  updateScanForRegion(region: UserRegion, data: Omit<IGlobalScanCache, '_id' | 'region'>): Promise<IGlobalScanCache>;
+  getAllRegionScans(): Promise<IGlobalScanCache[]>;
+  // Backwards compatibility
   getCurrentScan(): Promise<IGlobalScanCache | null>;
-  updateScan(data: Omit<IGlobalScanCache, '_id'>): Promise<IGlobalScanCache>;
 }
 
 const GlobalScanCacheSchema = new Schema<IGlobalScanCache, GlobalScanCacheModel>(
@@ -46,6 +49,11 @@ const GlobalScanCacheSchema = new Schema<IGlobalScanCache, GlobalScanCacheModel>
     _id: {
       type: String,
       required: true,
+    },
+    region: {
+      type: String,
+      required: true,
+      enum: ['AU', 'UK', 'US', 'EU'],
     },
     opportunities: {
       type: [Schema.Types.Mixed],
@@ -83,10 +91,6 @@ const GlobalScanCacheSchema = new Schema<IGlobalScanCache, GlobalScanCacheModel>
       middlesFound: { type: Number, default: 0 },
       nearArbsFound: { type: Number, default: 0 },
     },
-    regions: {
-      type: [String],
-      default: ['AU'],
-    },
     scannedAt: {
       type: Date,
       required: true,
@@ -108,23 +112,36 @@ const GlobalScanCacheSchema = new Schema<IGlobalScanCache, GlobalScanCacheModel>
   }
 );
 
-// Static method to get the current cached scan
-GlobalScanCacheSchema.statics.getCurrentScan = async function (): Promise<IGlobalScanCache | null> {
-  return this.findById('global-scan').lean();
+// Get cache for a specific region
+GlobalScanCacheSchema.statics.getScanForRegion = async function (
+  region: UserRegion
+): Promise<IGlobalScanCache | null> {
+  return this.findById(`scan-${region}`).lean();
 };
 
-// Static method to update the cached scan
-GlobalScanCacheSchema.statics.updateScan = async function (
-  data: Omit<IGlobalScanCache, '_id'>
+// Update cache for a specific region
+GlobalScanCacheSchema.statics.updateScanForRegion = async function (
+  region: UserRegion,
+  data: Omit<IGlobalScanCache, '_id' | 'region'>
 ): Promise<IGlobalScanCache> {
+  const docId = `scan-${region}`;
   return this.findByIdAndUpdate(
-    'global-scan',
-    { _id: 'global-scan', ...data },
+    docId,
+    { _id: docId, region, ...data },
     { upsert: true, new: true }
   ).lean();
 };
 
-// Use unknown as intermediate cast to satisfy TypeScript
+// Get all region scans
+GlobalScanCacheSchema.statics.getAllRegionScans = async function (): Promise<IGlobalScanCache[]> {
+  return this.find({ _id: { $in: ['scan-AU', 'scan-UK', 'scan-US', 'scan-EU'] } }).lean();
+};
+
+// Backwards compatibility - returns AU scan by default
+GlobalScanCacheSchema.statics.getCurrentScan = async function (): Promise<IGlobalScanCache | null> {
+  return this.findById('scan-AU').lean();
+};
+
 const GlobalScanCache: GlobalScanCacheModel = 
   (mongoose.models.GlobalScanCache as unknown as GlobalScanCacheModel) || 
   mongoose.model<IGlobalScanCache, GlobalScanCacheModel>('GlobalScanCache', GlobalScanCacheSchema);

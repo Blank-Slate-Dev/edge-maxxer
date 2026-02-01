@@ -10,7 +10,7 @@ import { config, getApiRegionsForUserRegions, UserRegion } from '@/lib/config';
 import { sendMultipleArbAlerts, ArbAlert } from '@/lib/sms';
 import { calculateBookVsBookStakes } from '@/lib/arb/calculator';
 import { buildFullEventUrls } from '@/lib/scraper/urlBuilder';
-import type { BookVsBookArb, SpreadArb, TotalsArb, MiddleOpportunity } from '@/lib/types';
+import type { BookVsBookArb, SpreadArb, TotalsArb, MiddleOpportunity, ValueBet } from '@/lib/types';
 
 // Vercel cron jobs send a specific header to authenticate
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -43,6 +43,84 @@ interface ArbWithUrls extends BookVsBookArb {
 
 // Track scan count for rotation (resets on deploy, but that's fine)
 let globalScanCounter = 0;
+
+// Build a set of bookmakers for a region (lowercase, includes display names)
+function buildRegionBookmakersSet(region: UserRegion): Set<string> {
+  const bookmakers = new Set<string>();
+  config.bookmakersByRegion[region].forEach(b => {
+    bookmakers.add(b.toLowerCase());
+    const displayName = config.bookmakerNames[b];
+    if (displayName) {
+      bookmakers.add(displayName.toLowerCase());
+    }
+  });
+  return bookmakers;
+}
+
+// Check if all bookmakers in a list are from a region
+function allBookmakersFromRegion(bookmakerList: string[], regionSet: Set<string>): boolean {
+  return bookmakerList.every(bk => regionSet.has(bk.toLowerCase()));
+}
+
+// Extract bookmakers from H2H arb
+function getBookmakersFromArb(arb: ArbWithUrls): string[] {
+  const bookmakers = [arb.outcome1.bookmaker, arb.outcome2.bookmaker];
+  if (arb.outcome3) {
+    bookmakers.push(arb.outcome3.bookmaker);
+  }
+  return bookmakers;
+}
+
+// Extract bookmakers from spread arb
+function getBookmakersFromSpreadArb(arb: SpreadArb): string[] {
+  return [arb.favorite.bookmaker, arb.underdog.bookmaker];
+}
+
+// Extract bookmakers from totals arb
+function getBookmakersFromTotalsArb(arb: TotalsArb): string[] {
+  return [arb.over.bookmaker, arb.under.bookmaker];
+}
+
+// Extract bookmakers from middle
+function getBookmakersFromMiddle(middle: MiddleOpportunity): string[] {
+  return [middle.side1.bookmaker, middle.side2.bookmaker];
+}
+
+// Filter results by region
+function filterResultsByRegion(
+  opportunities: ArbWithUrls[],
+  valueBets: ValueBet[],
+  spreadArbs: SpreadArb[],
+  totalsArbs: TotalsArb[],
+  middles: MiddleOpportunity[],
+  region: UserRegion
+): {
+  opportunities: ArbWithUrls[];
+  valueBets: ValueBet[];
+  spreadArbs: SpreadArb[];
+  totalsArbs: TotalsArb[];
+  middles: MiddleOpportunity[];
+} {
+  const regionSet = buildRegionBookmakersSet(region);
+
+  return {
+    opportunities: opportunities.filter(arb => 
+      allBookmakersFromRegion(getBookmakersFromArb(arb), regionSet)
+    ),
+    valueBets: valueBets.filter(vb => 
+      regionSet.has(vb.outcome.bookmaker.toLowerCase())
+    ),
+    spreadArbs: spreadArbs.filter(arb => 
+      allBookmakersFromRegion(getBookmakersFromSpreadArb(arb), regionSet)
+    ),
+    totalsArbs: totalsArbs.filter(arb => 
+      allBookmakersFromRegion(getBookmakersFromTotalsArb(arb), regionSet)
+    ),
+    middles: middles.filter(m => 
+      allBookmakersFromRegion(getBookmakersFromMiddle(m), regionSet)
+    ),
+  };
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -87,10 +165,7 @@ export async function GET(request: NextRequest) {
       alertsSent: 0,
       globalCacheUpdated: false,
       regionsScanned: regionsToScan,
-      h2hArbs: 0,
-      spreadArbs: 0,
-      totalsArbs: 0,
-      middles: 0,
+      regionResults: {} as Record<string, { h2h: number; spreads: number; totals: number; middles: number }>,
       errors: [] as string[],
     };
 
@@ -138,30 +213,62 @@ export async function GET(request: NextRequest) {
 
         results.scanned++;
 
-        // If master account, update GlobalScanCache with ALL results
+        // If master account, update GlobalScanCache PER REGION
         if (isMasterAccount) {
-          console.log(`[AutoScan] Updating GlobalScanCache with ${scanResult.opportunities.length} H2H arbs, ${scanResult.spreadArbs.length} spread arbs, ${scanResult.totalsArbs.length} totals arbs, ${scanResult.middles.length} middles...`);
+          console.log(`[AutoScan] Updating per-region caches for regions: ${scanRegions.join(', ')}`);
 
-          await GlobalScanCache.updateScan({
-            opportunities: scanResult.opportunities,
-            valueBets: scanResult.valueBets,
-            spreadArbs: scanResult.spreadArbs,
-            totalsArbs: scanResult.totalsArbs,
-            middles: scanResult.middles,
-            stats: scanResult.stats,
-            lineStats: scanResult.lineStats,
-            regions: scanRegions,
-            scannedAt: now,
-            scanDurationMs,
-            remainingCredits: scanResult.remainingCredits,
-          });
+          for (const region of scanRegions) {
+            // Filter results to only include arbs where ALL bookmakers are from this region
+            const regionFiltered = filterResultsByRegion(
+              scanResult.opportunities,
+              scanResult.valueBets as ValueBet[],
+              scanResult.spreadArbs,
+              scanResult.totalsArbs,
+              scanResult.middles,
+              region
+            );
+
+            // Calculate region-specific stats
+            const regionStats = {
+              ...scanResult.stats,
+              arbsFound: regionFiltered.opportunities.filter(o => o.type === 'arb').length,
+              nearArbsFound: regionFiltered.opportunities.filter(o => o.type === 'near-arb').length,
+              valueBetsFound: regionFiltered.valueBets.length,
+            };
+
+            const regionLineStats = {
+              totalEvents: scanResult.lineStats.totalEvents,
+              spreadArbsFound: regionFiltered.spreadArbs.filter(s => s.type === 'arb').length,
+              totalsArbsFound: regionFiltered.totalsArbs.filter(t => t.type === 'arb').length,
+              middlesFound: regionFiltered.middles.length,
+              nearArbsFound: regionFiltered.spreadArbs.filter(s => s.type === 'near-arb').length +
+                            regionFiltered.totalsArbs.filter(t => t.type === 'near-arb').length,
+            };
+
+            await GlobalScanCache.updateScanForRegion(region, {
+              opportunities: regionFiltered.opportunities,
+              valueBets: regionFiltered.valueBets,
+              spreadArbs: regionFiltered.spreadArbs,
+              totalsArbs: regionFiltered.totalsArbs,
+              middles: regionFiltered.middles,
+              stats: regionStats,
+              lineStats: regionLineStats,
+              scannedAt: now,
+              scanDurationMs,
+              remainingCredits: scanResult.remainingCredits,
+            });
+
+            results.regionResults[region] = {
+              h2h: regionFiltered.opportunities.length,
+              spreads: regionFiltered.spreadArbs.length,
+              totals: regionFiltered.totalsArbs.length,
+              middles: regionFiltered.middles.length,
+            };
+
+            console.log(`[AutoScan] ${region} cache: ${regionFiltered.opportunities.length} H2H, ${regionFiltered.spreadArbs.length} spreads, ${regionFiltered.totalsArbs.length} totals, ${regionFiltered.middles.length} middles`);
+          }
 
           results.globalCacheUpdated = true;
-          results.h2hArbs = scanResult.opportunities.length;
-          results.spreadArbs = scanResult.spreadArbs.length;
-          results.totalsArbs = scanResult.totalsArbs.length;
-          results.middles = scanResult.middles.length;
-          console.log(`[AutoScan] GlobalScanCache updated successfully`);
         }
 
         // Handle alerts
@@ -181,7 +288,7 @@ export async function GET(request: NextRequest) {
     // Increment scan counter for next rotation
     globalScanCounter++;
 
-    console.log(`[AutoScan] Completed. Processed: ${results.processed}, Scanned: ${results.scanned}, Regions: ${results.regionsScanned.join(',')}, GlobalCache: ${results.globalCacheUpdated}, H2H: ${results.h2hArbs}, Spreads: ${results.spreadArbs}, Totals: ${results.totalsArbs}, Middles: ${results.middles}, Alerts: ${results.alertsSent}`);
+    console.log(`[AutoScan] Completed. Processed: ${results.processed}, Scanned: ${results.scanned}, Regions: ${results.regionsScanned.join(',')}, GlobalCache: ${results.globalCacheUpdated}, Alerts: ${results.alertsSent}`);
 
     return NextResponse.json({
       success: true,

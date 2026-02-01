@@ -1,14 +1,15 @@
 // src/app/api/global-arbs/route.ts
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import GlobalScanCache from '@/lib/models/GlobalScanCache';
 import type { ArbOpportunity, SpreadArb, TotalsArb, MiddleOpportunity } from '@/lib/types';
+import type { UserRegion } from '@/lib/config';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     // Check authentication
     const session = await getServerSession(authOptions);
@@ -22,13 +23,27 @@ export async function GET() {
 
     await dbConnect();
 
-    // Get cached scan
-    const cachedScan = await GlobalScanCache.getCurrentScan();
+    // Get requested region from query params (default to AU)
+    const { searchParams } = new URL(request.url);
+    const region = (searchParams.get('region') || 'AU') as UserRegion;
 
-    if (!cachedScan || !cachedScan.opportunities || cachedScan.opportunities.length === 0) {
+    // Validate region
+    const validRegions: UserRegion[] = ['AU', 'UK', 'US', 'EU'];
+    if (!validRegions.includes(region)) {
+      return NextResponse.json(
+        { error: 'Invalid region' },
+        { status: 400 }
+      );
+    }
+
+    // Get cached scan for the specific region
+    const cachedScan = await GlobalScanCache.getScanForRegion(region);
+
+    if (!cachedScan || !cachedScan.opportunities) {
       return NextResponse.json({
         hasCachedResults: false,
-        message: 'No scan data available yet. Scanner starting soon...',
+        message: `No scan data available for ${region} yet. Scanner starting soon...`,
+        region,
         opportunities: [],
         valueBets: [],
         spreadArbs: [],
@@ -56,10 +71,11 @@ export async function GET() {
     // Calculate age
     const ageSeconds = Math.round((now.getTime() - new Date(cachedScan.scannedAt).getTime()) / 1000);
 
-    console.log(`[API /global-arbs] Returning ${validOpportunities.length} H2H, ${validSpreadArbs.length} spreads, ${validTotalsArbs.length} totals, ${validMiddles.length} middles (${ageSeconds}s old)`);
+    console.log(`[API /global-arbs] ${region}: ${validOpportunities.length} H2H, ${validSpreadArbs.length} spreads, ${validTotalsArbs.length} totals, ${validMiddles.length} middles (${ageSeconds}s old)`);
 
     return NextResponse.json({
       hasCachedResults: true,
+      region,
       opportunities: validOpportunities,
       valueBets: validValueBets,
       spreadArbs: validSpreadArbs,
@@ -67,7 +83,6 @@ export async function GET() {
       middles: validMiddles,
       stats: cachedScan.stats,
       lineStats: cachedScan.lineStats,
-      regions: cachedScan.regions,
       scannedAt: cachedScan.scannedAt,
       ageSeconds,
       remainingCredits: cachedScan.remainingCredits,

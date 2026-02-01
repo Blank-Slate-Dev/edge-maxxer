@@ -20,6 +20,7 @@ interface Sport {
 
 interface GlobalArbsResponse {
   hasCachedResults: boolean;
+  region?: UserRegion;
   opportunities?: ArbOpportunity[];
   valueBets?: ValueBet[];
   spreadArbs?: SpreadArb[];
@@ -27,7 +28,6 @@ interface GlobalArbsResponse {
   middles?: MiddleOpportunity[];
   stats?: ScanStats;
   lineStats?: LineStats;
-  regions?: string[];
   scannedAt?: string;
   ageSeconds?: number;
   ageMinutes?: number;
@@ -115,29 +115,6 @@ function getBookmakersFromTotalsArb(arb: TotalsArb): string[] {
   return [arb.over.bookmaker, arb.under.bookmaker];
 }
 
-// Helper to get bookmakers from middle opportunity
-function getBookmakersFromMiddle(middle: MiddleOpportunity): string[] {
-  return [middle.side1.bookmaker, middle.side2.bookmaker];
-}
-
-// Build region bookmakers set for filtering
-function buildRegionBookmakersSet(region: UserRegion): Set<string> {
-  const regionBookmakers = new Set<string>();
-  config.bookmakersByRegion[region].forEach(b => {
-    regionBookmakers.add(b.toLowerCase());
-    const displayName = config.bookmakerNames[b];
-    if (displayName) {
-      regionBookmakers.add(displayName.toLowerCase());
-    }
-  });
-  return regionBookmakers;
-}
-
-// Check if all bookmakers are from region
-function allBookmakersFromRegion(bookmakers: string[], regionSet: Set<string>): boolean {
-  return bookmakers.every(bk => regionSet.has(bk.toLowerCase()));
-}
-
 export default function DashboardPage() {
   const { data: session, update: updateSession } = useSession();
   const searchParams = useSearchParams();
@@ -187,6 +164,9 @@ export default function DashboardPage() {
   
   // Ref to track last scanned timestamp without causing re-renders
   const lastScannedAtRef = useRef<string | null>(null);
+  
+  // Ref to track selected region for stable callback
+  const selectedRegionRef = useRef<UserRegion>('AU');
 
   const { bets, isLoaded: betsLoaded, addBet, updateBet, deleteBet, clearAllBets } = useBets();
   const { 
@@ -200,6 +180,11 @@ export default function DashboardPage() {
 
   // Get hasAccess from session (computed server-side in auth.ts)
   const hasAccess = (session?.user as { hasAccess?: boolean } | undefined)?.hasAccess ?? false;
+
+  // Keep ref in sync with state
+  useEffect(() => {
+    selectedRegionRef.current = selectedRegion;
+  }, [selectedRegion]);
 
   // Calculate scan interval based on selected region
   const getScanInterval = useCallback(() => {
@@ -244,6 +229,7 @@ export default function DashboardPage() {
           const region = data.region || 'AU';
           setUserDefaultRegion(region);
           setSelectedRegion(region);
+          selectedRegionRef.current = region;
         }
       } catch (err) {
         console.error('Failed to fetch user settings:', err);
@@ -255,6 +241,7 @@ export default function DashboardPage() {
   }, []);
 
   // Fetch global arbs - main data fetching function (includes H2H, spreads, totals, middles)
+  // Uses ref for region to keep callback stable
   const fetchGlobalArbs = useCallback(async (mode: 'initial' | 'background' | 'manual' = 'background') => {
     // Set appropriate loading state
     if (mode === 'initial') {
@@ -266,7 +253,9 @@ export default function DashboardPage() {
     }
 
     try {
-      const res = await fetch('/api/global-arbs');
+      // Use ref for region to keep callback stable
+      const region = selectedRegionRef.current;
+      const res = await fetch(`/api/global-arbs?region=${region}`);
       const data: GlobalArbsResponse = await res.json();
 
       // Check for subscription required
@@ -333,7 +322,7 @@ export default function DashboardPage() {
           lastUpdated: new Date(m.lastUpdated),
         }));
 
-        // Update state - this should be seamless, no flashing
+        // Update state - data is already filtered by region on server
         setOpportunities(parsedOpportunities);
         setValueBets(parsedValueBets);
         setSpreadArbs(parsedSpreadArbs);
@@ -369,7 +358,7 @@ export default function DashboardPage() {
           setTimeout(() => setShowNewResultsFlash(false), 2000);
         }
 
-        console.log(`[Dashboard] Loaded ${parsedOpportunities.length} H2H, ${parsedSpreadArbs.length} spreads, ${parsedTotalsArbs.length} totals, ${parsedMiddles.length} middles (${data.ageSeconds}s old)`);
+        console.log(`[Dashboard] ${region}: ${parsedOpportunities.length} H2H, ${parsedSpreadArbs.length} spreads, ${parsedTotalsArbs.length} totals, ${parsedMiddles.length} middles (${data.ageSeconds}s old)`);
       }
     } catch (err) {
       console.error('Failed to fetch global arbs:', err);
@@ -382,7 +371,7 @@ export default function DashboardPage() {
       setIsBackgroundRefreshing(false);
       setIsManualRefreshing(false);
     }
-  }, []); // No dependencies - stable callback
+  }, []); // No dependencies - uses ref for region
 
   // Initial fetch and polling
   useEffect(() => {
@@ -397,6 +386,21 @@ export default function DashboardPage() {
     return () => clearInterval(pollInterval);
   }, [fetchGlobalArbs]);
 
+  // Refetch when region changes
+  useEffect(() => {
+    if (settingsLoaded) {
+      // Clear existing data and refetch for new region
+      setOpportunities([]);
+      setValueBets([]);
+      setSpreadArbs([]);
+      setTotalsArbs([]);
+      setMiddles([]);
+      setScanAgeSeconds(null);
+      lastScannedAtRef.current = null;
+      fetchGlobalArbs('initial');
+    }
+  }, [selectedRegion, settingsLoaded, fetchGlobalArbs]);
+
   // Increment age counter every second
   useEffect(() => {
     if (scanAgeSeconds === null) return;
@@ -410,7 +414,9 @@ export default function DashboardPage() {
 
   // Single region selection - clicking a region selects it (radio button style)
   const selectRegion = (region: UserRegion) => {
-    setSelectedRegion(region);
+    if (region !== selectedRegion) {
+      setSelectedRegion(region);
+    }
   };
 
   const fetchSports = useCallback(async () => {
@@ -437,10 +443,7 @@ export default function DashboardPage() {
     setSelectedLineOpp(null);
   };
 
-  // Build region set once for filtering
-  const regionBookmakersSet = buildRegionBookmakersSet(selectedRegion);
-
-  // Filter H2H opportunities - ALL bookmakers must be from selected region
+  // Data is already filtered by region on server, just apply local filters
   const filteredOpportunities = opportunities.filter(opp => {
     if (filters.profitableOnly && opp.profitPercentage < 0) return false;
     if (!filters.showNearArbs && opp.type === 'near-arb') return false;
@@ -449,40 +452,28 @@ export default function DashboardPage() {
       const oppBookmakers = getBookmakersFromArb(opp);
       if (!filters.bookmakers.some(b => oppBookmakers.includes(b))) return false;
     }
-    
-    // ALL bookmakers must be from selected region
-    const oppBookmakers = getBookmakersFromArb(opp);
-    return allBookmakersFromRegion(oppBookmakers, regionBookmakersSet);
+    return true;
   });
 
-  // Filter value bets - bookmaker must be from selected region
-  const filteredValueBets = valueBets.filter(vb => {
-    return regionBookmakersSet.has(vb.outcome.bookmaker.toLowerCase());
-  });
+  // Value bets already filtered by region on server
+  const filteredValueBets = valueBets;
 
-  // Filter spread arbs - ALL bookmakers must be from selected region
+  // Spread arbs already filtered by region on server, just apply local filters
   const filteredSpreads = spreadArbs.filter(s => {
     if (filters.profitableOnly && s.profitPercentage < 0) return false;
     if (!filters.showNearArbs && s.type === 'near-arb') return false;
-    
-    const bookmakers = getBookmakersFromSpreadArb(s);
-    return allBookmakersFromRegion(bookmakers, regionBookmakersSet);
+    return true;
   });
 
-  // Filter totals arbs - ALL bookmakers must be from selected region
+  // Totals arbs already filtered by region on server, just apply local filters
   const filteredTotals = totalsArbs.filter(t => {
     if (filters.profitableOnly && t.profitPercentage < 0) return false;
     if (!filters.showNearArbs && t.type === 'near-arb') return false;
-    
-    const bookmakers = getBookmakersFromTotalsArb(t);
-    return allBookmakersFromRegion(bookmakers, regionBookmakersSet);
+    return true;
   });
 
-  // Filter middles - ALL bookmakers must be from selected region
-  const filteredMiddles = middles.filter(m => {
-    const bookmakers = getBookmakersFromMiddle(m);
-    return allBookmakersFromRegion(bookmakers, regionBookmakersSet);
-  });
+  // Middles already filtered by region on server
+  const filteredMiddles = middles;
 
   const profitableCount = filteredOpportunities.filter(o => o.profitPercentage >= 0).length;
   const activeAccountsCount = accounts.filter(a => a.isActive).length;
@@ -625,6 +616,7 @@ export default function DashboardPage() {
               <div className="flex-1">
                 <div className="font-medium text-sm flex items-center gap-2" style={{ color: '#22c55e' }}>
                   <span>Live Scanner Active</span>
+                  <span className="text-xs font-normal opacity-75">({selectedRegion})</span>
                   {isBackgroundRefreshing && (
                     <span className="text-xs font-normal opacity-75">Checking...</span>
                   )}
@@ -675,7 +667,7 @@ export default function DashboardPage() {
         )}
 
         {/* Region Tabs - single selection (radio style) */}
-        {settingsLoaded && hasFetchedArbs && (
+        {settingsLoaded && (
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <span className="text-xs sm:text-sm mr-1 sm:mr-2" style={{ color: 'var(--muted)' }}>Region:</span>
             {config.regionOrder.map(region => (
@@ -703,7 +695,7 @@ export default function DashboardPage() {
           >
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: 'var(--muted)' }} />
             <h3 className="text-lg font-medium mb-2" style={{ color: 'var(--foreground)' }}>
-              Loading Live Opportunities...
+              Loading {selectedRegion} Opportunities...
             </h3>
             <p className="text-sm" style={{ color: 'var(--muted)' }}>
               Connecting to the live arbitrage scanner
