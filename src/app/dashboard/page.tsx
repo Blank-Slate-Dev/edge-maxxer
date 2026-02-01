@@ -52,6 +52,12 @@ const DEFAULT_FILTERS: FilterType = {
 
 type Tab = 'opportunities' | 'spreads' | 'totals' | 'value-bets' | 'history' | 'accounts';
 
+// Polling interval in seconds (how often we check for new data)
+const POLL_INTERVAL_SECONDS = 5;
+
+// Expected scan interval (how often the scanner runs)
+const SCAN_INTERVAL_SECONDS = 60;
+
 // Region tab component
 function RegionTab({ 
   region, 
@@ -133,7 +139,10 @@ export default function DashboardPage() {
   const [sports, setSports] = useState<Sport[]>([]);
   const [bookmakers, setBookmakers] = useState<string[]>([]);
   
-  const [isLoadingGlobal, setIsLoadingGlobal] = useState(true);
+  // Separate loading states for initial load vs background refresh
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
   const [isLoadingLines, setIsLoadingLines] = useState(false);
   const [linesProgress, setLinesProgress] = useState<string>('');
   
@@ -230,11 +239,15 @@ export default function DashboardPage() {
   }, []);
 
   // Fetch global arbs - main data fetching function
-  const fetchGlobalArbs = useCallback(async (showLoading = false) => {
-    if (showLoading) {
-      setIsLoadingGlobal(true);
+  const fetchGlobalArbs = useCallback(async (mode: 'initial' | 'background' | 'manual' = 'background') => {
+    // Set appropriate loading state
+    if (mode === 'initial') {
+      setIsInitialLoading(true);
+    } else if (mode === 'manual') {
+      setIsManualRefreshing(true);
+    } else {
+      setIsBackgroundRefreshing(true);
     }
-    setError(null);
 
     try {
       const res = await fetch('/api/global-arbs');
@@ -243,7 +256,6 @@ export default function DashboardPage() {
       // Check for subscription required
       if (data.subscriptionRequired) {
         setShowSubscriptionModal(true);
-        setIsLoadingGlobal(false);
         return;
       }
 
@@ -274,6 +286,7 @@ export default function DashboardPage() {
           lastUpdated: new Date(vb.lastUpdated),
         }));
 
+        // Update state - this should be seamless, no flashing
         setOpportunities(parsed);
         setValueBets(parsedValueBets);
         if (data.stats) setStats(data.stats);
@@ -284,6 +297,7 @@ export default function DashboardPage() {
         if (data.ageSeconds !== undefined) setScanAgeSeconds(data.ageSeconds);
         if (data.remainingCredits !== undefined) setRemainingCredits(data.remainingCredits);
         setHasFetchedArbs(true);
+        setError(null);
 
         // Extract bookmakers
         const uniqueBookmakers = new Set<string>();
@@ -293,7 +307,7 @@ export default function DashboardPage() {
         setBookmakers(Array.from(uniqueBookmakers));
 
         // Show flash animation if new data arrived during polling
-        if (isNewData && lastScannedAt !== null) {
+        if (isNewData && lastScannedAt !== null && mode !== 'initial') {
           setShowNewResultsFlash(true);
           setTimeout(() => setShowNewResultsFlash(false), 2000);
         }
@@ -302,21 +316,26 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error('Failed to fetch global arbs:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load opportunities');
+      // Only show error if this was initial load or manual refresh
+      if (mode !== 'background') {
+        setError(err instanceof Error ? err.message : 'Failed to load opportunities');
+      }
     } finally {
-      setIsLoadingGlobal(false);
+      setIsInitialLoading(false);
+      setIsBackgroundRefreshing(false);
+      setIsManualRefreshing(false);
     }
   }, [lastScannedAt]);
 
   // Initial fetch and polling
   useEffect(() => {
     // Initial fetch
-    fetchGlobalArbs(true);
+    fetchGlobalArbs('initial');
 
     // Poll for updates every 5 seconds
     const pollInterval = setInterval(() => {
-      fetchGlobalArbs(false);
-    }, 5000);
+      fetchGlobalArbs('background');
+    }, POLL_INTERVAL_SECONDS * 1000);
 
     return () => clearInterval(pollInterval);
   }, [fetchGlobalArbs]);
@@ -365,9 +384,9 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // Manual refresh - just re-fetch global data
+  // Manual refresh
   const handleRefresh = useCallback(() => {
-    fetchGlobalArbs(true);
+    fetchGlobalArbs('manual');
   }, [fetchGlobalArbs]);
 
   const handleLogBet = (bet: Omit<PlacedBet, 'id' | 'createdAt'>) => {
@@ -452,6 +471,17 @@ export default function DashboardPage() {
     return `${hours}h ${minutes % 60}m ago`;
   };
 
+  // Get progress bar color based on scan age
+  const getProgressBarColor = (seconds: number) => {
+    if (seconds < 15) return '#22c55e'; // Green - very fresh
+    if (seconds < 30) return '#84cc16'; // Lime - fresh
+    if (seconds < 45) return '#eab308'; // Yellow - getting stale
+    return '#f97316'; // Orange - stale, new scan expected soon
+  };
+
+  // Combined loading state for header
+  const isLoading = isInitialLoading || isManualRefreshing;
+
   return (
     <div 
       className="min-h-screen transition-colors"
@@ -459,7 +489,7 @@ export default function DashboardPage() {
     >
       <Header
         lastUpdated={lastUpdated}
-        isLoading={isLoadingGlobal}
+        isLoading={isLoading}
         isUsingMockData={false}
         remainingRequests={remainingCredits}
         onRefresh={handleRefresh}
@@ -524,7 +554,7 @@ export default function DashboardPage() {
         )}
 
         {/* Live Scan Status Banner */}
-        {hasFetchedArbs && !isLoadingGlobal && (
+        {hasFetchedArbs && !isInitialLoading && (
           <div 
             className={`border px-4 py-3 rounded-lg transition-all duration-500 ${showNewResultsFlash ? 'ring-2 ring-green-500' : ''}`}
             style={{
@@ -533,44 +563,73 @@ export default function DashboardPage() {
             }}
           >
             <div className="flex items-center gap-3">
-              {/* Live indicator */}
+              {/* Live indicator with background refresh state */}
               <div className="relative w-5 h-5 shrink-0 flex items-center justify-center">
-                <div 
-                  className="absolute inset-0 rounded-full animate-ping"
-                  style={{ backgroundColor: '#22c55e', opacity: 0.3 }}
-                />
-                <div 
-                  className="w-2.5 h-2.5 rounded-full"
-                  style={{ backgroundColor: '#22c55e' }}
-                />
+                {isBackgroundRefreshing ? (
+                  <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#22c55e' }} />
+                ) : (
+                  <>
+                    <div 
+                      className="absolute inset-0 rounded-full animate-ping"
+                      style={{ backgroundColor: '#22c55e', opacity: 0.3 }}
+                    />
+                    <div 
+                      className="w-2.5 h-2.5 rounded-full"
+                      style={{ backgroundColor: '#22c55e' }}
+                    />
+                  </>
+                )}
               </div>
               
               <div className="flex-1">
-                <div className="font-medium text-sm" style={{ color: '#22c55e' }}>
-                  Live Scanner Active
+                <div className="font-medium text-sm flex items-center gap-2" style={{ color: '#22c55e' }}>
+                  <span>Live Scanner Active</span>
+                  {isBackgroundRefreshing && (
+                    <span className="text-xs font-normal opacity-75">Checking for updates...</span>
+                  )}
+                  {showNewResultsFlash && (
+                    <span className="text-xs font-normal bg-green-500 text-black px-1.5 py-0.5 rounded animate-pulse">New data!</span>
+                  )}
                 </div>
                 <div className="text-xs mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5" style={{ color: 'var(--muted)' }}>
                   {scanAgeSeconds !== null && (
                     <span>Updated {formatScanAge(scanAgeSeconds)}</span>
                   )}
-                  <span>• All regions (AU, UK, US, EU)</span>
-                  <span>• Auto-refreshing every ~44s</span>
+                  <span>• Scanner runs every ~44s</span>
                 </div>
               </div>
               
               {/* Manual refresh button */}
               <button
                 onClick={handleRefresh}
-                disabled={isLoadingGlobal}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-[var(--background)]"
+                disabled={isManualRefreshing}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-[var(--background)] disabled:opacity-50"
                 style={{ 
                   color: 'var(--muted)',
                   border: '1px solid var(--border)'
                 }}
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${isLoadingGlobal ? 'animate-spin' : ''}`} />
-                <span className="hidden sm:inline">Refresh</span>
+                <RefreshCw className={`w-3.5 h-3.5 ${isManualRefreshing ? 'animate-spin' : ''}`} />
+                <span className="hidden sm:inline">{isManualRefreshing ? 'Refreshing...' : 'Refresh'}</span>
               </button>
+            </div>
+            
+            {/* Scan age progress bar - fills up over 60 seconds */}
+            <div 
+              className="mt-2 h-1 rounded-full overflow-hidden"
+              style={{ backgroundColor: 'color-mix(in srgb, #22c55e 20%, transparent)' }}
+            >
+              <div 
+                className="h-full rounded-full transition-all duration-1000 ease-linear"
+                style={{ 
+                  backgroundColor: scanAgeSeconds !== null ? getProgressBarColor(scanAgeSeconds) : '#22c55e',
+                  width: `${Math.min(100, ((scanAgeSeconds || 0) / SCAN_INTERVAL_SECONDS) * 100)}%`,
+                }}
+              />
+            </div>
+            <div className="mt-1 text-[10px] flex justify-between" style={{ color: 'var(--muted-foreground)' }}>
+              <span>Fresh</span>
+              <span>Next scan soon</span>
             </div>
           </div>
         )}
@@ -596,7 +655,7 @@ export default function DashboardPage() {
         )}
 
         {/* Initial Loading State */}
-        {isLoadingGlobal && !hasFetchedArbs && (
+        {isInitialLoading && !hasFetchedArbs && (
           <div 
             className="border p-8 sm:p-12 text-center rounded-lg"
             style={{
@@ -642,11 +701,11 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Stats Grid */}
+        {/* Stats Grid - with smooth transitions */}
         {hasFetchedArbs && stats && (
           <div 
-            className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-px rounded-lg overflow-hidden"
-            style={{ backgroundColor: 'var(--border-light)' }}
+            className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-px rounded-lg overflow-hidden transition-opacity duration-300"
+            style={{ backgroundColor: 'var(--border-light)', opacity: isBackgroundRefreshing ? 0.8 : 1 }}
           >
             <StatBox label="Events" value={stats.totalEvents} />
             <StatBox label="Sports" value={stats.sportsScanned} />
@@ -760,48 +819,50 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Tab Content */}
-        {hasFetchedArbs && activeTab === 'opportunities' && (
-          <ArbTable
-            opportunities={filteredOpportunities}
-            onSelectArb={setSelectedArb}
-            globalMode={selectedRegions.length > 1}
-          />
-        )}
-
-        {hasFetchedArbs && activeTab === 'spreads' && (
-          isLoadingLines ? (
-            <LoadingPlaceholder message="Loading spreads & middles..." />
-          ) : (
-            <SpreadsTable
-              spreads={filteredSpreads}
-              middles={spreadMiddles}
-              onSelectSpread={(s) => setSelectedLineOpp(s)}
-              onSelectMiddle={(m) => setSelectedLineOpp(m)}
-              showMiddles={showMiddles}
+        {/* Tab Content - wrapped in transition container */}
+        <div className={`transition-opacity duration-200 ${isBackgroundRefreshing ? 'opacity-90' : 'opacity-100'}`}>
+          {hasFetchedArbs && activeTab === 'opportunities' && (
+            <ArbTable
+              opportunities={filteredOpportunities}
+              onSelectArb={setSelectedArb}
               globalMode={selectedRegions.length > 1}
             />
-          )
-        )}
+          )}
 
-        {hasFetchedArbs && activeTab === 'totals' && (
-          isLoadingLines ? (
-            <LoadingPlaceholder message="Loading totals & middles..." />
-          ) : (
-            <TotalsTable
-              totals={filteredTotals}
-              middles={totalsMiddles}
-              onSelectTotals={(t) => setSelectedLineOpp(t)}
-              onSelectMiddle={(m) => setSelectedLineOpp(m)}
-              showMiddles={showMiddles}
-              globalMode={selectedRegions.length > 1}
-            />
-          )
-        )}
+          {hasFetchedArbs && activeTab === 'spreads' && (
+            isLoadingLines ? (
+              <LoadingPlaceholder message="Loading spreads & middles..." />
+            ) : (
+              <SpreadsTable
+                spreads={filteredSpreads}
+                middles={spreadMiddles}
+                onSelectSpread={(s) => setSelectedLineOpp(s)}
+                onSelectMiddle={(m) => setSelectedLineOpp(m)}
+                showMiddles={showMiddles}
+                globalMode={selectedRegions.length > 1}
+              />
+            )
+          )}
 
-        {hasFetchedArbs && activeTab === 'value-bets' && (
-          <ValueBetsTable valueBets={valueBets} onSelectValueBet={setSelectedValueBet} globalMode={selectedRegions.length > 1} />
-        )}
+          {hasFetchedArbs && activeTab === 'totals' && (
+            isLoadingLines ? (
+              <LoadingPlaceholder message="Loading totals & middles..." />
+            ) : (
+              <TotalsTable
+                totals={filteredTotals}
+                middles={totalsMiddles}
+                onSelectTotals={(t) => setSelectedLineOpp(t)}
+                onSelectMiddle={(m) => setSelectedLineOpp(m)}
+                showMiddles={showMiddles}
+                globalMode={selectedRegions.length > 1}
+              />
+            )
+          )}
+
+          {hasFetchedArbs && activeTab === 'value-bets' && (
+            <ValueBetsTable valueBets={valueBets} onSelectValueBet={setSelectedValueBet} globalMode={selectedRegions.length > 1} />
+          )}
+        </div>
 
         {activeTab === 'history' && betsLoaded && (
           <BetTracker
@@ -881,7 +942,7 @@ function StatBox({
   loading?: boolean;
 }) {
   return (
-    <div className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3" style={{ backgroundColor: 'var(--background)' }}>
+    <div className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 transition-opacity duration-200" style={{ backgroundColor: 'var(--background)' }}>
       <div 
         className="text-[10px] sm:text-xs uppercase tracking-wide mb-0.5 sm:mb-1 truncate"
         style={{ color: 'var(--muted)' }}
@@ -889,7 +950,7 @@ function StatBox({
         {label}
       </div>
       <div 
-        className="text-lg sm:text-xl lg:text-2xl font-mono flex items-center gap-1 sm:gap-2"
+        className="text-lg sm:text-xl lg:text-2xl font-mono flex items-center gap-1 sm:gap-2 transition-all duration-200"
         style={{ color: highlight ? 'var(--foreground)' : 'var(--muted)' }}
       >
         {loading ? (
@@ -934,7 +995,7 @@ function TabButton({
         <Loader2 className="inline-block ml-1.5 sm:ml-2 w-3 h-3 animate-spin" style={{ color: 'var(--muted)' }} />
       ) : count !== undefined && count > 0 && (
         <span 
-          className="ml-1 sm:ml-2 text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded"
+          className="ml-1 sm:ml-2 text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded transition-all duration-200"
           style={{
             backgroundColor: active ? 'var(--accent)' : 'var(--surface)',
             color: active ? 'var(--accent-foreground)' : 'var(--muted)'

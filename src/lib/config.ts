@@ -178,13 +178,66 @@ export const config = {
   } as Record<string, string>,
 } as const;
 
+// Build reverse lookup: display name -> API key
+const displayNameToKey: Record<string, string> = {};
+for (const [key, name] of Object.entries(config.bookmakerNames)) {
+  displayNameToKey[name.toLowerCase()] = key;
+}
+
 // Helper functions
 export function getBookmakerName(key: string): string {
   return config.bookmakerNames[key] || key;
 }
 
-export function getBookmakerRegion(key: string): string {
-  return config.bookmakerRegions[key] || '??';
+/**
+ * Get bookmaker region - handles both API keys and display names
+ */
+export function getBookmakerRegion(keyOrName: string): string {
+  // First try direct lookup by key
+  if (config.bookmakerRegions[keyOrName]) {
+    return config.bookmakerRegions[keyOrName];
+  }
+  
+  // Try lowercase key
+  const lowerKey = keyOrName.toLowerCase();
+  if (config.bookmakerRegions[lowerKey]) {
+    return config.bookmakerRegions[lowerKey];
+  }
+  
+  // Try reverse lookup by display name
+  const keyFromName = displayNameToKey[lowerKey];
+  if (keyFromName && config.bookmakerRegions[keyFromName]) {
+    return config.bookmakerRegions[keyFromName];
+  }
+  
+  // Try partial match (e.g., "Betfair" should match "betfair_ex_au")
+  for (const [key, region] of Object.entries(config.bookmakerRegions)) {
+    const displayName = config.bookmakerNames[key];
+    if (displayName && displayName.toLowerCase() === lowerKey) {
+      return region;
+    }
+  }
+  
+  return 'INT'; // Return 'INT' (International) instead of '??' for unknown
+}
+
+/**
+ * Get API key from either a key or display name
+ */
+export function getBookmakerKey(keyOrName: string): string {
+  // If it's already a valid key, return it
+  if (config.bookmakerNames[keyOrName]) {
+    return keyOrName;
+  }
+  
+  // Try reverse lookup by display name
+  const lowerName = keyOrName.toLowerCase();
+  if (displayNameToKey[lowerName]) {
+    return displayNameToKey[lowerName];
+  }
+  
+  // Return as-is if we can't find it
+  return keyOrName;
 }
 
 /**
