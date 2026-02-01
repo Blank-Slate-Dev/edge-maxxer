@@ -22,45 +22,44 @@ export async function GET() {
 
     await dbConnect();
 
-    // Get merged scan from all regions (max 10 min age per region)
-    const mergedScan = await GlobalScanCache.getMergedScan(600);
+    // Get cached scan
+    const cachedScan = await GlobalScanCache.getCurrentScan();
 
-    if (!mergedScan || mergedScan.opportunities.length === 0) {
+    if (!cachedScan || !cachedScan.opportunities || cachedScan.opportunities.length === 0) {
       return NextResponse.json({
         hasCachedResults: false,
         message: 'No scan data available yet. Scanner starting soon...',
         opportunities: [],
         valueBets: [],
-        regionAges: { AU: null, UK: null, US: null, EU: null },
       });
     }
 
     // Filter out expired opportunities
     const now = new Date();
-    const validOpportunities = (mergedScan.opportunities as ArbOpportunity[]).filter(opp => {
+    const validOpportunities = (cachedScan.opportunities as ArbOpportunity[]).filter(opp => {
       const commenceTime = new Date(opp.event.commenceTime);
       return commenceTime > now;
     });
 
-    const validValueBets = (mergedScan.valueBets as { event: { commenceTime: Date } }[]).filter(vb => {
+    const validValueBets = (cachedScan.valueBets as { event: { commenceTime: Date } }[]).filter(vb => {
       const commenceTime = new Date(vb.event.commenceTime);
       return commenceTime > now;
     });
 
-    // Calculate overall age (from most recent region)
-    const ageSeconds = Math.round((now.getTime() - new Date(mergedScan.scannedAt).getTime()) / 1000);
+    // Calculate age
+    const ageSeconds = Math.round((now.getTime() - new Date(cachedScan.scannedAt).getTime()) / 1000);
 
-    console.log(`[API /global-arbs] Returning ${validOpportunities.length} opportunities, region ages: AU=${mergedScan.regionAges.AU}s, UK=${mergedScan.regionAges.UK}s, US=${mergedScan.regionAges.US}s, EU=${mergedScan.regionAges.EU}s`);
+    console.log(`[API /global-arbs] Returning ${validOpportunities.length} opportunities (${ageSeconds}s old)`);
 
     return NextResponse.json({
       hasCachedResults: true,
       opportunities: validOpportunities,
       valueBets: validValueBets,
-      stats: mergedScan.stats,
-      regionAges: mergedScan.regionAges,
-      scannedAt: mergedScan.scannedAt.toISOString(),
+      stats: cachedScan.stats,
+      regions: cachedScan.regions,
+      scannedAt: cachedScan.scannedAt,
       ageSeconds,
-      remainingCredits: mergedScan.remainingCredits,
+      remainingCredits: cachedScan.remainingCredits,
     });
 
   } catch (error) {

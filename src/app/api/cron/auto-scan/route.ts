@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import User, { IUser, CREDIT_TIER_CONFIG, CreditTier } from '@/lib/models/User';
-import GlobalScanCache, { IRegionScanData } from '@/lib/models/GlobalScanCache';
+import GlobalScanCache from '@/lib/models/GlobalScanCache';
 import { createOddsApiProvider } from '@/lib/providers/theOddsApiProvider';
 import { detectAllOpportunities } from '@/lib/arb/detector';
 import { config, getApiRegionsForUserRegions, UserRegion } from '@/lib/config';
@@ -18,7 +18,6 @@ const CRON_SECRET = process.env.CRON_SECRET;
 const MASTER_SCAN_USER_EMAIL = process.env.MASTER_SCAN_USER_EMAIL;
 
 // Rotation config: How many AU-only scans between each other-region scan
-// e.g., 3 means: AU, AU, AU, AU+UK, AU, AU, AU, AU+US, AU, AU, AU, AU+EU, ...
 const AU_ONLY_SCANS_BETWEEN_ROTATIONS = 3;
 
 // Approximate credits per scan by region
@@ -134,41 +133,25 @@ export async function GET(request: NextRequest) {
 
         results.scanned++;
 
-        // If master account, update GlobalScanCache per-region
+        // If master account, update GlobalScanCache with ALL results
         if (isMasterAccount) {
-          console.log(`[AutoScan] Updating GlobalScanCache for regions: ${scanRegions.join(', ')}`);
+          console.log(`[AutoScan] Updating GlobalScanCache with ${scanResult.opportunities.length} arbs...`);
 
-          // For each region scanned, update its data in the cache
-          for (const region of scanRegions) {
-            // Filter opportunities to only those with bookmakers from this region
-            const regionOpps = filterOpportunitiesByRegion(scanResult.opportunities, region);
-            const regionValueBets = filterValueBetsByRegion(scanResult.valueBets, region);
-
-            const regionData: IRegionScanData = {
-              opportunities: regionOpps,
-              valueBets: regionValueBets,
-              stats: {
-                ...scanResult.stats,
-                arbsFound: regionOpps.filter((o: ArbWithUrls) => o.type === 'arb').length,
-                nearArbsFound: regionOpps.filter((o: ArbWithUrls) => o.type === 'near-arb').length,
-                valueBetsFound: regionValueBets.length,
-              },
-              scannedAt: now,
-              scanDurationMs,
-              remainingCredits: scanResult.remainingCredits,
-            };
-
-            // Update rotation index only when we scan a non-AU region
-            const rotationIndex = region !== 'AU' ? getNextRotationIndex() : undefined;
-
-            await GlobalScanCache.updateRegionScan(region, regionData, rotationIndex);
-            console.log(`[AutoScan] Updated ${region} cache with ${regionOpps.length} arbs`);
-          }
+          await GlobalScanCache.updateScan({
+            opportunities: scanResult.opportunities,
+            valueBets: scanResult.valueBets,
+            stats: scanResult.stats,
+            regions: scanRegions,
+            scannedAt: now,
+            scanDurationMs,
+            remainingCredits: scanResult.remainingCredits,
+          });
 
           results.globalCacheUpdated = true;
+          console.log(`[AutoScan] GlobalScanCache updated successfully`);
         }
 
-        // Handle alerts (same as before)
+        // Handle alerts
         await handleAlertsForUser(user, scanResult, now, results);
 
       } catch (error) {
@@ -185,7 +168,7 @@ export async function GET(request: NextRequest) {
     // Increment scan counter for next rotation
     globalScanCounter++;
 
-    console.log(`[AutoScan] Completed. Processed: ${results.processed}, Scanned: ${results.scanned}, Regions: ${results.regionsScanned.join(',')}, Alerts: ${results.alertsSent}`);
+    console.log(`[AutoScan] Completed. Processed: ${results.processed}, Scanned: ${results.scanned}, Regions: ${results.regionsScanned.join(',')}, GlobalCache: ${results.globalCacheUpdated}, Alerts: ${results.alertsSent}`);
 
     return NextResponse.json({
       success: true,
@@ -224,46 +207,7 @@ function getRegionsForThisScan(): UserRegion[] {
 }
 
 /**
- * Get the next rotation index for tracking
- */
-function getNextRotationIndex(): number {
-  const cycleLength = AU_ONLY_SCANS_BETWEEN_ROTATIONS + 1;
-  const rotationCycle = Math.floor(globalScanCounter / cycleLength);
-  return (rotationCycle + 1) % 3; // 0, 1, 2 for UK, US, EU
-}
-
-/**
- * Filter opportunities to only those involving bookmakers from a specific region
- */
-function filterOpportunitiesByRegion(opps: ArbWithUrls[], region: UserRegion): ArbWithUrls[] {
-  const regionBookmakers = new Set(config.bookmakersByRegion[region] || []);
-
-  return opps.filter(opp => {
-    const bookmakers = [
-      opp.outcome1?.bookmaker,
-      opp.outcome2?.bookmaker,
-      opp.outcome3?.bookmaker,
-    ].filter(Boolean) as string[];
-
-    // Include if ANY bookmaker is from this region
-    return bookmakers.some(bk => regionBookmakers.has(bk));
-  });
-}
-
-/**
- * Filter value bets to only those involving bookmakers from a specific region
- */
-function filterValueBetsByRegion(vbs: unknown[], region: UserRegion): unknown[] {
-  const regionBookmakers = new Set(config.bookmakersByRegion[region] || []);
-
-  return vbs.filter((vb: unknown) => {
-    const v = vb as { outcome?: { bookmaker?: string } };
-    return v.outcome?.bookmaker && regionBookmakers.has(v.outcome.bookmaker);
-  });
-}
-
-/**
- * Handle sending alerts for a user (extracted from main function)
+ * Handle sending alerts for a user
  */
 async function handleAlertsForUser(
   user: IUser,
@@ -523,7 +467,7 @@ async function runScanForUser(user: IUser, regions: UserRegion[]): Promise<{
 
   const arbsWithUrls = addUrlsToArbs(validArbs);
 
-  console.log(`[AutoScan] Added URLs to ${arbsWithUrls.length} arbs`);
+  console.log(`[AutoScan] Found ${arbsWithUrls.length} arbs for regions: ${regions.join(', ')}`);
 
   return {
     opportunities: arbsWithUrls,
