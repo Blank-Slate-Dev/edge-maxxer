@@ -44,64 +44,56 @@ interface ArbWithUrls extends BookVsBookArb {
 // Track scan count for rotation (resets on deploy, but that's fine)
 let globalScanCounter = 0;
 
-// Build a set of bookmakers for a region (lowercase, includes display names)
-function buildRegionBookmakersSet(region: UserRegion): Set<string> {
-  const bookmakers = new Set<string>();
-  config.bookmakersByRegion[region].forEach(b => {
-    bookmakers.add(b.toLowerCase());
-    const displayName = config.bookmakerNames[b];
-    if (displayName) {
-      bookmakers.add(displayName.toLowerCase());
-    }
+// Build a set of bookmaker KEYS for a region
+function buildRegionBookmakerKeysSet(region: UserRegion): Set<string> {
+  const keys = new Set<string>();
+  config.bookmakersByRegion[region].forEach(k => {
+    keys.add(k.toLowerCase());
   });
-  return bookmakers;
+  return keys;
 }
 
-// Build a combined set for multiple regions
-function buildMultiRegionBookmakersSet(regions: UserRegion[]): Set<string> {
-  const bookmakers = new Set<string>();
+// Build a combined set of bookmaker KEYS for multiple regions
+function buildMultiRegionBookmakerKeysSet(regions: UserRegion[]): Set<string> {
+  const keys = new Set<string>();
   for (const region of regions) {
-    config.bookmakersByRegion[region]?.forEach(b => {
-      bookmakers.add(b.toLowerCase());
-      const displayName = config.bookmakerNames[b];
-      if (displayName) {
-        bookmakers.add(displayName.toLowerCase());
-      }
+    config.bookmakersByRegion[region]?.forEach(k => {
+      keys.add(k.toLowerCase());
     });
   }
-  return bookmakers;
+  return keys;
 }
 
-// Check if all bookmakers in a list are from a region set
-function allBookmakersFromRegion(bookmakerList: string[], regionSet: Set<string>): boolean {
-  return bookmakerList.every(bk => regionSet.has(bk.toLowerCase()));
+// Check if all bookmaker KEYS in a list are from a region set
+function allBookmakerKeysFromRegion(bookmakerKeys: string[], regionSet: Set<string>): boolean {
+  return bookmakerKeys.every(key => regionSet.has(key.toLowerCase()));
 }
 
-// Extract bookmakers from H2H arb
-function getBookmakersFromArb(arb: ArbWithUrls): string[] {
-  const bookmakers = [arb.outcome1.bookmaker, arb.outcome2.bookmaker];
+// Extract bookmaker KEYS from H2H arb
+function getBookmakerKeysFromArb(arb: ArbWithUrls): string[] {
+  const keys = [arb.outcome1.bookmakerKey, arb.outcome2.bookmakerKey];
   if (arb.outcome3) {
-    bookmakers.push(arb.outcome3.bookmaker);
+    keys.push(arb.outcome3.bookmakerKey);
   }
-  return bookmakers;
+  return keys;
 }
 
-// Extract bookmakers from spread arb
-function getBookmakersFromSpreadArb(arb: SpreadArb): string[] {
-  return [arb.favorite.bookmaker, arb.underdog.bookmaker];
+// Extract bookmaker KEYS from spread arb
+function getBookmakerKeysFromSpreadArb(arb: SpreadArb): string[] {
+  return [arb.favorite.bookmakerKey, arb.underdog.bookmakerKey];
 }
 
-// Extract bookmakers from totals arb
-function getBookmakersFromTotalsArb(arb: TotalsArb): string[] {
-  return [arb.over.bookmaker, arb.under.bookmaker];
+// Extract bookmaker KEYS from totals arb
+function getBookmakerKeysFromTotalsArb(arb: TotalsArb): string[] {
+  return [arb.over.bookmakerKey, arb.under.bookmakerKey];
 }
 
-// Extract bookmakers from middle
-function getBookmakersFromMiddle(middle: MiddleOpportunity): string[] {
-  return [middle.side1.bookmaker, middle.side2.bookmaker];
+// Extract bookmaker KEYS from middle
+function getBookmakerKeysFromMiddle(middle: MiddleOpportunity): string[] {
+  return [middle.side1.bookmakerKey, middle.side2.bookmakerKey];
 }
 
-// Filter results by region
+// Filter results by region using bookmakerKey
 function filterResultsByRegion(
   opportunities: ArbWithUrls[],
   valueBets: ValueBet[],
@@ -116,23 +108,23 @@ function filterResultsByRegion(
   totalsArbs: TotalsArb[];
   middles: MiddleOpportunity[];
 } {
-  const regionSet = buildRegionBookmakersSet(region);
+  const regionSet = buildRegionBookmakerKeysSet(region);
 
   return {
     opportunities: opportunities.filter(arb => 
-      allBookmakersFromRegion(getBookmakersFromArb(arb), regionSet)
+      allBookmakerKeysFromRegion(getBookmakerKeysFromArb(arb), regionSet)
     ),
     valueBets: valueBets.filter(vb => 
-      regionSet.has(vb.outcome.bookmaker.toLowerCase())
+      regionSet.has(vb.outcome.bookmakerKey.toLowerCase())
     ),
     spreadArbs: spreadArbs.filter(arb => 
-      allBookmakersFromRegion(getBookmakersFromSpreadArb(arb), regionSet)
+      allBookmakerKeysFromRegion(getBookmakerKeysFromSpreadArb(arb), regionSet)
     ),
     totalsArbs: totalsArbs.filter(arb => 
-      allBookmakersFromRegion(getBookmakersFromTotalsArb(arb), regionSet)
+      allBookmakerKeysFromRegion(getBookmakerKeysFromTotalsArb(arb), regionSet)
     ),
     middles: middles.filter(m => 
-      allBookmakersFromRegion(getBookmakersFromMiddle(m), regionSet)
+      allBookmakerKeysFromRegion(getBookmakerKeysFromMiddle(m), regionSet)
     ),
   };
 }
@@ -142,9 +134,9 @@ function filterOpportunitiesByRegions(
   opportunities: ArbWithUrls[],
   regions: UserRegion[]
 ): ArbWithUrls[] {
-  const regionSet = buildMultiRegionBookmakersSet(regions);
+  const regionSet = buildMultiRegionBookmakerKeysSet(regions);
   return opportunities.filter(arb => 
-    allBookmakersFromRegion(getBookmakersFromArb(arb), regionSet)
+    allBookmakerKeysFromRegion(getBookmakerKeysFromArb(arb), regionSet)
   );
 }
 
@@ -427,13 +419,13 @@ async function handleAlertsForUser(
         const bets: ArbAlert['bets'] = [
           {
             outcome: opp.outcome1.name,
-            bookmaker: config.bookmakerNames[opp.outcome1.bookmaker] || opp.outcome1.bookmaker,
+            bookmaker: config.bookmakerNames[opp.outcome1.bookmakerKey] || opp.outcome1.bookmaker,
             odds: opp.outcome1.odds,
             stake: stakes.stake1,
           },
           {
             outcome: opp.outcome2.name,
-            bookmaker: config.bookmakerNames[opp.outcome2.bookmaker] || opp.outcome2.bookmaker,
+            bookmaker: config.bookmakerNames[opp.outcome2.bookmakerKey] || opp.outcome2.bookmaker,
             odds: opp.outcome2.odds,
             stake: stakes.stake2,
           },
@@ -442,7 +434,7 @@ async function handleAlertsForUser(
         if (opp.outcome3 && stakes.stake3) {
           bets.push({
             outcome: opp.outcome3.name,
-            bookmaker: config.bookmakerNames[opp.outcome3.bookmaker] || opp.outcome3.bookmaker,
+            bookmaker: config.bookmakerNames[opp.outcome3.bookmakerKey] || opp.outcome3.bookmaker,
             odds: opp.outcome3.odds,
             stake: stakes.stake3,
           });
@@ -539,13 +531,13 @@ function checkCanSendAlert(user: IUser, now: Date): boolean {
 
 function generateArbId(opp: BookVsBookArb): string {
   const eventId = opp.event.id;
-  const bk1 = opp.outcome1.bookmaker;
-  const bk2 = opp.outcome2.bookmaker;
+  const bk1 = opp.outcome1.bookmakerKey;
+  const bk2 = opp.outcome2.bookmakerKey;
   const odds1 = Math.round(opp.outcome1.odds * 100);
   const odds2 = Math.round(opp.outcome2.odds * 100);
 
   if (opp.outcome3) {
-    const bk3 = opp.outcome3.bookmaker;
+    const bk3 = opp.outcome3.bookmakerKey;
     const odds3 = Math.round(opp.outcome3.odds * 100);
     return `${eventId}-${bk1}-${bk2}-${bk3}-${odds1}-${odds2}-${odds3}`;
   }
@@ -563,9 +555,9 @@ function calculateEstimatedCredits(regions: UserRegion[]): number {
 
 function addUrlsToArbs(arbs: BookVsBookArb[]): ArbWithUrls[] {
   return arbs.map(arb => {
-    const bookmakers = [arb.outcome1.bookmaker, arb.outcome2.bookmaker];
+    const bookmakers = [arb.outcome1.bookmakerKey, arb.outcome2.bookmakerKey];
     if (arb.outcome3) {
-      bookmakers.push(arb.outcome3.bookmaker);
+      bookmakers.push(arb.outcome3.bookmakerKey);
     }
 
     const bookmakerUrls = buildFullEventUrls(
