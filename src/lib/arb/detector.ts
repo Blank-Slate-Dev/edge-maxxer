@@ -55,6 +55,14 @@ function isFlexibleSport(sportKey: string): boolean {
   return FLEXIBLE_SPORTS.some(s => sportKey.toLowerCase().includes(s));
 }
 
+// Internal type for tracking odds with bookmaker key
+interface TrackedOdds {
+  bookmaker: string; // Display title
+  bookmakerKey: string; // API key for filtering
+  odds: number;
+  lastUpdate: Date;
+}
+
 /**
  * Comprehensive detection of all opportunity types
  */
@@ -142,8 +150,8 @@ function findArbitrageInEvent(
 
   if (bookmakers.length < 2) return arbs;
 
-  // Collect all h2h outcomes from all bookmakers
-  const outcomesByName = new Map<string, { bookmaker: string; odds: number; lastUpdate: Date }[]>();
+  // Collect all h2h outcomes from all bookmakers - now tracking key AND title
+  const outcomesByName = new Map<string, TrackedOdds[]>();
 
   for (const bm of bookmakers) {
     const h2hMarket = bm.markets.find(m => m.key === 'h2h');
@@ -152,7 +160,8 @@ function findArbitrageInEvent(
     for (const outcome of h2hMarket.outcomes) {
       const existing = outcomesByName.get(outcome.name) || [];
       existing.push({
-        bookmaker: bm.bookmaker.title,
+        bookmaker: bm.bookmaker.title, // Display name for UI
+        bookmakerKey: bm.bookmaker.key, // API key for filtering
         odds: outcome.price,
         lastUpdate: h2hMarket.lastUpdate,
       });
@@ -197,7 +206,7 @@ function findArbitrageInEvent(
   }
 
   // Find best odds for each outcome
-  const bestOddsByOutcome = new Map<string, { bookmaker: string; odds: number; lastUpdate: Date }>();
+  const bestOddsByOutcome = new Map<string, TrackedOdds>();
   
   for (const [name, odds] of outcomesByName) {
     const best = odds.reduce((a, b) => a.odds > b.odds ? a : b);
@@ -206,11 +215,11 @@ function findArbitrageInEvent(
 
   // Calculate implied probability sum using ALL outcomes
   let impliedSum = 0;
-  const bestOutcomes: { name: string; bookmaker: string; odds: number; lastUpdate: Date }[] = [];
+  const bestOutcomes: { name: string; bookmaker: string; bookmakerKey: string; odds: number; lastUpdate: Date }[] = [];
   
   for (const [name, best] of bestOddsByOutcome) {
     impliedSum += 1 / best.odds;
-    bestOutcomes.push({ name, ...best });
+    bestOutcomes.push({ name, bookmaker: best.bookmaker, bookmakerKey: best.bookmakerKey, odds: best.odds, lastUpdate: best.lastUpdate });
   }
 
   // Check for arbitrage
@@ -231,11 +240,13 @@ function findArbitrageInEvent(
         outcome1: {
           name: bestOutcomes[0].name,
           bookmaker: bestOutcomes[0].bookmaker,
+          bookmakerKey: bestOutcomes[0].bookmakerKey,
           odds: bestOutcomes[0].odds,
         },
         outcome2: {
           name: bestOutcomes[1].name,
           bookmaker: bestOutcomes[1].bookmaker,
+          bookmakerKey: bestOutcomes[1].bookmakerKey,
           odds: bestOutcomes[1].odds,
         },
         impliedProbabilitySum: impliedSum,
@@ -254,16 +265,19 @@ function findArbitrageInEvent(
         outcome1: {
           name: bestOutcomes[0].name,
           bookmaker: bestOutcomes[0].bookmaker,
+          bookmakerKey: bestOutcomes[0].bookmakerKey,
           odds: bestOutcomes[0].odds,
         },
         outcome2: {
           name: bestOutcomes[1].name,
           bookmaker: bestOutcomes[1].bookmaker,
+          bookmakerKey: bestOutcomes[1].bookmakerKey,
           odds: bestOutcomes[1].odds,
         },
         outcome3: {
           name: bestOutcomes[2].name,
           bookmaker: bestOutcomes[2].bookmaker,
+          bookmakerKey: bestOutcomes[2].bookmakerKey,
           odds: bestOutcomes[2].odds,
         },
         impliedProbabilitySum: impliedSum,
@@ -289,8 +303,8 @@ function findValueBets(
 
   if (bookmakers.length < 3) return valueBets; // Need enough for a meaningful average
 
-  // Collect all odds for each outcome
-  const oddsByOutcome = new Map<string, { bookmaker: string; odds: number }[]>();
+  // Collect all odds for each outcome - tracking key and title
+  const oddsByOutcome = new Map<string, { bookmaker: string; bookmakerKey: string; odds: number }[]>();
 
   for (const bm of bookmakers) {
     const h2hMarket = bm.markets.find(m => m.key === 'h2h');
@@ -298,7 +312,11 @@ function findValueBets(
 
     for (const outcome of h2hMarket.outcomes) {
       const existing = oddsByOutcome.get(outcome.name) || [];
-      existing.push({ bookmaker: bm.bookmaker.title, odds: outcome.price });
+      existing.push({ 
+        bookmaker: bm.bookmaker.title, 
+        bookmakerKey: bm.bookmaker.key,
+        odds: outcome.price 
+      });
       oddsByOutcome.set(outcome.name, existing);
     }
   }
@@ -325,6 +343,7 @@ function findValueBets(
         outcome: {
           name: outcomeName,
           bookmaker: best.bookmaker,
+          bookmakerKey: best.bookmakerKey,
           odds: best.odds,
         },
         marketAverage: average,
@@ -347,7 +366,7 @@ function findBestOdds(
 ): BestOdds | null {
   if (event.bookmakers.length === 0) return null;
 
-  const oddsByOutcome = new Map<string, { bookmaker: string; odds: number }[]>();
+  const oddsByOutcome = new Map<string, { bookmaker: string; bookmakerKey: string; odds: number }[]>();
 
   for (const bm of event.bookmakers) {
     const h2hMarket = bm.markets.find(m => m.key === 'h2h');
@@ -355,7 +374,11 @@ function findBestOdds(
 
     for (const outcome of h2hMarket.outcomes) {
       const existing = oddsByOutcome.get(outcome.name) || [];
-      existing.push({ bookmaker: bm.bookmaker.title, odds: outcome.price });
+      existing.push({ 
+        bookmaker: bm.bookmaker.title, 
+        bookmakerKey: bm.bookmaker.key,
+        odds: outcome.price 
+      });
       oddsByOutcome.set(outcome.name, existing);
     }
   }
@@ -369,6 +392,7 @@ function findBestOdds(
       name,
       bestOdds: best.odds,
       bestBookmaker: best.bookmaker,
+      bestBookmakerKey: best.bookmakerKey,
       allOdds: sorted,
       marketAverage: average,
     };
@@ -420,6 +444,7 @@ export function detectBookVsBetfairArbs(
             backOutcome: {
               name: outcome.name,
               bookmaker: bm.bookmaker.title,
+              bookmakerKey: bm.bookmaker.key,
               odds: backOdds,
             },
             layOutcome: {
