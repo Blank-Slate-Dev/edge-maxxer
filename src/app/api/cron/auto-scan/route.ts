@@ -5,11 +5,12 @@ import User, { IUser, CREDIT_TIER_CONFIG, CreditTier } from '@/lib/models/User';
 import GlobalScanCache from '@/lib/models/GlobalScanCache';
 import { createOddsApiProvider } from '@/lib/providers/theOddsApiProvider';
 import { detectAllOpportunities } from '@/lib/arb/detector';
+import { detectLineOpportunities } from '@/lib/arb/lineDetector';
 import { config, getApiRegionsForUserRegions, UserRegion } from '@/lib/config';
 import { sendMultipleArbAlerts, ArbAlert } from '@/lib/sms';
 import { calculateBookVsBookStakes } from '@/lib/arb/calculator';
 import { buildFullEventUrls } from '@/lib/scraper/urlBuilder';
-import type { BookVsBookArb } from '@/lib/types';
+import type { BookVsBookArb, SpreadArb, TotalsArb, MiddleOpportunity } from '@/lib/types';
 
 // Vercel cron jobs send a specific header to authenticate
 const CRON_SECRET = process.env.CRON_SECRET;
@@ -20,12 +21,12 @@ const MASTER_SCAN_USER_EMAIL = process.env.MASTER_SCAN_USER_EMAIL;
 // Rotation config: How many AU-only scans between each other-region scan
 const AU_ONLY_SCANS_BETWEEN_ROTATIONS = 3;
 
-// Approximate credits per scan by region
+// Approximate credits per scan by region (includes H2H + lines markets)
 const CREDITS_PER_SCAN: Record<string, number> = {
-  AU: 85,
-  UK: 90,
-  US: 120,
-  EU: 100,
+  AU: 170, // ~85 for H2H + ~85 for lines
+  UK: 180,
+  US: 240,
+  EU: 200,
 };
 
 export const dynamic = 'force-dynamic';
@@ -86,6 +87,10 @@ export async function GET(request: NextRequest) {
       alertsSent: 0,
       globalCacheUpdated: false,
       regionsScanned: regionsToScan,
+      h2hArbs: 0,
+      spreadArbs: 0,
+      totalsArbs: 0,
+      middles: 0,
       errors: [] as string[],
     };
 
@@ -135,12 +140,16 @@ export async function GET(request: NextRequest) {
 
         // If master account, update GlobalScanCache with ALL results
         if (isMasterAccount) {
-          console.log(`[AutoScan] Updating GlobalScanCache with ${scanResult.opportunities.length} arbs...`);
+          console.log(`[AutoScan] Updating GlobalScanCache with ${scanResult.opportunities.length} H2H arbs, ${scanResult.spreadArbs.length} spread arbs, ${scanResult.totalsArbs.length} totals arbs, ${scanResult.middles.length} middles...`);
 
           await GlobalScanCache.updateScan({
             opportunities: scanResult.opportunities,
             valueBets: scanResult.valueBets,
+            spreadArbs: scanResult.spreadArbs,
+            totalsArbs: scanResult.totalsArbs,
+            middles: scanResult.middles,
             stats: scanResult.stats,
+            lineStats: scanResult.lineStats,
             regions: scanRegions,
             scannedAt: now,
             scanDurationMs,
@@ -148,6 +157,10 @@ export async function GET(request: NextRequest) {
           });
 
           results.globalCacheUpdated = true;
+          results.h2hArbs = scanResult.opportunities.length;
+          results.spreadArbs = scanResult.spreadArbs.length;
+          results.totalsArbs = scanResult.totalsArbs.length;
+          results.middles = scanResult.middles.length;
           console.log(`[AutoScan] GlobalScanCache updated successfully`);
         }
 
@@ -168,7 +181,7 @@ export async function GET(request: NextRequest) {
     // Increment scan counter for next rotation
     globalScanCounter++;
 
-    console.log(`[AutoScan] Completed. Processed: ${results.processed}, Scanned: ${results.scanned}, Regions: ${results.regionsScanned.join(',')}, GlobalCache: ${results.globalCacheUpdated}, Alerts: ${results.alertsSent}`);
+    console.log(`[AutoScan] Completed. Processed: ${results.processed}, Scanned: ${results.scanned}, Regions: ${results.regionsScanned.join(',')}, GlobalCache: ${results.globalCacheUpdated}, H2H: ${results.h2hArbs}, Spreads: ${results.spreadArbs}, Totals: ${results.totalsArbs}, Middles: ${results.middles}, Alerts: ${results.alertsSent}`);
 
     return NextResponse.json({
       success: true,
@@ -398,7 +411,7 @@ function generateArbId(opp: BookVsBookArb): string {
 function calculateEstimatedCredits(regions: UserRegion[]): number {
   let total = 0;
   for (const region of regions) {
-    total += CREDITS_PER_SCAN[region] || 85;
+    total += CREDITS_PER_SCAN[region] || 170;
   }
   return total;
 }
@@ -424,6 +437,9 @@ function addUrlsToArbs(arbs: BookVsBookArb[]): ArbWithUrls[] {
 async function runScanForUser(user: IUser, regions: UserRegion[]): Promise<{
   opportunities: ArbWithUrls[];
   valueBets: unknown[];
+  spreadArbs: SpreadArb[];
+  totalsArbs: TotalsArb[];
+  middles: MiddleOpportunity[];
   stats: {
     totalEvents: number;
     eventsWithMultipleBookmakers: number;
@@ -433,46 +449,110 @@ async function runScanForUser(user: IUser, regions: UserRegion[]): Promise<{
     valueBetsFound: number;
     sportsScanned: number;
   };
+  lineStats: {
+    totalEvents: number;
+    spreadArbsFound: number;
+    totalsArbsFound: number;
+    middlesFound: number;
+    nearArbsFound: number;
+  };
   remainingCredits?: number;
 }> {
   const provider = createOddsApiProvider(user.oddsApiKey!);
-
   const regionsStr = getApiRegionsForUserRegions(regions);
 
   const allSports = await provider.getSupportedSports();
-  const sportsToFetch = allSports.filter(s => !s.hasOutrights).map(s => s.key);
+  const allSportsKeys = allSports.filter(s => !s.hasOutrights).map(s => s.key);
 
-  const oddsResult = await provider.fetchOdds(sportsToFetch, ['h2h', 'spreads', 'totals'], regionsStr);
+  // =====================
+  // 1. FETCH H2H MARKETS
+  // =====================
+  const h2hResult = await provider.fetchOdds(allSportsKeys, ['h2h'], regionsStr);
 
   const { arbs, valueBets, stats } = detectAllOpportunities(
-    oddsResult.events,
+    h2hResult.events,
     config.filters.nearArbThreshold,
     config.filters.valueThreshold
   );
 
+  // =====================
+  // 2. FETCH LINES MARKETS (spreads/totals)
+  // =====================
+  // Filter to sports that typically have spreads/totals
+  const lineSportsKeys = allSports
+    .filter(s => !s.hasOutrights)
+    .filter(s => {
+      const key = s.key.toLowerCase();
+      return key.includes('basketball') ||
+             key.includes('football') ||
+             key.includes('baseball') ||
+             key.includes('hockey') ||
+             key.includes('aussierules') ||
+             key.includes('rugby');
+    })
+    .map(s => s.key);
+
+  let spreadArbs: SpreadArb[] = [];
+  let totalsArbs: TotalsArb[] = [];
+  let middles: MiddleOpportunity[] = [];
+  let lineStats = {
+    totalEvents: 0,
+    spreadArbsFound: 0,
+    totalsArbsFound: 0,
+    middlesFound: 0,
+    nearArbsFound: 0,
+  };
+
+  if (lineSportsKeys.length > 0) {
+    const linesResult = await provider.fetchOdds(lineSportsKeys, ['spreads', 'totals'], regionsStr);
+
+    const lineOpportunities = detectLineOpportunities(
+      linesResult.events,
+      config.filters.nearArbThreshold
+    );
+
+    spreadArbs = lineOpportunities.spreadArbs;
+    totalsArbs = lineOpportunities.totalsArbs;
+    middles = lineOpportunities.middles;
+    lineStats = lineOpportunities.stats;
+
+    console.log(`[AutoScan] Lines detection complete:`, lineStats);
+  }
+
+  // =====================
+  // 3. FILTER BY TIME
+  // =====================
   const now = new Date();
   const maxTime = new Date(now.getTime() + 72 * 60 * 60 * 1000);
 
-  const validArbs = arbs.filter(opp => {
-    if (opp.event.commenceTime > maxTime) return false;
-    if (opp.event.commenceTime < now) return false;
-    return true;
-  });
+  const filterByTime = <T extends { event: { commenceTime: Date } }>(items: T[]): T[] => {
+    return items.filter(item => {
+      const commence = new Date(item.event.commenceTime);
+      return commence > now && commence < maxTime;
+    });
+  };
 
-  const validValueBets = valueBets.filter(vb => {
-    if (vb.event.commenceTime > maxTime) return false;
-    if (vb.event.commenceTime < now) return false;
-    return true;
-  });
+  const validArbs = filterByTime(arbs);
+  const validValueBets = filterByTime(valueBets);
+  const validSpreadArbs = filterByTime(spreadArbs);
+  const validTotalsArbs = filterByTime(totalsArbs);
+  const validMiddles = filterByTime(middles);
 
   const arbsWithUrls = addUrlsToArbs(validArbs);
 
-  console.log(`[AutoScan] Found ${arbsWithUrls.length} arbs for regions: ${regions.join(', ')}`);
+  console.log(`[AutoScan] Found ${arbsWithUrls.length} H2H arbs, ${validSpreadArbs.length} spread arbs, ${validTotalsArbs.length} totals arbs, ${validMiddles.length} middles for regions: ${regions.join(', ')}`);
+
+  // Get remaining credits from the last API call
+  const remainingCredits = (h2hResult as { remainingRequests?: number }).remainingRequests;
 
   return {
     opportunities: arbsWithUrls,
     valueBets: validValueBets,
+    spreadArbs: validSpreadArbs,
+    totalsArbs: validTotalsArbs,
+    middles: validMiddles,
     stats,
-    remainingCredits: (oddsResult as { remainingRequests?: number }).remainingRequests,
+    lineStats,
+    remainingCredits,
   };
 }

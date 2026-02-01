@@ -12,11 +12,23 @@ export interface IGlobalScanStats {
   sportsScanned: number;
 }
 
+export interface ILineStats {
+  totalEvents: number;
+  spreadArbsFound: number;
+  totalsArbsFound: number;
+  middlesFound: number;
+  nearArbsFound: number;
+}
+
 export interface IGlobalScanCache {
   _id: string; // We'll use a fixed ID like 'global-scan'
   opportunities: unknown[]; // BookVsBookArb[] stored as JSON
   valueBets: unknown[]; // ValueBet[] stored as JSON
+  spreadArbs: unknown[]; // SpreadArb[] stored as JSON
+  totalsArbs: unknown[]; // TotalsArb[] stored as JSON
+  middles: unknown[]; // MiddleOpportunity[] stored as JSON
   stats: IGlobalScanStats;
+  lineStats?: ILineStats;
   regions: UserRegion[];
   scannedAt: Date;
   scanDurationMs: number;
@@ -43,6 +55,18 @@ const GlobalScanCacheSchema = new Schema<IGlobalScanCache, GlobalScanCacheModel>
       type: [Schema.Types.Mixed],
       default: [],
     },
+    spreadArbs: {
+      type: [Schema.Types.Mixed],
+      default: [],
+    },
+    totalsArbs: {
+      type: [Schema.Types.Mixed],
+      default: [],
+    },
+    middles: {
+      type: [Schema.Types.Mixed],
+      default: [],
+    },
     stats: {
       totalEvents: { type: Number, default: 0 },
       eventsWithMultipleBookmakers: { type: Number, default: 0 },
@@ -51,6 +75,13 @@ const GlobalScanCacheSchema = new Schema<IGlobalScanCache, GlobalScanCacheModel>
       nearArbsFound: { type: Number, default: 0 },
       valueBetsFound: { type: Number, default: 0 },
       sportsScanned: { type: Number, default: 0 },
+    },
+    lineStats: {
+      totalEvents: { type: Number, default: 0 },
+      spreadArbsFound: { type: Number, default: 0 },
+      totalsArbsFound: { type: Number, default: 0 },
+      middlesFound: { type: Number, default: 0 },
+      nearArbsFound: { type: Number, default: 0 },
     },
     regions: {
       type: [String],

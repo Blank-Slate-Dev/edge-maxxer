@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import GlobalScanCache from '@/lib/models/GlobalScanCache';
-import type { ArbOpportunity } from '@/lib/types';
+import type { ArbOpportunity, SpreadArb, TotalsArb, MiddleOpportunity } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,31 +31,42 @@ export async function GET() {
         message: 'No scan data available yet. Scanner starting soon...',
         opportunities: [],
         valueBets: [],
+        spreadArbs: [],
+        totalsArbs: [],
+        middles: [],
       });
     }
 
     // Filter out expired opportunities
     const now = new Date();
-    const validOpportunities = (cachedScan.opportunities as ArbOpportunity[]).filter(opp => {
-      const commenceTime = new Date(opp.event.commenceTime);
-      return commenceTime > now;
-    });
+    
+    const filterByTime = <T extends { event: { commenceTime: Date | string } }>(items: T[]): T[] => {
+      return items.filter(item => {
+        const commenceTime = new Date(item.event.commenceTime);
+        return commenceTime > now;
+      });
+    };
 
-    const validValueBets = (cachedScan.valueBets as { event: { commenceTime: Date } }[]).filter(vb => {
-      const commenceTime = new Date(vb.event.commenceTime);
-      return commenceTime > now;
-    });
+    const validOpportunities = filterByTime(cachedScan.opportunities as ArbOpportunity[]);
+    const validValueBets = filterByTime(cachedScan.valueBets as { event: { commenceTime: Date } }[]);
+    const validSpreadArbs = filterByTime((cachedScan.spreadArbs || []) as SpreadArb[]);
+    const validTotalsArbs = filterByTime((cachedScan.totalsArbs || []) as TotalsArb[]);
+    const validMiddles = filterByTime((cachedScan.middles || []) as MiddleOpportunity[]);
 
     // Calculate age
     const ageSeconds = Math.round((now.getTime() - new Date(cachedScan.scannedAt).getTime()) / 1000);
 
-    console.log(`[API /global-arbs] Returning ${validOpportunities.length} opportunities (${ageSeconds}s old)`);
+    console.log(`[API /global-arbs] Returning ${validOpportunities.length} H2H, ${validSpreadArbs.length} spreads, ${validTotalsArbs.length} totals, ${validMiddles.length} middles (${ageSeconds}s old)`);
 
     return NextResponse.json({
       hasCachedResults: true,
       opportunities: validOpportunities,
       valueBets: validValueBets,
+      spreadArbs: validSpreadArbs,
+      totalsArbs: validTotalsArbs,
+      middles: validMiddles,
       stats: cachedScan.stats,
+      lineStats: cachedScan.lineStats,
       regions: cachedScan.regions,
       scannedAt: cachedScan.scannedAt,
       ageSeconds,

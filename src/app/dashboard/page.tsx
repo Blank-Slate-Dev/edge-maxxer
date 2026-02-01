@@ -22,7 +22,11 @@ interface GlobalArbsResponse {
   hasCachedResults: boolean;
   opportunities?: ArbOpportunity[];
   valueBets?: ValueBet[];
+  spreadArbs?: SpreadArb[];
+  totalsArbs?: TotalsArb[];
+  middles?: MiddleOpportunity[];
   stats?: ScanStats;
+  lineStats?: LineStats;
   regions?: string[];
   scannedAt?: string;
   ageSeconds?: number;
@@ -101,6 +105,39 @@ function getBookmakersFromArb(opp: ArbOpportunity): string[] {
   }
 }
 
+// Helper to get bookmakers from spread arb
+function getBookmakersFromSpreadArb(arb: SpreadArb): string[] {
+  return [arb.favorite.bookmaker, arb.underdog.bookmaker];
+}
+
+// Helper to get bookmakers from totals arb
+function getBookmakersFromTotalsArb(arb: TotalsArb): string[] {
+  return [arb.over.bookmaker, arb.under.bookmaker];
+}
+
+// Helper to get bookmakers from middle opportunity
+function getBookmakersFromMiddle(middle: MiddleOpportunity): string[] {
+  return [middle.side1.bookmaker, middle.side2.bookmaker];
+}
+
+// Build region bookmakers set for filtering
+function buildRegionBookmakersSet(region: UserRegion): Set<string> {
+  const regionBookmakers = new Set<string>();
+  config.bookmakersByRegion[region].forEach(b => {
+    regionBookmakers.add(b.toLowerCase());
+    const displayName = config.bookmakerNames[b];
+    if (displayName) {
+      regionBookmakers.add(displayName.toLowerCase());
+    }
+  });
+  return regionBookmakers;
+}
+
+// Check if all bookmakers are from region
+function allBookmakersFromRegion(bookmakers: string[], regionSet: Set<string>): boolean {
+  return bookmakers.every(bk => regionSet.has(bk.toLowerCase()));
+}
+
 export default function DashboardPage() {
   const { data: session, update: updateSession } = useSession();
   const searchParams = useSearchParams();
@@ -121,8 +158,6 @@ export default function DashboardPage() {
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
-  const [isLoadingLines, setIsLoadingLines] = useState(false);
-  const [linesProgress, setLinesProgress] = useState<string>('');
   
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [remainingCredits, setRemainingCredits] = useState<number | undefined>();
@@ -130,9 +165,7 @@ export default function DashboardPage() {
   const [selectedValueBet, setSelectedValueBet] = useState<ValueBet | null>(null);
   const [selectedLineOpp, setSelectedLineOpp] = useState<SpreadArb | TotalsArb | MiddleOpportunity | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [linesError, setLinesError] = useState<string | null>(null);
   const [hasFetchedArbs, setHasFetchedArbs] = useState(false);
-  const [hasFetchedLines, setHasFetchedLines] = useState(false);
   const [activeTab, setActiveTab] = useState<Tab>('opportunities');
   const [showMiddles, setShowMiddles] = useState(true);
   
@@ -154,9 +187,6 @@ export default function DashboardPage() {
   
   // Ref to track last scanned timestamp without causing re-renders
   const lastScannedAtRef = useRef<string | null>(null);
-
-  // AbortController for canceling requests
-  const abortControllerRef = useRef<AbortController | null>(null);
 
   const { bets, isLoaded: betsLoaded, addBet, updateBet, deleteBet, clearAllBets } = useBets();
   const { 
@@ -224,7 +254,7 @@ export default function DashboardPage() {
     fetchSettings();
   }, []);
 
-  // Fetch global arbs - main data fetching function
+  // Fetch global arbs - main data fetching function (includes H2H, spreads, totals, middles)
   const fetchGlobalArbs = useCallback(async (mode: 'initial' | 'background' | 'manual' = 'background') => {
     // Set appropriate loading state
     if (mode === 'initial') {
@@ -249,12 +279,12 @@ export default function DashboardPage() {
         throw new Error(data.error || 'Failed to fetch opportunities');
       }
 
-      if (data.hasCachedResults && data.opportunities) {
+      if (data.hasCachedResults) {
         // Check if this is new data using ref (doesn't cause re-render)
         const isNewData = data.scannedAt !== lastScannedAtRef.current;
 
-        // Parse dates in opportunities
-        const parsed = data.opportunities.map(opp => ({
+        // Parse dates in H2H opportunities
+        const parsedOpportunities = (data.opportunities || []).map(opp => ({
           ...opp,
           event: {
             ...opp.event,
@@ -263,6 +293,7 @@ export default function DashboardPage() {
           lastUpdated: new Date(opp.lastUpdated),
         }));
 
+        // Parse dates in value bets
         const parsedValueBets = (data.valueBets || []).map(vb => ({
           ...vb,
           event: {
@@ -272,10 +303,44 @@ export default function DashboardPage() {
           lastUpdated: new Date(vb.lastUpdated),
         }));
 
+        // Parse dates in spread arbs
+        const parsedSpreadArbs = (data.spreadArbs || []).map(s => ({
+          ...s,
+          event: {
+            ...s.event,
+            commenceTime: new Date(s.event.commenceTime),
+          },
+          lastUpdated: new Date(s.lastUpdated),
+        }));
+
+        // Parse dates in totals arbs
+        const parsedTotalsArbs = (data.totalsArbs || []).map(t => ({
+          ...t,
+          event: {
+            ...t.event,
+            commenceTime: new Date(t.event.commenceTime),
+          },
+          lastUpdated: new Date(t.lastUpdated),
+        }));
+
+        // Parse dates in middles
+        const parsedMiddles = (data.middles || []).map(m => ({
+          ...m,
+          event: {
+            ...m.event,
+            commenceTime: new Date(m.event.commenceTime),
+          },
+          lastUpdated: new Date(m.lastUpdated),
+        }));
+
         // Update state - this should be seamless, no flashing
-        setOpportunities(parsed);
+        setOpportunities(parsedOpportunities);
         setValueBets(parsedValueBets);
+        setSpreadArbs(parsedSpreadArbs);
+        setTotalsArbs(parsedTotalsArbs);
+        setMiddles(parsedMiddles);
         if (data.stats) setStats(data.stats);
+        if (data.lineStats) setLineStats(data.lineStats);
         if (data.scannedAt) {
           setLastUpdated(new Date(data.scannedAt));
           lastScannedAtRef.current = data.scannedAt;
@@ -285,10 +350,16 @@ export default function DashboardPage() {
         setHasFetchedArbs(true);
         setError(null);
 
-        // Extract bookmakers
+        // Extract bookmakers from all opportunity types
         const uniqueBookmakers = new Set<string>();
-        parsed.forEach(opp => {
+        parsedOpportunities.forEach(opp => {
           getBookmakersFromArb(opp).forEach(bm => uniqueBookmakers.add(bm));
+        });
+        parsedSpreadArbs.forEach(s => {
+          getBookmakersFromSpreadArb(s).forEach(bm => uniqueBookmakers.add(bm));
+        });
+        parsedTotalsArbs.forEach(t => {
+          getBookmakersFromTotalsArb(t).forEach(bm => uniqueBookmakers.add(bm));
         });
         setBookmakers(Array.from(uniqueBookmakers));
 
@@ -298,7 +369,7 @@ export default function DashboardPage() {
           setTimeout(() => setShowNewResultsFlash(false), 2000);
         }
 
-        console.log(`[Dashboard] Loaded ${parsed.length} opportunities (${data.ageSeconds}s old)`);
+        console.log(`[Dashboard] Loaded ${parsedOpportunities.length} H2H, ${parsedSpreadArbs.length} spreads, ${parsedTotalsArbs.length} totals, ${parsedMiddles.length} middles (${data.ageSeconds}s old)`);
       }
     } catch (err) {
       console.error('Failed to fetch global arbs:', err);
@@ -366,72 +437,57 @@ export default function DashboardPage() {
     setSelectedLineOpp(null);
   };
 
-  // Filter opportunities - ALL bookmakers must be from selected region
+  // Build region set once for filtering
+  const regionBookmakersSet = buildRegionBookmakersSet(selectedRegion);
+
+  // Filter H2H opportunities - ALL bookmakers must be from selected region
   const filteredOpportunities = opportunities.filter(opp => {
-    // Filter by profit
     if (filters.profitableOnly && opp.profitPercentage < 0) return false;
     if (!filters.showNearArbs && opp.type === 'near-arb') return false;
-    
-    // Filter by sport
     if (filters.sports.length > 0 && !filters.sports.includes(opp.event.sportKey)) return false;
-    
-    // Filter by bookmaker
     if (filters.bookmakers.length > 0) {
       const oppBookmakers = getBookmakersFromArb(opp);
       if (!filters.bookmakers.some(b => oppBookmakers.includes(b))) return false;
     }
     
-    // Build set of bookmakers for selected region (both API keys and display names)
-    const regionBookmakers = new Set<string>();
-    config.bookmakersByRegion[selectedRegion].forEach(b => {
-      regionBookmakers.add(b.toLowerCase());
-      const displayName = config.bookmakerNames[b];
-      if (displayName) {
-        regionBookmakers.add(displayName.toLowerCase());
-      }
-    });
-    
-    // ALL bookmakers in the arb must be from the selected region
+    // ALL bookmakers must be from selected region
     const oppBookmakers = getBookmakersFromArb(opp);
-    const allFromSelectedRegion = oppBookmakers.every(bk => 
-      regionBookmakers.has(bk.toLowerCase())
-    );
-    
-    if (!allFromSelectedRegion) return false;
-    
-    return true;
+    return allBookmakersFromRegion(oppBookmakers, regionBookmakersSet);
   });
 
   // Filter value bets - bookmaker must be from selected region
   const filteredValueBets = valueBets.filter(vb => {
-    const regionBookmakers = new Set<string>();
-    config.bookmakersByRegion[selectedRegion].forEach(b => {
-      regionBookmakers.add(b.toLowerCase());
-      const displayName = config.bookmakerNames[b];
-      if (displayName) {
-        regionBookmakers.add(displayName.toLowerCase());
-      }
-    });
-    
-    return regionBookmakers.has(vb.outcome.bookmaker.toLowerCase());
+    return regionBookmakersSet.has(vb.outcome.bookmaker.toLowerCase());
   });
 
+  // Filter spread arbs - ALL bookmakers must be from selected region
   const filteredSpreads = spreadArbs.filter(s => {
     if (filters.profitableOnly && s.profitPercentage < 0) return false;
     if (!filters.showNearArbs && s.type === 'near-arb') return false;
-    return true;
+    
+    const bookmakers = getBookmakersFromSpreadArb(s);
+    return allBookmakersFromRegion(bookmakers, regionBookmakersSet);
   });
 
+  // Filter totals arbs - ALL bookmakers must be from selected region
   const filteredTotals = totalsArbs.filter(t => {
     if (filters.profitableOnly && t.profitPercentage < 0) return false;
     if (!filters.showNearArbs && t.type === 'near-arb') return false;
-    return true;
+    
+    const bookmakers = getBookmakersFromTotalsArb(t);
+    return allBookmakersFromRegion(bookmakers, regionBookmakersSet);
+  });
+
+  // Filter middles - ALL bookmakers must be from selected region
+  const filteredMiddles = middles.filter(m => {
+    const bookmakers = getBookmakersFromMiddle(m);
+    return allBookmakersFromRegion(bookmakers, regionBookmakersSet);
   });
 
   const profitableCount = filteredOpportunities.filter(o => o.profitPercentage >= 0).length;
   const activeAccountsCount = accounts.filter(a => a.isActive).length;
-  const spreadMiddles = middles.filter(m => m.marketType === 'spreads');
-  const totalsMiddles = middles.filter(m => m.marketType === 'totals');
+  const spreadMiddles = filteredMiddles.filter(m => m.marketType === 'spreads');
+  const totalsMiddles = filteredMiddles.filter(m => m.marketType === 'totals');
 
   const selectedBookmakerCount = countBookmakersForRegions([selectedRegion]);
 
@@ -669,20 +725,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Lines Error */}
-        {linesError && !error && (
-          <div 
-            className="border px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm rounded-lg"
-            style={{
-              borderColor: 'var(--warning)',
-              backgroundColor: 'color-mix(in srgb, var(--warning) 10%, transparent)',
-              color: 'var(--warning)'
-            }}
-          >
-            Lines scan issue: {linesError}
-          </div>
-        )}
-
         {/* Stats Grid - with smooth transitions */}
         {hasFetchedArbs && stats && (
           <div 
@@ -699,21 +741,18 @@ export default function DashboardPage() {
             />
             <StatBox 
               label="Spread Arbs" 
-              value={isLoadingLines ? '...' : filteredSpreads.filter(s => s.type === 'arb').length}
-              highlight={!isLoadingLines && filteredSpreads.filter(s => s.type === 'arb').length > 0}
-              loading={isLoadingLines}
+              value={filteredSpreads.filter(s => s.type === 'arb').length}
+              highlight={filteredSpreads.filter(s => s.type === 'arb').length > 0}
             />
             <StatBox 
               label="Totals Arbs" 
-              value={isLoadingLines ? '...' : filteredTotals.filter(t => t.type === 'arb').length}
-              highlight={!isLoadingLines && filteredTotals.filter(t => t.type === 'arb').length > 0}
-              loading={isLoadingLines}
+              value={filteredTotals.filter(t => t.type === 'arb').length}
+              highlight={filteredTotals.filter(t => t.type === 'arb').length > 0}
             />
             <StatBox 
               label="Middles" 
-              value={isLoadingLines ? '...' : middles.length}
+              value={filteredMiddles.length}
               subtitle="EV plays"
-              loading={isLoadingLines}
             />
             <StatBox 
               label="Value Bets" 
@@ -739,16 +778,14 @@ export default function DashboardPage() {
             <TabButton 
               active={activeTab === 'spreads'} 
               onClick={() => setActiveTab('spreads')}
-              count={isLoadingLines ? undefined : filteredSpreads.length + spreadMiddles.length}
-              loading={isLoadingLines}
+              count={filteredSpreads.length + spreadMiddles.length}
             >
               Lines
             </TabButton>
             <TabButton 
               active={activeTab === 'totals'} 
               onClick={() => setActiveTab('totals')}
-              count={isLoadingLines ? undefined : filteredTotals.length + totalsMiddles.length}
-              loading={isLoadingLines}
+              count={filteredTotals.length + totalsMiddles.length}
             >
               Totals
             </TabButton>
@@ -812,33 +849,25 @@ export default function DashboardPage() {
           )}
 
           {hasFetchedArbs && activeTab === 'spreads' && (
-            isLoadingLines ? (
-              <LoadingPlaceholder message="Loading spreads & middles..." />
-            ) : (
-              <SpreadsTable
-                spreads={filteredSpreads}
-                middles={spreadMiddles}
-                onSelectSpread={(s) => setSelectedLineOpp(s)}
-                onSelectMiddle={(m) => setSelectedLineOpp(m)}
-                showMiddles={showMiddles}
-                globalMode={false}
-              />
-            )
+            <SpreadsTable
+              spreads={filteredSpreads}
+              middles={spreadMiddles}
+              onSelectSpread={(s) => setSelectedLineOpp(s)}
+              onSelectMiddle={(m) => setSelectedLineOpp(m)}
+              showMiddles={showMiddles}
+              globalMode={false}
+            />
           )}
 
           {hasFetchedArbs && activeTab === 'totals' && (
-            isLoadingLines ? (
-              <LoadingPlaceholder message="Loading totals & middles..." />
-            ) : (
-              <TotalsTable
-                totals={filteredTotals}
-                middles={totalsMiddles}
-                onSelectTotals={(t) => setSelectedLineOpp(t)}
-                onSelectMiddle={(m) => setSelectedLineOpp(m)}
-                showMiddles={showMiddles}
-                globalMode={false}
-              />
-            )
+            <TotalsTable
+              totals={filteredTotals}
+              middles={totalsMiddles}
+              onSelectTotals={(t) => setSelectedLineOpp(t)}
+              onSelectMiddle={(m) => setSelectedLineOpp(m)}
+              showMiddles={showMiddles}
+              globalMode={false}
+            />
           )}
 
           {hasFetchedArbs && activeTab === 'value-bets' && (
@@ -895,33 +924,16 @@ export default function DashboardPage() {
   );
 }
 
-function LoadingPlaceholder({ message }: { message: string }) {
-  return (
-    <div 
-      className="border p-8 sm:p-12 text-center rounded-lg"
-      style={{
-        borderColor: 'var(--border)',
-        backgroundColor: 'var(--surface)'
-      }}
-    >
-      <Loader2 className="w-6 h-6 sm:w-8 sm:h-8 animate-spin mx-auto mb-4" style={{ color: 'var(--muted)' }} />
-      <p className="text-sm" style={{ color: 'var(--muted)' }}>{message}</p>
-    </div>
-  );
-}
-
 function StatBox({ 
   label, 
   value, 
   subtitle,
   highlight,
-  loading 
 }: { 
   label: string; 
   value: number | string; 
   subtitle?: string;
   highlight?: boolean;
-  loading?: boolean;
 }) {
   return (
     <div className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 transition-opacity duration-200" style={{ backgroundColor: 'var(--background)' }}>
@@ -935,11 +947,7 @@ function StatBox({
         className="text-lg sm:text-xl lg:text-2xl font-mono flex items-center gap-1 sm:gap-2 transition-all duration-200"
         style={{ color: highlight ? 'var(--foreground)' : 'var(--muted)' }}
       >
-        {loading ? (
-          <Loader2 className="w-4 h-4 sm:w-5 sm:h-5 animate-spin" style={{ color: 'var(--muted)' }} />
-        ) : (
-          value
-        )}
+        {value}
       </div>
       {subtitle && (
         <div className="text-[10px] sm:text-xs mt-0.5 truncate" style={{ color: 'var(--muted-foreground)' }}>
@@ -955,13 +963,11 @@ function TabButton({
   active, 
   onClick,
   count,
-  loading 
 }: { 
   children: React.ReactNode; 
   active: boolean; 
   onClick: () => void;
   count?: number;
-  loading?: boolean;
 }) {
   return (
     <button
@@ -973,9 +979,7 @@ function TabButton({
       }}
     >
       {children}
-      {loading ? (
-        <Loader2 className="inline-block ml-1.5 sm:ml-2 w-3 h-3 animate-spin" style={{ color: 'var(--muted)' }} />
-      ) : count !== undefined && count > 0 && (
+      {count !== undefined && count > 0 && (
         <span 
           className="ml-1 sm:ml-2 text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded transition-all duration-200"
           style={{
