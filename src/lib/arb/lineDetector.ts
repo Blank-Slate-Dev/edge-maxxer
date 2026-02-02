@@ -18,6 +18,15 @@ interface LineDetectionResult {
   stats: LineStats;
 }
 
+// Internal type for tracking spread/totals odds with bookmaker key
+interface TrackedLineOdds {
+  bookmaker: string; // Display title
+  bookmakerKey: string; // API key for filtering
+  odds: number;
+  point: number;
+  lastUpdate: Date;
+}
+
 /**
  * Detects spread and totals arbitrage opportunities
  */
@@ -89,8 +98,8 @@ function findSpreadArbs(
   let hasData = false;
 
   // Collect all spread outcomes grouped by line
-  // Structure: { lineValue: { teamName: [{ bookmaker, odds, point }] } }
-  const spreadsByLine = new Map<number, Map<string, { bookmaker: string; odds: number; point: number; lastUpdate: Date }[]>>();
+  // Structure: { lineValue: { teamName: [{ bookmaker, bookmakerKey, odds, point }] } }
+  const spreadsByLine = new Map<number, Map<string, TrackedLineOdds[]>>();
 
   for (const bm of event.bookmakers) {
     const spreadMarket = bm.markets.find(m => m.key === 'spreads');
@@ -110,6 +119,7 @@ function findSpreadArbs(
       const teamOdds = lineMap.get(outcome.name) || [];
       teamOdds.push({
         bookmaker: bm.bookmaker.title,
+        bookmakerKey: bm.bookmaker.key,
         odds: outcome.price,
         point: outcome.point,
         lastUpdate: spreadMarket.lastUpdate,
@@ -153,12 +163,14 @@ function findSpreadArbs(
         favorite: {
           name: favorite.name,
           bookmaker: favorite.bookmaker,
+          bookmakerKey: favorite.bookmakerKey,
           odds: favorite.odds,
           point: favorite.point,
         },
         underdog: {
           name: underdog.name,
           bookmaker: underdog.bookmaker,
+          bookmakerKey: underdog.bookmakerKey,
           odds: underdog.odds,
           point: underdog.point,
         },
@@ -201,11 +213,11 @@ function findSpreadArbs(
       // Find the underdog bet at higher line and favorite bet at lower line
       const underdogAtHighLine = [...team1AtLine2, ...team2AtLine2]
         .filter(o => o.point > 0)
-        .reduce((a, b) => !a || b.odds > a.odds ? b : a, null as any);
+        .reduce((a, b) => !a || b.odds > a.odds ? b : a, null as TrackedLineOdds | null);
       
       const favoriteAtLowLine = [...team1AtLine1, ...team2AtLine1]
         .filter(o => o.point < 0)
-        .reduce((a, b) => !a || b.odds > a.odds ? b : a, null as any);
+        .reduce((a, b) => !a || b.odds > a.odds ? b : a, null as TrackedLineOdds | null);
 
       if (!underdogAtHighLine || !favoriteAtLowLine) continue;
 
@@ -242,6 +254,8 @@ function findSpreadArbs(
           teamMap2.get(t)?.some(o => o.point < 0)
         ) || teams[0];
 
+        const underdogTeam = teams.find(t => t !== favTeam) || teams[1];
+
         middles.push({
           mode: 'middle',
           type: 'middle',
@@ -250,12 +264,14 @@ function findSpreadArbs(
           side1: {
             name: favTeam,
             bookmaker: favoriteAtLowLine.bookmaker,
+            bookmakerKey: favoriteAtLowLine.bookmakerKey,
             odds: favoriteAtLowLine.odds,
             point: favoriteAtLowLine.point,
           },
           side2: {
-            name: teams.find(t => t !== favTeam) || teams[1],
+            name: underdogTeam,
             bookmaker: underdogAtHighLine.bookmaker,
+            bookmakerKey: underdogAtHighLine.bookmakerKey,
             odds: underdogAtHighLine.odds,
             point: underdogAtHighLine.point,
           },
@@ -297,8 +313,8 @@ function findTotalsArbs(
 
   // Collect all totals outcomes grouped by line
   const totalsByLine = new Map<number, { 
-    over: { bookmaker: string; odds: number; point: number; lastUpdate: Date }[];
-    under: { bookmaker: string; odds: number; point: number; lastUpdate: Date }[];
+    over: TrackedLineOdds[];
+    under: TrackedLineOdds[];
   }>();
 
   for (const bm of event.bookmakers) {
@@ -317,8 +333,9 @@ function findTotalsArbs(
       }
       
       const lineData = totalsByLine.get(line)!;
-      const entry = {
+      const entry: TrackedLineOdds = {
         bookmaker: bm.bookmaker.title,
+        bookmakerKey: bm.bookmaker.key,
         odds: outcome.price,
         point: line,
         lastUpdate: totalsMarket.lastUpdate,
@@ -353,11 +370,13 @@ function findTotalsArbs(
         line,
         over: {
           bookmaker: bestOver.bookmaker,
+          bookmakerKey: bestOver.bookmakerKey,
           odds: bestOver.odds,
           point: bestOver.point,
         },
         under: {
           bookmaker: bestUnder.bookmaker,
+          bookmakerKey: bestUnder.bookmakerKey,
           odds: bestUnder.odds,
           point: bestUnder.point,
         },
@@ -418,12 +437,14 @@ function findTotalsArbs(
           side1: {
             name: `Over ${lowLine}`,
             bookmaker: bestOverLow.bookmaker,
+            bookmakerKey: bestOverLow.bookmakerKey,
             odds: bestOverLow.odds,
             point: lowLine,
           },
           side2: {
             name: `Under ${highLine}`,
             bookmaker: bestUnderHigh.bookmaker,
+            bookmakerKey: bestUnderHigh.bookmakerKey,
             odds: bestUnderHigh.odds,
             point: highLine,
           },

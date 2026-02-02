@@ -29,6 +29,11 @@ const CREDITS_PER_SCAN: Record<string, number> = {
   EU: 200,
 };
 
+// Rate limiting: delay between API batches (ms)
+// Keep these short since regions are scanned sequentially (no parallel requests)
+const DELAY_BETWEEN_REGIONS_MS = 500; // 0.5 seconds between region scans
+const DELAY_BETWEEN_MARKET_TYPES_MS = 300; // 0.3 seconds between H2H and lines
+
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
@@ -44,82 +49,69 @@ interface ArbWithUrls extends BookVsBookArb {
 // Track scan count for rotation (resets on deploy, but that's fine)
 let globalScanCounter = 0;
 
-// Build a set of bookmakers for a region (lowercase, includes display names)
-function buildRegionBookmakersSet(region: UserRegion): Set<string> {
-  const bookmakers = new Set<string>();
-  config.bookmakersByRegion[region].forEach(b => {
-    bookmakers.add(b.toLowerCase());
-    const displayName = config.bookmakerNames[b];
-    if (displayName) {
-      bookmakers.add(displayName.toLowerCase());
-    }
+// Helper to add delay
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// Build a set of bookmaker KEYS for a region
+function buildRegionBookmakerKeysSet(region: UserRegion): Set<string> {
+  const keys = new Set<string>();
+  config.bookmakersByRegion[region].forEach(k => {
+    keys.add(k.toLowerCase());
   });
-  return bookmakers;
+  return keys;
 }
 
-// Check if all bookmakers in a list are from a region
-function allBookmakersFromRegion(bookmakerList: string[], regionSet: Set<string>): boolean {
-  return bookmakerList.every(bk => regionSet.has(bk.toLowerCase()));
-}
-
-// Extract bookmakers from H2H arb
-function getBookmakersFromArb(arb: ArbWithUrls): string[] {
-  const bookmakers = [arb.outcome1.bookmaker, arb.outcome2.bookmaker];
-  if (arb.outcome3) {
-    bookmakers.push(arb.outcome3.bookmaker);
+// Build a combined set of bookmaker KEYS for multiple regions
+function buildMultiRegionBookmakerKeysSet(regions: UserRegion[]): Set<string> {
+  const keys = new Set<string>();
+  for (const region of regions) {
+    config.bookmakersByRegion[region]?.forEach(k => {
+      keys.add(k.toLowerCase());
+    });
   }
-  return bookmakers;
+  return keys;
 }
 
-// Extract bookmakers from spread arb
-function getBookmakersFromSpreadArb(arb: SpreadArb): string[] {
-  return [arb.favorite.bookmaker, arb.underdog.bookmaker];
+// Check if all bookmaker KEYS in a list are from a region set
+function allBookmakerKeysFromRegion(bookmakerKeys: string[], regionSet: Set<string>): boolean {
+  return bookmakerKeys.every(key => regionSet.has(key.toLowerCase()));
 }
 
-// Extract bookmakers from totals arb
-function getBookmakersFromTotalsArb(arb: TotalsArb): string[] {
-  return [arb.over.bookmaker, arb.under.bookmaker];
+// Extract bookmaker KEYS from H2H arb
+function getBookmakerKeysFromArb(arb: ArbWithUrls): string[] {
+  const keys = [arb.outcome1.bookmakerKey, arb.outcome2.bookmakerKey];
+  if (arb.outcome3) {
+    keys.push(arb.outcome3.bookmakerKey);
+  }
+  return keys;
 }
 
-// Extract bookmakers from middle
-function getBookmakersFromMiddle(middle: MiddleOpportunity): string[] {
-  return [middle.side1.bookmaker, middle.side2.bookmaker];
+// Extract bookmaker KEYS from spread arb
+function getBookmakerKeysFromSpreadArb(arb: SpreadArb): string[] {
+  return [arb.favorite.bookmakerKey, arb.underdog.bookmakerKey];
 }
 
-// Filter results by region
-function filterResultsByRegion(
+// Extract bookmaker KEYS from totals arb
+function getBookmakerKeysFromTotalsArb(arb: TotalsArb): string[] {
+  return [arb.over.bookmakerKey, arb.under.bookmakerKey];
+}
+
+// Extract bookmaker KEYS from middle
+function getBookmakerKeysFromMiddle(middle: MiddleOpportunity): string[] {
+  return [middle.side1.bookmakerKey, middle.side2.bookmakerKey];
+}
+
+// Filter opportunities by multiple regions (for SMS alerts)
+function filterOpportunitiesByRegions(
   opportunities: ArbWithUrls[],
-  valueBets: ValueBet[],
-  spreadArbs: SpreadArb[],
-  totalsArbs: TotalsArb[],
-  middles: MiddleOpportunity[],
-  region: UserRegion
-): {
-  opportunities: ArbWithUrls[];
-  valueBets: ValueBet[];
-  spreadArbs: SpreadArb[];
-  totalsArbs: TotalsArb[];
-  middles: MiddleOpportunity[];
-} {
-  const regionSet = buildRegionBookmakersSet(region);
-
-  return {
-    opportunities: opportunities.filter(arb => 
-      allBookmakersFromRegion(getBookmakersFromArb(arb), regionSet)
-    ),
-    valueBets: valueBets.filter(vb => 
-      regionSet.has(vb.outcome.bookmaker.toLowerCase())
-    ),
-    spreadArbs: spreadArbs.filter(arb => 
-      allBookmakersFromRegion(getBookmakersFromSpreadArb(arb), regionSet)
-    ),
-    totalsArbs: totalsArbs.filter(arb => 
-      allBookmakersFromRegion(getBookmakersFromTotalsArb(arb), regionSet)
-    ),
-    middles: middles.filter(m => 
-      allBookmakersFromRegion(getBookmakersFromMiddle(m), regionSet)
-    ),
-  };
+  regions: UserRegion[]
+): ArbWithUrls[] {
+  const regionSet = buildMultiRegionBookmakerKeysSet(regions);
+  return opportunities.filter(arb => 
+    allBookmakerKeysFromRegion(getBookmakerKeysFromArb(arb), regionSet)
+  );
 }
 
 export async function GET(request: NextRequest) {
@@ -193,19 +185,125 @@ export async function GET(request: NextRequest) {
         });
 
         const scanStartTime = Date.now();
-        const scanResult = await runScanForUser(user, scanRegions);
+        
+        // =====================================================
+        // NEW: Scan each region INDEPENDENTLY to avoid cross-contamination
+        // =====================================================
+        const allOpportunities: ArbWithUrls[] = [];
+        const allValueBets: ValueBet[] = [];
+        const allSpreadArbs: SpreadArb[] = [];
+        const allTotalsArbs: TotalsArb[] = [];
+        const allMiddles: MiddleOpportunity[] = [];
+        let totalStats = {
+          totalEvents: 0,
+          eventsWithMultipleBookmakers: 0,
+          totalBookmakers: 0,
+          arbsFound: 0,
+          nearArbsFound: 0,
+          valueBetsFound: 0,
+          sportsScanned: 0,
+        };
+        let totalLineStats = {
+          totalEvents: 0,
+          spreadArbsFound: 0,
+          totalsArbsFound: 0,
+          middlesFound: 0,
+          nearArbsFound: 0,
+        };
+        let remainingCredits: number | undefined;
+
+        // Scan each region separately
+        for (let i = 0; i < scanRegions.length; i++) {
+          const region = scanRegions[i];
+          
+          // Add delay between regions to avoid rate limiting (skip first)
+          if (i > 0) {
+            console.log(`[AutoScan] Waiting ${DELAY_BETWEEN_REGIONS_MS}ms before scanning ${region}...`);
+            await delay(DELAY_BETWEEN_REGIONS_MS);
+          }
+
+          console.log(`[AutoScan] Scanning region: ${region}`);
+          
+          const regionResult = await runScanForRegion(user, region);
+          
+          // Accumulate results
+          allOpportunities.push(...regionResult.opportunities);
+          allValueBets.push(...regionResult.valueBets);
+          allSpreadArbs.push(...regionResult.spreadArbs);
+          allTotalsArbs.push(...regionResult.totalsArbs);
+          allMiddles.push(...regionResult.middles);
+          
+          // Update stats
+          totalStats.totalEvents += regionResult.stats.totalEvents;
+          totalStats.eventsWithMultipleBookmakers += regionResult.stats.eventsWithMultipleBookmakers;
+          totalStats.totalBookmakers = Math.max(totalStats.totalBookmakers, regionResult.stats.totalBookmakers);
+          totalStats.arbsFound += regionResult.stats.arbsFound;
+          totalStats.nearArbsFound += regionResult.stats.nearArbsFound;
+          totalStats.valueBetsFound += regionResult.stats.valueBetsFound;
+          totalStats.sportsScanned = Math.max(totalStats.sportsScanned, regionResult.stats.sportsScanned);
+          
+          totalLineStats.totalEvents += regionResult.lineStats.totalEvents;
+          totalLineStats.spreadArbsFound += regionResult.lineStats.spreadArbsFound;
+          totalLineStats.totalsArbsFound += regionResult.lineStats.totalsArbsFound;
+          totalLineStats.middlesFound += regionResult.lineStats.middlesFound;
+          totalLineStats.nearArbsFound += regionResult.lineStats.nearArbsFound;
+          
+          remainingCredits = regionResult.remainingCredits;
+
+          // If master account, update cache for this specific region immediately
+          if (isMasterAccount) {
+            const regionStats = {
+              ...regionResult.stats,
+              arbsFound: regionResult.opportunities.filter(o => o.type === 'arb').length,
+              nearArbsFound: regionResult.opportunities.filter(o => o.type === 'near-arb').length,
+              valueBetsFound: regionResult.valueBets.length,
+            };
+
+            const regionLineStats = {
+              totalEvents: regionResult.lineStats.totalEvents,
+              spreadArbsFound: regionResult.spreadArbs.filter(s => s.type === 'arb').length,
+              totalsArbsFound: regionResult.totalsArbs.filter(t => t.type === 'arb').length,
+              middlesFound: regionResult.middles.length,
+              nearArbsFound: regionResult.spreadArbs.filter(s => s.type === 'near-arb').length +
+                            regionResult.totalsArbs.filter(t => t.type === 'near-arb').length,
+            };
+
+            await GlobalScanCache.updateScanForRegion(region, {
+              opportunities: regionResult.opportunities,
+              valueBets: regionResult.valueBets,
+              spreadArbs: regionResult.spreadArbs,
+              totalsArbs: regionResult.totalsArbs,
+              middles: regionResult.middles,
+              stats: regionStats,
+              lineStats: regionLineStats,
+              scannedAt: now,
+              scanDurationMs: Date.now() - scanStartTime,
+              remainingCredits: regionResult.remainingCredits,
+            });
+
+            results.regionResults[region] = {
+              h2h: regionResult.opportunities.length,
+              spreads: regionResult.spreadArbs.length,
+              totals: regionResult.totalsArbs.length,
+              middles: regionResult.middles.length,
+            };
+
+            console.log(`[AutoScan] ${region} cache: ${regionResult.opportunities.length} H2H, ${regionResult.spreadArbs.length} spreads, ${regionResult.totalsArbs.length} totals, ${regionResult.middles.length} middles`);
+          }
+        }
+
         const scanDurationMs = Date.now() - scanStartTime;
 
-        // Update user's scan stats
+        // Update user's scan stats with combined results
         await User.findByIdAndUpdate(user._id, {
           'autoScan.lastScanAt': now,
           'autoScan.scanStartedAt': null,
-          'autoScan.lastScanCreditsRemaining': scanResult.remainingCredits,
+          'autoScan.lastScanCreditsRemaining': remainingCredits,
           $inc: { 'autoScan.creditsUsedThisMonth': estimatedCredits },
           cachedScanResults: {
-            opportunities: scanResult.opportunities,
-            valueBets: scanResult.valueBets,
-            stats: scanResult.stats,
+            opportunities: allOpportunities,
+            valueBets: allValueBets,
+            stats: totalStats,
             regions: scanRegions,
             scannedAt: now,
           },
@@ -213,66 +311,12 @@ export async function GET(request: NextRequest) {
 
         results.scanned++;
 
-        // If master account, update GlobalScanCache PER REGION
         if (isMasterAccount) {
-          console.log(`[AutoScan] Updating per-region caches for regions: ${scanRegions.join(', ')}`);
-
-          for (const region of scanRegions) {
-            // Filter results to only include arbs where ALL bookmakers are from this region
-            const regionFiltered = filterResultsByRegion(
-              scanResult.opportunities,
-              scanResult.valueBets as ValueBet[],
-              scanResult.spreadArbs,
-              scanResult.totalsArbs,
-              scanResult.middles,
-              region
-            );
-
-            // Calculate region-specific stats
-            const regionStats = {
-              ...scanResult.stats,
-              arbsFound: regionFiltered.opportunities.filter(o => o.type === 'arb').length,
-              nearArbsFound: regionFiltered.opportunities.filter(o => o.type === 'near-arb').length,
-              valueBetsFound: regionFiltered.valueBets.length,
-            };
-
-            const regionLineStats = {
-              totalEvents: scanResult.lineStats.totalEvents,
-              spreadArbsFound: regionFiltered.spreadArbs.filter(s => s.type === 'arb').length,
-              totalsArbsFound: regionFiltered.totalsArbs.filter(t => t.type === 'arb').length,
-              middlesFound: regionFiltered.middles.length,
-              nearArbsFound: regionFiltered.spreadArbs.filter(s => s.type === 'near-arb').length +
-                            regionFiltered.totalsArbs.filter(t => t.type === 'near-arb').length,
-            };
-
-            await GlobalScanCache.updateScanForRegion(region, {
-              opportunities: regionFiltered.opportunities,
-              valueBets: regionFiltered.valueBets,
-              spreadArbs: regionFiltered.spreadArbs,
-              totalsArbs: regionFiltered.totalsArbs,
-              middles: regionFiltered.middles,
-              stats: regionStats,
-              lineStats: regionLineStats,
-              scannedAt: now,
-              scanDurationMs,
-              remainingCredits: scanResult.remainingCredits,
-            });
-
-            results.regionResults[region] = {
-              h2h: regionFiltered.opportunities.length,
-              spreads: regionFiltered.spreadArbs.length,
-              totals: regionFiltered.totalsArbs.length,
-              middles: regionFiltered.middles.length,
-            };
-
-            console.log(`[AutoScan] ${region} cache: ${regionFiltered.opportunities.length} H2H, ${regionFiltered.spreadArbs.length} spreads, ${regionFiltered.totalsArbs.length} totals, ${regionFiltered.middles.length} middles`);
-          }
-
           results.globalCacheUpdated = true;
         }
 
-        // Handle alerts
-        await handleAlertsForUser(user, scanResult, now, results);
+        // Handle alerts - FILTERED BY USER'S ALERT REGIONS
+        await handleAlertsForUser(user, { opportunities: allOpportunities, valueBets: allValueBets, stats: totalStats }, now, results);
 
       } catch (error) {
         const errorMsg = error instanceof Error ? error.message : 'Unknown error';
@@ -327,7 +371,7 @@ function getRegionsForThisScan(): UserRegion[] {
 }
 
 /**
- * Handle sending alerts for a user
+ * Handle sending alerts for a user - FILTERS BY USER'S ALERT REGIONS
  */
 async function handleAlertsForUser(
   user: IUser,
@@ -338,6 +382,16 @@ async function handleAlertsForUser(
   const minProfit = user.autoScan.minProfitPercent || 4.0;
   const highValueThreshold = user.autoScan.highValueThreshold || 10.0;
   const enableHighValueReminders = user.autoScan.enableHighValueReminders !== false;
+  
+  // Get user's alert regions - use autoScan.regions if set, otherwise fall back to user.region
+  const userAlertRegions = user.autoScan.regions && user.autoScan.regions.length > 0 
+    ? user.autoScan.regions 
+    : [user.region || 'AU'];
+
+  // FILTER opportunities to only include those matching user's alert regions
+  const filteredOpportunities = filterOpportunitiesByRegions(scanResult.opportunities, userAlertRegions);
+  
+  console.log(`[AutoScan] User ${user.email} alert regions: ${userAlertRegions.join(',')} - ${filteredOpportunities.length}/${scanResult.opportunities.length} arbs match`);
 
   const alertedArbs: Record<string, { alertedAt: Date; profitPercent: number }> =
     user.autoScan.alertedArbs instanceof Map
@@ -355,7 +409,8 @@ async function handleAlertsForUser(
   const oppsToAlert: ArbWithUrls[] = [];
   const newAlertedArbs: Record<string, { alertedAt: Date; profitPercent: number }> = { ...cleanedAlertedArbs };
 
-  for (const opp of scanResult.opportunities) {
+  // Use filtered opportunities instead of all opportunities
+  for (const opp of filteredOpportunities) {
     if (opp.type !== 'arb' || opp.profitPercentage < minProfit) continue;
 
     const arbId = generateArbId(opp);
@@ -390,13 +445,13 @@ async function handleAlertsForUser(
         const bets: ArbAlert['bets'] = [
           {
             outcome: opp.outcome1.name,
-            bookmaker: config.bookmakerNames[opp.outcome1.bookmaker] || opp.outcome1.bookmaker,
+            bookmaker: config.bookmakerNames[opp.outcome1.bookmakerKey] || opp.outcome1.bookmaker,
             odds: opp.outcome1.odds,
             stake: stakes.stake1,
           },
           {
             outcome: opp.outcome2.name,
-            bookmaker: config.bookmakerNames[opp.outcome2.bookmaker] || opp.outcome2.bookmaker,
+            bookmaker: config.bookmakerNames[opp.outcome2.bookmakerKey] || opp.outcome2.bookmaker,
             odds: opp.outcome2.odds,
             stake: stakes.stake2,
           },
@@ -405,7 +460,7 @@ async function handleAlertsForUser(
         if (opp.outcome3 && stakes.stake3) {
           bets.push({
             outcome: opp.outcome3.name,
-            bookmaker: config.bookmakerNames[opp.outcome3.bookmaker] || opp.outcome3.bookmaker,
+            bookmaker: config.bookmakerNames[opp.outcome3.bookmakerKey] || opp.outcome3.bookmaker,
             odds: opp.outcome3.odds,
             stake: stakes.stake3,
           });
@@ -430,6 +485,7 @@ async function handleAlertsForUser(
           'autoScan.lastAlertAt': now,
           'autoScan.alertedArbs': newAlertedArbs,
         });
+        console.log(`[AutoScan] Sent ${alerts.length} alerts to ${user.email} for regions: ${userAlertRegions.join(',')}`);
       } else {
         results.errors.push(`SMS failed for ${user.email}: ${smsResult.error}`);
       }
@@ -501,13 +557,13 @@ function checkCanSendAlert(user: IUser, now: Date): boolean {
 
 function generateArbId(opp: BookVsBookArb): string {
   const eventId = opp.event.id;
-  const bk1 = opp.outcome1.bookmaker;
-  const bk2 = opp.outcome2.bookmaker;
+  const bk1 = opp.outcome1.bookmakerKey;
+  const bk2 = opp.outcome2.bookmakerKey;
   const odds1 = Math.round(opp.outcome1.odds * 100);
   const odds2 = Math.round(opp.outcome2.odds * 100);
 
   if (opp.outcome3) {
-    const bk3 = opp.outcome3.bookmaker;
+    const bk3 = opp.outcome3.bookmakerKey;
     const odds3 = Math.round(opp.outcome3.odds * 100);
     return `${eventId}-${bk1}-${bk2}-${bk3}-${odds1}-${odds2}-${odds3}`;
   }
@@ -525,9 +581,9 @@ function calculateEstimatedCredits(regions: UserRegion[]): number {
 
 function addUrlsToArbs(arbs: BookVsBookArb[]): ArbWithUrls[] {
   return arbs.map(arb => {
-    const bookmakers = [arb.outcome1.bookmaker, arb.outcome2.bookmaker];
+    const bookmakers = [arb.outcome1.bookmakerKey, arb.outcome2.bookmakerKey];
     if (arb.outcome3) {
-      bookmakers.push(arb.outcome3.bookmaker);
+      bookmakers.push(arb.outcome3.bookmakerKey);
     }
 
     const bookmakerUrls = buildFullEventUrls(
@@ -541,9 +597,12 @@ function addUrlsToArbs(arbs: BookVsBookArb[]): ArbWithUrls[] {
   });
 }
 
-async function runScanForUser(user: IUser, regions: UserRegion[]): Promise<{
+/**
+ * Run scan for a SINGLE region - ensures no cross-region contamination
+ */
+async function runScanForRegion(user: IUser, region: UserRegion): Promise<{
   opportunities: ArbWithUrls[];
-  valueBets: unknown[];
+  valueBets: ValueBet[];
   spreadArbs: SpreadArb[];
   totalsArbs: TotalsArb[];
   middles: MiddleOpportunity[];
@@ -566,14 +625,20 @@ async function runScanForUser(user: IUser, regions: UserRegion[]): Promise<{
   remainingCredits?: number;
 }> {
   const provider = createOddsApiProvider(user.oddsApiKey!);
-  const regionsStr = getApiRegionsForUserRegions(regions);
+  
+  // Get ONLY this region's API regions
+  const regionsStr = getApiRegionsForUserRegions([region]);
+  
+  // Build set of valid bookmaker keys for this region (for validation)
+  const regionBookmakerKeys = buildRegionBookmakerKeysSet(region);
 
   const allSports = await provider.getSupportedSports();
   const allSportsKeys = allSports.filter(s => !s.hasOutrights).map(s => s.key);
 
   // =====================
-  // 1. FETCH H2H MARKETS
+  // 1. FETCH H2H MARKETS (single region only)
   // =====================
+  console.log(`[AutoScan] Fetching H2H for ${region} (API regions: ${regionsStr})`);
   const h2hResult = await provider.fetchOdds(allSportsKeys, ['h2h'], regionsStr);
 
   const { arbs, valueBets, stats } = detectAllOpportunities(
@@ -582,10 +647,24 @@ async function runScanForUser(user: IUser, regions: UserRegion[]): Promise<{
     config.filters.valueThreshold
   );
 
+  // Filter to ensure ALL bookmakers in each arb are from this region
+  // This should already be the case since we only fetched this region, but double-check
+  const regionArbs = arbs.filter(arb => {
+    const keys = [arb.outcome1.bookmakerKey, arb.outcome2.bookmakerKey];
+    if (arb.outcome3) keys.push(arb.outcome3.bookmakerKey);
+    return allBookmakerKeysFromRegion(keys, regionBookmakerKeys);
+  });
+
+  const regionValueBets = valueBets.filter(vb => 
+    regionBookmakerKeys.has(vb.outcome.bookmakerKey.toLowerCase())
+  );
+
+  // Add delay before fetching lines to avoid rate limiting
+  await delay(DELAY_BETWEEN_MARKET_TYPES_MS);
+
   // =====================
-  // 2. FETCH LINES MARKETS (spreads/totals)
+  // 2. FETCH LINES MARKETS (spreads/totals) - single region only
   // =====================
-  // Filter to sports that typically have spreads/totals
   const lineSportsKeys = allSports
     .filter(s => !s.hasOutrights)
     .filter(s => {
@@ -611,6 +690,7 @@ async function runScanForUser(user: IUser, regions: UserRegion[]): Promise<{
   };
 
   if (lineSportsKeys.length > 0) {
+    console.log(`[AutoScan] Fetching lines for ${region} (${lineSportsKeys.length} sports)`);
     const linesResult = await provider.fetchOdds(lineSportsKeys, ['spreads', 'totals'], regionsStr);
 
     const lineOpportunities = detectLineOpportunities(
@@ -618,12 +698,29 @@ async function runScanForUser(user: IUser, regions: UserRegion[]): Promise<{
       config.filters.nearArbThreshold
     );
 
-    spreadArbs = lineOpportunities.spreadArbs;
-    totalsArbs = lineOpportunities.totalsArbs;
-    middles = lineOpportunities.middles;
-    lineStats = lineOpportunities.stats;
+    // Filter to ensure ALL bookmakers are from this region
+    spreadArbs = lineOpportunities.spreadArbs.filter(arb =>
+      allBookmakerKeysFromRegion(getBookmakerKeysFromSpreadArb(arb), regionBookmakerKeys)
+    );
+    
+    totalsArbs = lineOpportunities.totalsArbs.filter(arb =>
+      allBookmakerKeysFromRegion(getBookmakerKeysFromTotalsArb(arb), regionBookmakerKeys)
+    );
+    
+    middles = lineOpportunities.middles.filter(m =>
+      allBookmakerKeysFromRegion(getBookmakerKeysFromMiddle(m), regionBookmakerKeys)
+    );
 
-    console.log(`[AutoScan] Lines detection complete:`, lineStats);
+    lineStats = {
+      totalEvents: lineOpportunities.stats.totalEvents,
+      spreadArbsFound: spreadArbs.filter(s => s.type === 'arb').length,
+      totalsArbsFound: totalsArbs.filter(t => t.type === 'arb').length,
+      middlesFound: middles.length,
+      nearArbsFound: spreadArbs.filter(s => s.type === 'near-arb').length +
+                    totalsArbs.filter(t => t.type === 'near-arb').length,
+    };
+
+    console.log(`[AutoScan] ${region} lines: ${spreadArbs.length} spreads, ${totalsArbs.length} totals, ${middles.length} middles`);
   }
 
   // =====================
@@ -639,18 +736,26 @@ async function runScanForUser(user: IUser, regions: UserRegion[]): Promise<{
     });
   };
 
-  const validArbs = filterByTime(arbs);
-  const validValueBets = filterByTime(valueBets);
+  const validArbs = filterByTime(regionArbs);
+  const validValueBets = filterByTime(regionValueBets);
   const validSpreadArbs = filterByTime(spreadArbs);
   const validTotalsArbs = filterByTime(totalsArbs);
   const validMiddles = filterByTime(middles);
 
   const arbsWithUrls = addUrlsToArbs(validArbs);
 
-  console.log(`[AutoScan] Found ${arbsWithUrls.length} H2H arbs, ${validSpreadArbs.length} spread arbs, ${validTotalsArbs.length} totals arbs, ${validMiddles.length} middles for regions: ${regions.join(', ')}`);
+  console.log(`[AutoScan] ${region} final: ${arbsWithUrls.length} H2H arbs, ${validSpreadArbs.length} spread arbs, ${validTotalsArbs.length} totals arbs, ${validMiddles.length} middles`);
 
   // Get remaining credits from the last API call
   const remainingCredits = (h2hResult as { remainingRequests?: number }).remainingRequests;
+
+  // Update stats to reflect filtered counts
+  const filteredStats = {
+    ...stats,
+    arbsFound: validArbs.filter(a => a.type === 'arb').length,
+    nearArbsFound: validArbs.filter(a => a.type === 'near-arb').length,
+    valueBetsFound: validValueBets.length,
+  };
 
   return {
     opportunities: arbsWithUrls,
@@ -658,7 +763,7 @@ async function runScanForUser(user: IUser, regions: UserRegion[]): Promise<{
     spreadArbs: validSpreadArbs,
     totalsArbs: validTotalsArbs,
     middles: validMiddles,
-    stats,
+    stats: filteredStats,
     lineStats,
     remainingCredits,
   };

@@ -50,27 +50,27 @@ export type OpportunityType = 'arb' | 'near-arb' | 'value-bet' | 'middle';
 export type ArbMode = 'book-vs-book' | 'book-vs-betfair';
 export type MarketType = 'h2h' | 'spreads' | 'totals';
 
+// Shared outcome type with bookmaker key for region filtering
+export interface ArbOutcome {
+  name: string;
+  bookmaker: string; // Display name for UI
+  bookmakerKey: string; // API key for filtering
+  odds: number;
+}
+
+export interface ArbOutcomeWithPoint extends ArbOutcome {
+  point: number;
+}
+
 export interface BookVsBookArb {
   mode: 'book-vs-book';
   type: OpportunityType;
   event: NormalizedEvent;
   marketType: string; // 'h2h' for 2-way, 'h2h-3way' for soccer
   outcomes: number; // 2 or 3
-  outcome1: {
-    name: string;
-    bookmaker: string;
-    odds: number;
-  };
-  outcome2: {
-    name: string;
-    bookmaker: string;
-    odds: number;
-  };
-  outcome3?: { // For 3-way markets (soccer)
-    name: string;
-    bookmaker: string;
-    odds: number;
-  };
+  outcome1: ArbOutcome;
+  outcome2: ArbOutcome;
+  outcome3?: ArbOutcome; // For 3-way markets (soccer)
   impliedProbabilitySum: number;
   profitPercentage: number; // Positive = profit, negative = loss (near-arb)
   lastUpdated: Date;
@@ -81,11 +81,7 @@ export interface BookVsBetfairArb {
   type: OpportunityType;
   event: NormalizedEvent;
   marketType: string;
-  backOutcome: {
-    name: string;
-    bookmaker: string;
-    odds: number;
-  };
+  backOutcome: ArbOutcome;
   layOutcome: {
     name: string;
     odds: number;
@@ -103,18 +99,8 @@ export interface SpreadArb {
   event: NormalizedEvent;
   marketType: 'spreads';
   line: number; // The spread line (e.g., -6.5)
-  favorite: {
-    name: string;
-    bookmaker: string;
-    odds: number;
-    point: number; // e.g., -6.5
-  };
-  underdog: {
-    name: string;
-    bookmaker: string;
-    odds: number;
-    point: number; // e.g., +6.5
-  };
+  favorite: ArbOutcomeWithPoint;
+  underdog: ArbOutcomeWithPoint;
   impliedProbabilitySum: number;
   profitPercentage: number;
   lastUpdated: Date;
@@ -126,18 +112,8 @@ export interface MiddleOpportunity {
   type: 'middle';
   event: NormalizedEvent;
   marketType: 'spreads' | 'totals';
-  side1: {
-    name: string;
-    bookmaker: string;
-    odds: number;
-    point: number;
-  };
-  side2: {
-    name: string;
-    bookmaker: string;
-    odds: number;
-    point: number;
-  };
+  side1: ArbOutcomeWithPoint;
+  side2: ArbOutcomeWithPoint;
   middleRange: {
     low: number;
     high: number;
@@ -159,11 +135,13 @@ export interface TotalsArb {
   line: number; // The total line (e.g., 42.5)
   over: {
     bookmaker: string;
+    bookmakerKey: string;
     odds: number;
     point: number;
   };
   under: {
     bookmaker: string;
+    bookmakerKey: string;
     odds: number;
     point: number;
   };
@@ -181,11 +159,12 @@ export interface ValueBet {
   outcome: {
     name: string;
     bookmaker: string;
+    bookmakerKey: string;
     odds: number;
   };
   marketAverage: number;
   valuePercentage: number; // How much better than market average
-  allOdds: { bookmaker: string; odds: number }[];
+  allOdds: { bookmaker: string; bookmakerKey: string; odds: number }[];
   lastUpdated: Date;
 }
 
@@ -196,7 +175,8 @@ export interface BestOdds {
     name: string;
     bestOdds: number;
     bestBookmaker: string;
-    allOdds: { bookmaker: string; odds: number }[];
+    bestBookmakerKey: string;
+    allOdds: { bookmaker: string; bookmakerKey: string; odds: number }[];
     marketAverage: number;
   }[];
 }
