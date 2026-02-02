@@ -1,9 +1,10 @@
 // src/app/page.tsx
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSession } from 'next-auth/react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -85,9 +86,12 @@ const FEATURES = [
   'Unlimited scans',
 ];
 
-export default function LandingPage() {
+// Inner component that uses useSearchParams
+function LandingPageContent() {
   const { theme, toggleTheme } = useTheme();
   const { data: session, status } = useSession();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [authModal, setAuthModal] = useState<AuthModalType>(null);
   const [sportsbooksOpen, setSportsbooksOpen] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -101,6 +105,14 @@ export default function LandingPage() {
   const isAuthenticated = status === 'authenticated' && !!session;
   const isLoading = status === 'loading';
 
+  // Auto-open auth modal from URL query params (e.g., /?auth=login)
+  useEffect(() => {
+    const authParam = searchParams.get('auth');
+    if (authParam === 'login' || authParam === 'signup') {
+      setAuthModal(authParam);
+    }
+  }, [searchParams]);
+
   const handleSelectPlan = async (planId: PlanType) => {
     if (!session) {
       setPendingPlan(planId);
@@ -110,8 +122,14 @@ export default function LandingPage() {
     setCheckoutPlan(planId);
   };
 
-  const handleAuthClose = () => {
+  // Handle auth modal close - clears URL param if present
+  const handleAuthModalClose = () => {
     setAuthModal(null);
+
+    // Remove ?auth= from URL without reload
+    if (searchParams.get('auth')) {
+      router.replace('/', { scroll: false });
+    }
 
     if (pendingPlan && session) {
       setCheckoutPlan(pendingPlan);
@@ -137,7 +155,8 @@ export default function LandingPage() {
       <nav
         className="fixed top-0 left-0 right-0 z-50 border-b backdrop-blur-md"
         style={{
-          backgroundColor: 'color-mix(in srgb, var(--background) 80%, transparent)',
+          backgroundColor:
+            'color-mix(in srgb, var(--background) 80%, transparent)',
           borderColor: 'var(--border)',
         }}
       >
@@ -174,6 +193,7 @@ export default function LandingPage() {
               >
                 How it Works
               </a>
+
               <a
                 href="#pricing"
                 className="text-sm transition-colors hover:opacity-70"
@@ -181,6 +201,7 @@ export default function LandingPage() {
               >
                 Pricing
               </a>
+
               <a
                 href="#faq"
                 className="text-sm transition-colors hover:opacity-70"
@@ -196,7 +217,9 @@ export default function LandingPage() {
                 onClick={toggleTheme}
                 className="p-2 rounded-lg transition-colors hover:bg-[var(--surface)]"
                 style={{ color: 'var(--muted)' }}
-                aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+                aria-label={`Switch to ${
+                  theme === 'dark' ? 'light' : 'dark'
+                } mode`}
               >
                 {theme === 'dark' ? (
                   <Sun className="w-4 h-4" />
@@ -284,7 +307,10 @@ export default function LandingPage() {
               className="flex items-center justify-between px-4 py-4 border-b"
               style={{ borderColor: 'var(--border)' }}
             >
-              <span className="font-medium" style={{ color: 'var(--foreground)' }}>
+              <span
+                className="font-medium"
+                style={{ color: 'var(--foreground)' }}
+              >
                 Menu
               </span>
               <button
@@ -372,16 +398,17 @@ export default function LandingPage() {
                 className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold mb-3 sm:mb-4"
                 style={{ color: 'var(--foreground)' }}
               >
-                Stop Guessing. Start Profiting. Bet both sides—profit no matter the outcome.
+                Stop Guessing. Start Profiting. Bet both sides—profit no matter
+                the outcome.
               </p>
 
               <p
                 className="text-sm sm:text-base mb-6 sm:mb-8 leading-relaxed"
                 style={{ color: 'var(--muted)' }}
               >
-                We spent years mastering arbitrage betting. We built the tool we always needed,
-                now we&apos;re sharing it with you. Our software scans over 80 sportsbooks for
-                profitable discrepancies 24/7.
+                We spent years mastering arbitrage betting. We built the tool we
+                always needed, now we&apos;re sharing it with you. Our software
+                scans over 80 sportsbooks for profitable discrepancies 24/7.
               </p>
 
               {/* CTA Buttons */}
@@ -397,7 +424,6 @@ export default function LandingPage() {
                   Try for $2.99
                 </button>
 
-                {/* ✅ FIX: missing opening <a ...> caused the whole JSX to break */}
                 <a
                   href="#pricing"
                   className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-lg text-sm font-medium border transition-colors hover:bg-[var(--surface)]"
@@ -423,11 +449,17 @@ export default function LandingPage() {
                   className="w-2 h-2 rounded-full animate-pulse shrink-0"
                   style={{ backgroundColor: '#22c55e' }}
                 />
-                <span className="text-xs sm:text-sm whitespace-nowrap" style={{ color: 'var(--muted)' }}>
+                <span
+                  className="text-xs sm:text-sm whitespace-nowrap"
+                  style={{ color: 'var(--muted)' }}
+                >
                   Users have made
                 </span>
                 <ProfitCounter initialValue={0} refreshInterval={5000} />
-                <span className="text-xs sm:text-sm whitespace-nowrap" style={{ color: 'var(--muted)' }}>
+                <span
+                  className="text-xs sm:text-sm whitespace-nowrap"
+                  style={{ color: 'var(--muted)' }}
+                >
                   in profit
                 </span>
               </div>
@@ -458,7 +490,11 @@ export default function LandingPage() {
 
               {/* Sportsbook logos slider */}
               <div className="mb-4 overflow-hidden">
-                <SportsbookSlider onViewAll={() => setSportsbooksOpen(true)} compact region={detectedRegion} />
+                <SportsbookSlider
+                  onViewAll={() => setSportsbooksOpen(true)}
+                  compact
+                  region={detectedRegion}
+                />
               </div>
             </div>
 
@@ -482,10 +518,16 @@ export default function LandingPage() {
       <FeaturesShowcase />
 
       {/* Comparison */}
-      <section className="py-16 sm:py-20 px-4 sm:px-6 border-t" style={{ borderColor: 'var(--border)' }}>
+      <section
+        className="py-16 sm:py-20 px-4 sm:px-6 border-t"
+        style={{ borderColor: 'var(--border)' }}
+      >
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-8 sm:mb-12">
-            <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4" style={{ color: 'var(--foreground)' }}>
+            <h2
+              className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4"
+              style={{ color: 'var(--foreground)' }}
+            >
               Stop overpaying for arb software
             </h2>
             <p className="text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
@@ -502,7 +544,10 @@ export default function LandingPage() {
                 borderColor: 'var(--border)',
               }}
             >
-              <div className="text-xs sm:text-sm font-medium mb-3 sm:mb-4" style={{ color: 'var(--muted)' }}>
+              <div
+                className="text-xs sm:text-sm font-medium mb-3 sm:mb-4"
+                style={{ color: 'var(--muted)' }}
+              >
                 Other scanners
               </div>
               <div className="space-y-3 sm:space-y-4">
@@ -591,7 +636,10 @@ export default function LandingPage() {
       >
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-8 sm:mb-12">
-            <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4" style={{ color: 'var(--foreground)' }}>
+            <h2
+              className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4"
+              style={{ color: 'var(--foreground)' }}
+            >
               Choose your plan
             </h2>
             <p className="text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
@@ -634,7 +682,10 @@ export default function LandingPage() {
                 )}
 
                 <div className="p-4 sm:p-6 flex flex-col flex-1">
-                  <h3 className="text-base sm:text-lg font-semibold mb-3 sm:mb-4" style={{ color: 'var(--foreground)' }}>
+                  <h3
+                    className="text-base sm:text-lg font-semibold mb-3 sm:mb-4"
+                    style={{ color: 'var(--foreground)' }}
+                  >
                     {plan.name}
                   </h3>
 
@@ -689,7 +740,10 @@ export default function LandingPage() {
               borderColor: 'var(--border)',
             }}
           >
-            <h3 className="text-base sm:text-lg font-semibold mb-4 sm:mb-6 text-center" style={{ color: 'var(--foreground)' }}>
+            <h3
+              className="text-base sm:text-lg font-semibold mb-4 sm:mb-6 text-center"
+              style={{ color: 'var(--foreground)' }}
+            >
               All plans include
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -711,10 +765,17 @@ export default function LandingPage() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="py-16 sm:py-20 px-4 sm:px-6 border-t scroll-mt-20 sm:scroll-mt-24" style={{ borderColor: 'var(--border)' }}>
+      <section
+        id="faq"
+        className="py-16 sm:py-20 px-4 sm:px-6 border-t scroll-mt-20 sm:scroll-mt-24"
+        style={{ borderColor: 'var(--border)' }}
+      >
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-8 sm:mb-12">
-            <h2 className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4" style={{ color: 'var(--foreground)' }}>
+            <h2
+              className="text-2xl sm:text-3xl font-bold mb-3 sm:mb-4"
+              style={{ color: 'var(--foreground)' }}
+            >
               Frequently asked questions
             </h2>
           </div>
@@ -743,7 +804,7 @@ export default function LandingPage() {
               },
               {
                 q: 'What happens after my 3-day trial?',
-                a: "The 3-day trial is a one-time payment with no automatic renewal. After 3 days, you can choose to subscribe to our monthly or yearly plan to continue using the service.",
+                a: 'The 3-day trial is a one-time payment with no automatic renewal. After 3 days, you can choose to subscribe to our monthly or yearly plan to continue using the service.',
               },
             ].map((faq, i) => (
               <div
@@ -768,10 +829,7 @@ export default function LandingPage() {
                   />
                 </button>
                 {openFaq === i && (
-                  <div
-                    className="px-3 sm:px-4 pb-3 sm:pb-4 text-xs sm:text-sm leading-relaxed"
-                    style={{ color: 'var(--muted)' }}
-                  >
+                  <div className="px-3 sm:px-4 pb-3 sm:pb-4 text-xs sm:text-sm leading-relaxed" style={{ color: 'var(--muted)' }}>
                     {faq.a}
                   </div>
                 )}
@@ -793,10 +851,7 @@ export default function LandingPage() {
           <button
             onClick={() => handleSelectPlan('trial')}
             className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-lg text-sm font-medium transition-all hover:opacity-90 hover:gap-3"
-            style={{
-              backgroundColor: '#14b8a6',
-              color: '#fff',
-            }}
+            style={{ backgroundColor: '#14b8a6', color: '#fff' }}
           >
             Try for $2.99
             <ArrowRight className="w-4 h-4" />
@@ -843,7 +898,7 @@ export default function LandingPage() {
       {/* Modals */}
       <AuthModals
         isOpen={authModal}
-        onClose={handleAuthClose}
+        onClose={handleAuthModalClose}
         onSwitch={setAuthModal}
         onAuthSuccess={() => {
           if (pendingPlan) {
@@ -861,7 +916,20 @@ export default function LandingPage() {
         detectedRegion={detectedRegion}
       />
 
-      <CheckoutModal isOpen={checkoutPlan !== null} onClose={handleCheckoutClose} plan={checkoutPlan} />
+      <CheckoutModal
+        isOpen={checkoutPlan !== null}
+        onClose={handleCheckoutClose}
+        plan={checkoutPlan}
+      />
     </div>
+  );
+}
+
+// Main export with Suspense wrapper for useSearchParams
+export default function LandingPage() {
+  return (
+    <Suspense fallback={null}>
+      <LandingPageContent />
+    </Suspense>
   );
 }
