@@ -5,16 +5,10 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
 import { X, Eye, EyeOff, Loader2, ChevronDown } from 'lucide-react';
+import { Flag } from '@/components';
+import { config, type UserRegion } from '@/lib/config';
 
 type ModalType = 'login' | 'signup' | null;
-type UserRegion = 'US' | 'EU' | 'UK' | 'AU';
-
-const REGIONS: { value: UserRegion; label: string; flag: string }[] = [
-  { value: 'US', label: 'United States', flag: '🇺🇸' },
-  { value: 'UK', label: 'United Kingdom', flag: '🇬🇧' },
-  { value: 'EU', label: 'Europe', flag: '🇪🇺' },
-  { value: 'AU', label: 'Australia', flag: '🇦🇺' },
-];
 
 interface AuthModalsProps {
   isOpen: ModalType;
@@ -31,6 +25,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [apiError, setApiError] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  const [showRegionDropdown, setShowRegionDropdown] = useState(false);
 
   // Login form
   const [loginData, setLoginData] = useState({ email: '', password: '' });
@@ -40,7 +35,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
     name: '',
     email: '',
     password: '',
-    region: 'US' as UserRegion,
+    region: 'AU' as UserRegion,
   });
 
   // Reset form when modal changes
@@ -50,6 +45,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
       setApiError('');
       setShowPassword(false);
       setRememberMe(false);
+      setShowRegionDropdown(false);
     }
   }, [isOpen]);
 
@@ -73,6 +69,17 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
       document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
+
+  // Close region dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => {
+      setShowRegionDropdown(false);
+    };
+    if (showRegionDropdown) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [showRegionDropdown]);
 
   const validateLoginForm = () => {
     const newErrors: Record<string, string> = {};
@@ -183,7 +190,14 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
     }
   };
 
+  const handleRegionSelect = (region: UserRegion) => {
+    setSignupData({ ...signupData, region });
+    setShowRegionDropdown(false);
+  };
+
   if (!isOpen) return null;
+
+  const selectedRegionInfo = config.regionInfo[signupData.region];
 
   return (
     <div 
@@ -327,35 +341,74 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
               )}
             </div>
 
-            {/* Region (signup only) */}
+            {/* Region (signup only) - Custom dropdown with Flag component */}
             {isOpen === 'signup' && (
               <div>
                 <label className="block text-xs sm:text-sm font-medium mb-1 sm:mb-1.5" style={{ color: 'var(--foreground)' }}>
                   Your region
                 </label>
                 <div className="relative">
-                  <select
-                    value={signupData.region}
-                    onChange={(e) => setSignupData({ ...signupData, region: e.target.value as UserRegion })}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowRegionDropdown(!showRegionDropdown);
+                    }}
                     disabled={isLoading}
-                    className="w-full px-3 py-2 sm:py-2.5 text-sm rounded-lg appearance-none cursor-pointer disabled:opacity-50"
+                    className="w-full px-3 py-2 sm:py-2.5 text-sm rounded-lg flex items-center justify-between disabled:opacity-50"
                     style={{
                       backgroundColor: 'var(--background)',
                       border: '1px solid var(--border)',
                       color: 'var(--foreground)',
                     }}
                   >
-                    {REGIONS.map((region) => (
-                      <option key={region.value} value={region.value}>
-                        {region.flag} {region.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown 
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none"
-                    style={{ color: 'var(--muted)' }}
-                  />
+                    <div className="flex items-center gap-2">
+                      <Flag code={selectedRegionInfo.flagCode} size="sm" />
+                      <span>{selectedRegionInfo.label}</span>
+                    </div>
+                    <ChevronDown 
+                      className={`w-4 h-4 transition-transform ${showRegionDropdown ? 'rotate-180' : ''}`}
+                      style={{ color: 'var(--muted)' }}
+                    />
+                  </button>
+
+                  {/* Dropdown */}
+                  {showRegionDropdown && (
+                    <div 
+                      className="absolute top-full left-0 right-0 mt-1 rounded-lg border shadow-lg overflow-hidden z-20"
+                      style={{
+                        backgroundColor: 'var(--surface)',
+                        borderColor: 'var(--border)',
+                      }}
+                    >
+                      {config.regionOrder.map((region) => {
+                        const info = config.regionInfo[region];
+                        const isSelected = signupData.region === region;
+                        return (
+                          <button
+                            key={region}
+                            type="button"
+                            onClick={() => handleRegionSelect(region)}
+                            className="w-full px-3 py-2.5 text-sm flex items-center gap-3 transition-colors hover:bg-[var(--background)]"
+                            style={{
+                              backgroundColor: isSelected ? 'var(--background)' : 'transparent',
+                              color: 'var(--foreground)',
+                            }}
+                          >
+                            <Flag code={info.flagCode} size="sm" />
+                            <span className="flex-1 text-left">{info.label}</span>
+                            {isSelected && (
+                              <span style={{ color: '#14b8a6' }}>✓</span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
+                <p className="text-[10px] sm:text-xs mt-1.5" style={{ color: 'var(--muted)' }}>
+                  Sets your default bookmaker region
+                </p>
               </div>
             )}
 
