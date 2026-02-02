@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { signIn } from 'next-auth/react';
+import Image from 'next/image';
 import { X, Eye, EyeOff, Loader2, ChevronDown } from 'lucide-react';
 import { Flag } from '@/components';
 import { config, type UserRegion } from '@/lib/config';
@@ -223,6 +224,26 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
         </button>
 
         <div className="p-5 sm:p-8">
+          {/* Logo - centered, theme-aware */}
+          <div className="flex justify-center mb-4 sm:mb-6">
+            <Image
+              src="/logo_thin_dark_version.png"
+              alt="Edge Maxxer"
+              width={200}
+              height={48}
+              priority
+              className="h-7 sm:h-8 w-auto logo-dark"
+            />
+            <Image
+              src="/logo_thin_light_version.png"
+              alt="Edge Maxxer"
+              width={200}
+              height={48}
+              priority
+              className="h-7 sm:h-8 w-auto logo-light"
+            />
+          </div>
+
           {/* Header */}
           <div className="mb-4 sm:mb-6 pr-8">
             <h2 
