@@ -75,6 +75,16 @@ export interface IUser {
   updatedAt: Date;
 }
 
+// Interface for instance methods
+export interface IUserMethods {
+  hasAccess(): boolean;
+  shouldAutoScan(): boolean;
+  canSendAlert(): boolean;
+}
+
+// Combined type for the model
+export type UserDocument = IUser & IUserMethods;
+
 export interface ICachedScanResults {
   opportunities: unknown[];        // BookVsBookArb[] stored as JSON
   valueBets: unknown[];            // ValueBet[] stored as JSON
@@ -162,7 +172,7 @@ const AutoScanSettingsSchema = new Schema<IAutoScanSettings>(
   { _id: false }
 );
 
-const UserSchema = new Schema<IUser>(
+const UserSchema = new Schema<IUser, Model<IUser, object, IUserMethods>, IUserMethods>(
   {
     name: {
       type: String,
@@ -372,6 +382,6 @@ function getNextMonthStart(): Date {
   return nextMonth;
 }
 
-const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);
+const User: Model<IUser, object, IUserMethods> = mongoose.models.User || mongoose.model<IUser, Model<IUser, object, IUserMethods>>('User', UserSchema);
 
 export default User;

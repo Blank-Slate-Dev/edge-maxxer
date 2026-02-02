@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import GlobalScanCache from '@/lib/models/GlobalScanCache';
+import User from '@/lib/models/User';
 import type { ArbOpportunity, SpreadArb, TotalsArb, MiddleOpportunity } from '@/lib/types';
 import type { UserRegion } from '@/lib/config';
 
@@ -22,6 +23,35 @@ export async function GET(request: NextRequest) {
     }
 
     await dbConnect();
+
+    // Fetch user to check subscription status
+    const user = await User.findById((session.user as { id: string }).id).select(
+      'plan subscriptionStatus subscriptionEndsAt'
+    );
+
+    if (!user) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    // Check if user has active subscription (trial, monthly, or yearly)
+    const hasAccess = user.hasAccess();
+    
+    if (!hasAccess) {
+      return NextResponse.json({
+        hasCachedResults: false,
+        subscriptionRequired: true,
+        message: 'Active subscription required to access arbitrage data',
+        region: 'AU',
+        opportunities: [],
+        valueBets: [],
+        spreadArbs: [],
+        totalsArbs: [],
+        middles: [],
+      });
+    }
 
     // Get requested region from query params (default to AU)
     const { searchParams } = new URL(request.url);

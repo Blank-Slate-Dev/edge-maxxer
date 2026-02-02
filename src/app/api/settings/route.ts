@@ -28,11 +28,15 @@ export async function GET() {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
+    // Calculate hasAccess for the response
+    const hasAccess = user.hasAccess();
+
     const res = NextResponse.json({
       oddsApiKey: user.oddsApiKey || '',
       plan: user.plan,
       subscriptionStatus: user.subscriptionStatus,
       subscriptionEndsAt: user.subscriptionEndsAt,
+      hasAccess,
       region: user.region || 'AU',
       phoneNumber: user.phoneNumber || '',
       phoneVerified: user.phoneVerified || false,
@@ -137,6 +141,15 @@ export async function PUT(request: NextRequest) {
       if (typeof autoScan.enabled === 'boolean') {
         // Validate prerequisites before enabling
         if (autoScan.enabled) {
+          // Check subscription status FIRST
+          const hasAccess = user.hasAccess();
+          if (!hasAccess) {
+            return NextResponse.json(
+              { error: 'Active subscription required to enable auto-scan alerts', subscriptionRequired: true },
+              { status: 403 }
+            );
+          }
+          
           const phoneToCheck = updateData.phoneNumber || user.phoneNumber;
           if (!phoneToCheck) {
             return NextResponse.json(
