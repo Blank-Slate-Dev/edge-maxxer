@@ -19,7 +19,7 @@ import { PlacedBet } from '@/lib/bets';
 interface StakeCalculatorModalProps {
   arb: ArbOpportunity | null;
   onClose: () => void;
-  onLogBet: (bet: PlacedBet) => void;
+  onLogBet: (bet: Omit<PlacedBet, 'id' | 'createdAt'>) => void;
 }
 
 function RiskBadge({ bookmaker }: { bookmaker: string }) {
@@ -104,17 +104,9 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
 
     // Favour mode calculation
     if (favourMode && favouredOutcome !== null && outcomes.length === 2) {
-      // For favour mode with 2 outcomes:
-      // If favoured outcome wins: double profit
-      // If non-favoured outcome wins: break even
-      
       const favouredIdx = favouredOutcome;
       const nonFavouredIdx = favouredOutcome === 0 ? 1 : 0;
       const nonFavouredOdds = oddsArray[nonFavouredIdx];
-      
-      // For break-even on non-favoured: stake_nf * odds_nf = total
-      // So stake_nf = total / odds_nf
-      // And stake_f = total - stake_nf
       
       const stakeNonFavoured = total / nonFavouredOdds;
       const stakeFavoured = total - stakeNonFavoured;
@@ -123,36 +115,15 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
       stakes[favouredIdx] = stakeFavoured;
       stakes[nonFavouredIdx] = stakeNonFavoured;
     } else if (favourMode && favouredOutcome !== null && outcomes.length === 3) {
-      // For 3-way favour mode:
-      // Favoured outcome wins: enhanced profit
-      // Other two outcomes: break even combined
-      
       const favouredIdx = favouredOutcome;
       const otherIdxs = [0, 1, 2].filter(i => i !== favouredIdx);
-      
-      // We need both non-favoured outcomes to return exactly the total stake
-      // stake_other1 * odds_other1 = stake_other2 * odds_other2 = total - stake_favoured... 
-      // This gets complex, so we'll use a simpler approach:
-      // Make the two non-favoured outcomes each break even individually
-      // stake_i = total / odds_i for non-favoured
-      // But this would exceed total stake, so we scale proportionally
       
       const odds1 = oddsArray[otherIdxs[0]];
       const odds2 = oddsArray[otherIdxs[1]];
       
-      // For equal returns on non-favoured: s1*o1 = s2*o2 = R (some return value)
-      // And we want R = total stake for break-even
-      // s1 = total/o1, s2 = total/o2 would give us break-even but uses too much
-      // We need: s1 + s2 + sf = total
-      // And s1*o1 = s2*o2 = total (break even requirement)
-      // This gives: total/o1 + total/o2 + sf = total
-      // sf = total * (1 - 1/o1 - 1/o2)
-      
       const stakeFavoured = total * (1 - 1/odds1 - 1/odds2);
       
-      // If stakeFavoured is negative, favour mode isn't viable for this arb
       if (stakeFavoured < 0) {
-        // Fall back to standard calculation
         const totalImplied = oddsArray.reduce((sum, odds) => sum + (1 / odds), 0);
         stakes = oddsArray.map((odds) => {
           const impliedProb = 1 / odds;
@@ -165,7 +136,6 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
         stakes[otherIdxs[1]] = total / odds2;
       }
     } else {
-      // Standard arb calculation - equalize returns across all outcomes
       const totalImplied = oddsArray.reduce((sum, odds) => sum + (1 / odds), 0);
       
       stakes = oddsArray.map((odds) => {
@@ -311,11 +281,9 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
 
   const handleFavourToggle = () => {
     if (favourMode) {
-      // Turning off
       setFavourMode(false);
       setFavouredOutcome(null);
     } else {
-      // Turning on - default to first outcome
       setFavourMode(true);
       setFavouredOutcome(0);
     }
@@ -340,15 +308,18 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
   
   const optimalStakes = getOptimalStakes();
 
+  // FIX: Don't generate id or createdAt here — useBets.addBet() handles that.
+  // This prevents the mismatch where StakeCalculatorModal generates a non-ObjectId
+  // string like "bet_123_abc" that later fails on PUT/DELETE in MongoDB.
   const handleLogBet = () => {
-    const bet: PlacedBet = {
-      id: `bet_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      createdAt: new Date().toISOString(),
+    const bet: Omit<PlacedBet, 'id' | 'createdAt'> = {
       event: {
         homeTeam: arb.event.homeTeam,
         awayTeam: arb.event.awayTeam,
         sportKey: arb.event.sportKey,
-        commenceTime: arb.event.commenceTime.toISOString(),
+        commenceTime: arb.event.commenceTime instanceof Date 
+          ? arb.event.commenceTime.toISOString() 
+          : String(arb.event.commenceTime),
       },
       mode: arb.mode,
       expectedProfit: minProfit,
