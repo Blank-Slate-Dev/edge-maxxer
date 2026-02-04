@@ -5,11 +5,19 @@ import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import Bet from '@/lib/models/Bet';
 import User from '@/lib/models/User';
+import mongoose from 'mongoose';
 
 // Maximum profit that can be added in a single update
 const MAX_PROFIT_PER_UPDATE = 10000;
 // Minimum profit to trigger counter update (10 cents)
 const MIN_PROFIT_THRESHOLD = 0.10;
+
+/**
+ * Check if a string is a valid MongoDB ObjectId
+ */
+function isValidObjectId(id: string): boolean {
+  return mongoose.Types.ObjectId.isValid(id) && new mongoose.Types.ObjectId(id).toString() === id;
+}
 
 // Helper to update global stats
 async function updateGlobalStats(profit: number) {
@@ -85,10 +93,14 @@ export async function POST(request: NextRequest) {
     
     const userId = (session.user as { id: string }).id;
     
+    // Strip the frontend-generated 'id' field so Mongoose auto-generates a valid ObjectId
+    // The frontend sends ids like "bet_1770240562389_1x2g4a39h" which aren't valid ObjectIds
+    const { id: _frontendId, ...cleanBetData } = betData;
+    
     const bet = await Bet.create({
-      ...betData,
+      ...cleanBetData,
       oddsUserId: userId,
-      createdAt: betData.createdAt || new Date().toISOString(),
+      createdAt: cleanBetData.createdAt || new Date().toISOString(),
       extraProfitCounted: false, // Initialize flag
     });
 
@@ -131,8 +143,21 @@ export async function PUT(request: NextRequest) {
     
     const userId = (session.user as { id: string }).id;
     
+    // Build the query — handle both ObjectId and legacy string IDs gracefully
+    const query = isValidObjectId(id)
+      ? { _id: id, oddsUserId: userId }
+      : { _id: { $exists: true }, oddsUserId: userId }; // Fallback: we'll search differently
+    
     // First, get the current bet to check for extra profit
-    const currentBet = await Bet.findOne({ _id: id, oddsUserId: userId });
+    let currentBet;
+    if (isValidObjectId(id)) {
+      currentBet = await Bet.findOne({ _id: id, oddsUserId: userId });
+    } else {
+      // If the ID isn't a valid ObjectId, the bet likely doesn't exist in the DB yet
+      // (it was created client-side and the server POST response was missed)
+      console.warn(`Bets PUT: Non-ObjectId "${id}" received — bet may not exist on server`);
+      return NextResponse.json({ error: 'Bet not found — invalid ID format' }, { status: 404 });
+    }
     
     if (!currentBet) {
       return NextResponse.json({ error: 'Bet not found' }, { status: 404 });
@@ -209,6 +234,12 @@ export async function DELETE(request: NextRequest) {
 
     if (!betId) {
       return NextResponse.json({ error: 'Bet ID is required' }, { status: 400 });
+    }
+
+    // Validate ObjectId before querying
+    if (!isValidObjectId(betId)) {
+      console.warn(`Bets DELETE: Non-ObjectId "${betId}" received`);
+      return NextResponse.json({ error: 'Bet not found — invalid ID format' }, { status: 404 });
     }
 
     const result = await Bet.deleteOne({ _id: betId, oddsUserId: userId });
