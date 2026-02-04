@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
 import User, { IUser, CREDIT_TIER_CONFIG, CreditTier } from '@/lib/models/User';
 import GlobalScanCache from '@/lib/models/GlobalScanCache';
+import GlobalScanProgress from '@/lib/models/GlobalScanProgress';
 import { createOddsApiProvider } from '@/lib/providers/theOddsApiProvider';
 import { detectAllOpportunities } from '@/lib/arb/detector';
 import { detectLineOpportunities } from '@/lib/arb/lineDetector';
@@ -30,9 +31,8 @@ const CREDITS_PER_SCAN: Record<string, number> = {
 };
 
 // Rate limiting: delay between API batches (ms)
-// Keep these short since regions are scanned sequentially (no parallel requests)
-const DELAY_BETWEEN_REGIONS_MS = 500; // 0.5 seconds between region scans
-const DELAY_BETWEEN_MARKET_TYPES_MS = 300; // 0.3 seconds between H2H and lines
+const DELAY_BETWEEN_REGIONS_MS = 500;
+const DELAY_BETWEEN_MARKET_TYPES_MS = 300;
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -46,7 +46,30 @@ interface ArbWithUrls extends BookVsBookArb {
   }>;
 }
 
-// Track scan count for rotation (resets on deploy, but that's fine)
+// Callback type for streaming batch results
+interface BatchResult {
+  phase: 'h2h' | 'lines';
+  sportKeys: string[];
+  opportunities: ArbWithUrls[];
+  valueBets: ValueBet[];
+  spreadArbs: SpreadArb[];
+  totalsArbs: TotalsArb[];
+  middles: MiddleOpportunity[];
+  runningStats: {
+    totalEvents: number;
+    eventsWithMultipleBookmakers: number;
+    totalBookmakers: number;
+    arbsFound: number;
+    nearArbsFound: number;
+    valueBetsFound: number;
+    sportsScanned: number;
+    sportsTotal: number;
+  };
+}
+
+type OnBatchCallback = (result: BatchResult) => Promise<void>;
+
+// Track scan count for rotation
 let globalScanCounter = 0;
 
 // Helper to add delay
@@ -187,7 +210,9 @@ export async function GET(request: NextRequest) {
         const scanStartTime = Date.now();
         
         // =====================================================
-        // NEW: Scan each region INDEPENDENTLY to avoid cross-contamination
+        // STREAMING SCAN: Results are written to GlobalScanProgress
+        // incrementally as each sport batch completes, so the
+        // dashboard can display arbs within seconds of detection.
         // =====================================================
         const allOpportunities: ArbWithUrls[] = [];
         const allValueBets: ValueBet[] = [];
@@ -223,8 +248,47 @@ export async function GET(request: NextRequest) {
           }
 
           console.log(`[AutoScan] Scanning region: ${region}`);
+
+          // Generate unique scan ID for this region's progress tracking
+          const scanId = `scan-${region}-${Date.now()}`;
+          let batchIndex = 0;
+
+          // Clean up old progress batches for this region
+          if (isMasterAccount) {
+            await GlobalScanProgress.clearRegion(region, scanId);
+          }
+
+          // Callback: write each batch of results to GlobalScanProgress immediately
+          const onBatch: OnBatchCallback = async (batchResult) => {
+            if (!isMasterAccount) return; // Only master account streams to global progress
+
+            try {
+              await GlobalScanProgress.writeBatch({
+                region,
+                scanId,
+                batchIndex: batchIndex++,
+                sportKeys: batchResult.sportKeys,
+                opportunities: batchResult.opportunities,
+                valueBets: batchResult.valueBets,
+                spreadArbs: batchResult.spreadArbs,
+                totalsArbs: batchResult.totalsArbs,
+                middles: batchResult.middles,
+                stats: batchResult.runningStats,
+                phase: batchResult.phase,
+                isLastBatch: false,
+              });
+
+              const arbCount = batchResult.opportunities.filter(o => o.type === 'arb').length;
+              if (arbCount > 0) {
+                console.log(`[AutoScan] ⚡ ${region} batch ${batchIndex - 1}: ${arbCount} arbs streamed to progress`);
+              }
+            } catch (err) {
+              // Non-fatal: progress write failure shouldn't break the scan
+              console.error(`[AutoScan] Progress write failed for ${region} batch:`, err);
+            }
+          };
           
-          const regionResult = await runScanForRegion(user, region);
+          const regionResult = await runScanForRegion(user, region, onBatch);
           
           // Accumulate results
           allOpportunities.push(...regionResult.opportunities);
@@ -250,7 +314,32 @@ export async function GET(request: NextRequest) {
           
           remainingCredits = regionResult.remainingCredits;
 
-          // If master account, update cache for this specific region immediately
+          // Write "complete" progress batch so dashboard knows scan finished
+          if (isMasterAccount) {
+            try {
+              await GlobalScanProgress.writeBatch({
+                region,
+                scanId,
+                batchIndex: batchIndex++,
+                sportKeys: [],
+                opportunities: [],
+                valueBets: [],
+                spreadArbs: [],
+                totalsArbs: [],
+                middles: [],
+                stats: {
+                  ...regionResult.stats,
+                  sportsTotal: regionResult.stats.sportsScanned,
+                },
+                phase: 'complete',
+                isLastBatch: true,
+              });
+            } catch (err) {
+              console.error(`[AutoScan] Final progress write failed for ${region}:`, err);
+            }
+          }
+
+          // Update GlobalScanCache for this region (same as before)
           if (isMasterAccount) {
             const regionStats = {
               ...regionResult.stats,
@@ -276,7 +365,7 @@ export async function GET(request: NextRequest) {
               middles: regionResult.middles,
               stats: regionStats,
               lineStats: regionLineStats,
-              scannedAt: now,
+              scannedAt: new Date(),
               scanDurationMs: Date.now() - scanStartTime,
               remainingCredits: regionResult.remainingCredits,
             });
@@ -351,16 +440,13 @@ export async function GET(request: NextRequest) {
 
 /**
  * Determine which regions to scan this run based on rotation
- * AU is always included, other regions rotate every N scans
  */
 function getRegionsForThisScan(): UserRegion[] {
-  const regions: UserRegion[] = ['AU']; // AU always included
+  const regions: UserRegion[] = ['AU'];
 
-  // Every (AU_ONLY_SCANS_BETWEEN_ROTATIONS + 1) scans, add another region
   const cycleLength = AU_ONLY_SCANS_BETWEEN_ROTATIONS + 1;
 
   if (globalScanCounter % cycleLength === 0) {
-    // Time to add a rotating region
     const rotationOrder: UserRegion[] = ['UK', 'US', 'EU'];
     const rotationCycle = Math.floor(globalScanCounter / cycleLength);
     const regionIndex = rotationCycle % rotationOrder.length;
@@ -383,12 +469,10 @@ async function handleAlertsForUser(
   const highValueThreshold = user.autoScan.highValueThreshold || 10.0;
   const enableHighValueReminders = user.autoScan.enableHighValueReminders !== false;
   
-  // Get user's alert regions - use autoScan.regions if set, otherwise fall back to user.region
   const userAlertRegions = user.autoScan.regions && user.autoScan.regions.length > 0 
     ? user.autoScan.regions 
     : [user.region || 'AU'];
 
-  // FILTER opportunities to only include those matching user's alert regions
   const filteredOpportunities = filterOpportunitiesByRegions(scanResult.opportunities, userAlertRegions);
   
   console.log(`[AutoScan] User ${user.email} alert regions: ${userAlertRegions.join(',')} - ${filteredOpportunities.length}/${scanResult.opportunities.length} arbs match`);
@@ -409,7 +493,6 @@ async function handleAlertsForUser(
   const oppsToAlert: ArbWithUrls[] = [];
   const newAlertedArbs: Record<string, { alertedAt: Date; profitPercent: number }> = { ...cleanedAlertedArbs };
 
-  // Use filtered opportunities instead of all opportunities
   for (const opp of filteredOpportunities) {
     if (opp.type !== 'arb' || opp.profitPercentage < minProfit) continue;
 
@@ -598,9 +681,18 @@ function addUrlsToArbs(arbs: BookVsBookArb[]): ArbWithUrls[] {
 }
 
 /**
- * Run scan for a SINGLE region - ensures no cross-region contamination
+ * Run scan for a SINGLE region with incremental result streaming.
+ * 
+ * The onBatch callback is fired after each sport batch completes with
+ * the arbs found in that batch + running totals. This allows the cron
+ * to write results to GlobalScanProgress immediately so the dashboard
+ * can display arbs within seconds of detection.
  */
-async function runScanForRegion(user: IUser, region: UserRegion): Promise<{
+async function runScanForRegion(
+  user: IUser,
+  region: UserRegion,
+  onBatch?: OnBatchCallback
+): Promise<{
   opportunities: ArbWithUrls[];
   valueBets: ValueBet[];
   spreadArbs: SpreadArb[];
@@ -629,41 +721,107 @@ async function runScanForRegion(user: IUser, region: UserRegion): Promise<{
   // Get ONLY this region's API regions
   const regionsStr = getApiRegionsForUserRegions([region]);
   
-  // Build set of valid bookmaker keys for this region (for validation)
+  // Build set of valid bookmaker keys for this region
   const regionBookmakerKeys = buildRegionBookmakerKeysSet(region);
 
   const allSports = await provider.getSupportedSports();
   const allSportsKeys = allSports.filter(s => !s.hasOutrights).map(s => s.key);
 
+  const now = new Date();
+  const maxTime = new Date(now.getTime() + 72 * 60 * 60 * 1000);
+
+  // Time filter helper
+  const filterByTime = <T extends { event: { commenceTime: Date } }>(items: T[]): T[] => {
+    return items.filter(item => {
+      const commence = new Date(item.event.commenceTime);
+      return commence > now && commence < maxTime;
+    });
+  };
+
+  // Running accumulators
+  const allArbs: ArbWithUrls[] = [];
+  const allValueBets: ValueBet[] = [];
+  let runningStats = {
+    totalEvents: 0,
+    eventsWithMultipleBookmakers: 0,
+    totalBookmakers: 0,
+    arbsFound: 0,
+    nearArbsFound: 0,
+    valueBetsFound: 0,
+    sportsScanned: 0,
+  };
+
   // =====================
-  // 1. FETCH H2H MARKETS (single region only)
+  // 1. FETCH H2H MARKETS - per-batch streaming
   // =====================
   console.log(`[AutoScan] Fetching H2H for ${region} (API regions: ${regionsStr})`);
-  const h2hResult = await provider.fetchOdds(allSportsKeys, ['h2h'], regionsStr);
+  
+  // Use the streaming version that calls back per-batch
+  const h2hResult = await provider.fetchOddsWithCallback(
+    allSportsKeys,
+    ['h2h'],
+    regionsStr,
+    async (batchEvents, batchSportKeys) => {
+      // Detect arbs in this batch's events
+      const { arbs, valueBets, stats } = detectAllOpportunities(
+        batchEvents,
+        config.filters.nearArbThreshold,
+        config.filters.valueThreshold
+      );
 
-  const { arbs, valueBets, stats } = detectAllOpportunities(
-    h2hResult.events,
-    config.filters.nearArbThreshold,
-    config.filters.valueThreshold
+      // Filter to this region's bookmakers
+      const regionArbs = arbs.filter(arb => {
+        const keys = [arb.outcome1.bookmakerKey, arb.outcome2.bookmakerKey];
+        if (arb.outcome3) keys.push(arb.outcome3.bookmakerKey);
+        return allBookmakerKeysFromRegion(keys, regionBookmakerKeys);
+      });
+
+      const regionValueBets = valueBets.filter(vb =>
+        regionBookmakerKeys.has(vb.outcome.bookmakerKey.toLowerCase())
+      );
+
+      // Time filter
+      const validArbs = filterByTime(regionArbs);
+      const validValueBets = filterByTime(regionValueBets);
+      const arbsWithUrls = addUrlsToArbs(validArbs);
+
+      // Accumulate
+      allArbs.push(...arbsWithUrls);
+      allValueBets.push(...validValueBets);
+
+      // Update running stats
+      runningStats.totalEvents += stats.totalEvents;
+      runningStats.eventsWithMultipleBookmakers += stats.eventsWithMultipleBookmakers;
+      runningStats.totalBookmakers = Math.max(runningStats.totalBookmakers, stats.totalBookmakers);
+      runningStats.arbsFound += arbsWithUrls.filter(a => a.type === 'arb').length;
+      runningStats.nearArbsFound += arbsWithUrls.filter(a => a.type === 'near-arb').length;
+      runningStats.valueBetsFound += validValueBets.length;
+      runningStats.sportsScanned += batchSportKeys.length;
+
+      // Fire the streaming callback with this batch's results
+      if (onBatch && (arbsWithUrls.length > 0 || validValueBets.length > 0)) {
+        await onBatch({
+          phase: 'h2h',
+          sportKeys: batchSportKeys,
+          opportunities: arbsWithUrls,
+          valueBets: validValueBets,
+          spreadArbs: [],
+          totalsArbs: [],
+          middles: [],
+          runningStats: {
+            ...runningStats,
+            sportsTotal: allSportsKeys.length,
+          },
+        });
+      }
+    }
   );
 
-  // Filter to ensure ALL bookmakers in each arb are from this region
-  // This should already be the case since we only fetched this region, but double-check
-  const regionArbs = arbs.filter(arb => {
-    const keys = [arb.outcome1.bookmakerKey, arb.outcome2.bookmakerKey];
-    if (arb.outcome3) keys.push(arb.outcome3.bookmakerKey);
-    return allBookmakerKeysFromRegion(keys, regionBookmakerKeys);
-  });
-
-  const regionValueBets = valueBets.filter(vb => 
-    regionBookmakerKeys.has(vb.outcome.bookmakerKey.toLowerCase())
-  );
-
-  // Add delay before fetching lines to avoid rate limiting
+  // Add delay before fetching lines
   await delay(DELAY_BETWEEN_MARKET_TYPES_MS);
 
   // =====================
-  // 2. FETCH LINES MARKETS (spreads/totals) - single region only
+  // 2. FETCH LINES MARKETS (spreads/totals)
   // =====================
   const lineSportsKeys = allSports
     .filter(s => !s.hasOutrights)
@@ -678,9 +836,9 @@ async function runScanForRegion(user: IUser, region: UserRegion): Promise<{
     })
     .map(s => s.key);
 
-  let spreadArbs: SpreadArb[] = [];
-  let totalsArbs: TotalsArb[] = [];
-  let middles: MiddleOpportunity[] = [];
+  const allSpreadArbs: SpreadArb[] = [];
+  const allTotalsArbs: TotalsArb[] = [];
+  const allMiddles: MiddleOpportunity[] = [];
   let lineStats = {
     totalEvents: 0,
     spreadArbsFound: 0,
@@ -691,79 +849,80 @@ async function runScanForRegion(user: IUser, region: UserRegion): Promise<{
 
   if (lineSportsKeys.length > 0) {
     console.log(`[AutoScan] Fetching lines for ${region} (${lineSportsKeys.length} sports)`);
-    const linesResult = await provider.fetchOdds(lineSportsKeys, ['spreads', 'totals'], regionsStr);
-
-    const lineOpportunities = detectLineOpportunities(
-      linesResult.events,
-      config.filters.nearArbThreshold
-    );
-
-    // Filter to ensure ALL bookmakers are from this region
-    spreadArbs = lineOpportunities.spreadArbs.filter(arb =>
-      allBookmakerKeysFromRegion(getBookmakerKeysFromSpreadArb(arb), regionBookmakerKeys)
-    );
     
-    totalsArbs = lineOpportunities.totalsArbs.filter(arb =>
-      allBookmakerKeysFromRegion(getBookmakerKeysFromTotalsArb(arb), regionBookmakerKeys)
-    );
-    
-    middles = lineOpportunities.middles.filter(m =>
-      allBookmakerKeysFromRegion(getBookmakerKeysFromMiddle(m), regionBookmakerKeys)
+    await provider.fetchOddsWithCallback(
+      lineSportsKeys,
+      ['spreads', 'totals'],
+      regionsStr,
+      async (batchEvents, batchSportKeys) => {
+        const lineOpportunities = detectLineOpportunities(
+          batchEvents,
+          config.filters.nearArbThreshold
+        );
+
+        // Filter to this region
+        const spreadArbs = lineOpportunities.spreadArbs.filter(arb =>
+          allBookmakerKeysFromRegion(getBookmakerKeysFromSpreadArb(arb), regionBookmakerKeys)
+        );
+        const totalsArbs = lineOpportunities.totalsArbs.filter(arb =>
+          allBookmakerKeysFromRegion(getBookmakerKeysFromTotalsArb(arb), regionBookmakerKeys)
+        );
+        const middles = lineOpportunities.middles.filter(m =>
+          allBookmakerKeysFromRegion(getBookmakerKeysFromMiddle(m), regionBookmakerKeys)
+        );
+
+        // Time filter
+        const validSpreads = filterByTime(spreadArbs);
+        const validTotals = filterByTime(totalsArbs);
+        const validMiddles = filterByTime(middles);
+
+        // Accumulate
+        allSpreadArbs.push(...validSpreads);
+        allTotalsArbs.push(...validTotals);
+        allMiddles.push(...validMiddles);
+
+        // Update line stats
+        lineStats.totalEvents += lineOpportunities.stats.totalEvents;
+        lineStats.spreadArbsFound += validSpreads.filter(s => s.type === 'arb').length;
+        lineStats.totalsArbsFound += validTotals.filter(t => t.type === 'arb').length;
+        lineStats.middlesFound += validMiddles.length;
+        lineStats.nearArbsFound += validSpreads.filter(s => s.type === 'near-arb').length +
+                                   validTotals.filter(t => t.type === 'near-arb').length;
+
+        // Fire callback if we found anything
+        if (onBatch && (validSpreads.length > 0 || validTotals.length > 0 || validMiddles.length > 0)) {
+          await onBatch({
+            phase: 'lines',
+            sportKeys: batchSportKeys,
+            opportunities: [],
+            valueBets: [],
+            spreadArbs: validSpreads,
+            totalsArbs: validTotals,
+            middles: validMiddles,
+            runningStats: {
+              ...runningStats,
+              sportsTotal: allSportsKeys.length,
+            },
+          });
+        }
+      }
     );
 
-    lineStats = {
-      totalEvents: lineOpportunities.stats.totalEvents,
-      spreadArbsFound: spreadArbs.filter(s => s.type === 'arb').length,
-      totalsArbsFound: totalsArbs.filter(t => t.type === 'arb').length,
-      middlesFound: middles.length,
-      nearArbsFound: spreadArbs.filter(s => s.type === 'near-arb').length +
-                    totalsArbs.filter(t => t.type === 'near-arb').length,
-    };
-
-    console.log(`[AutoScan] ${region} lines: ${spreadArbs.length} spreads, ${totalsArbs.length} totals, ${middles.length} middles`);
+    console.log(`[AutoScan] ${region} lines: ${allSpreadArbs.length} spreads, ${allTotalsArbs.length} totals, ${allMiddles.length} middles`);
   }
 
-  // =====================
-  // 3. FILTER BY TIME
-  // =====================
-  const now = new Date();
-  const maxTime = new Date(now.getTime() + 72 * 60 * 60 * 1000);
+  console.log(`[AutoScan] ${region} final: ${allArbs.length} H2H arbs, ${allSpreadArbs.length} spread arbs, ${allTotalsArbs.length} totals arbs, ${allMiddles.length} middles`);
 
-  const filterByTime = <T extends { event: { commenceTime: Date } }>(items: T[]): T[] => {
-    return items.filter(item => {
-      const commence = new Date(item.event.commenceTime);
-      return commence > now && commence < maxTime;
-    });
-  };
-
-  const validArbs = filterByTime(regionArbs);
-  const validValueBets = filterByTime(regionValueBets);
-  const validSpreadArbs = filterByTime(spreadArbs);
-  const validTotalsArbs = filterByTime(totalsArbs);
-  const validMiddles = filterByTime(middles);
-
-  const arbsWithUrls = addUrlsToArbs(validArbs);
-
-  console.log(`[AutoScan] ${region} final: ${arbsWithUrls.length} H2H arbs, ${validSpreadArbs.length} spread arbs, ${validTotalsArbs.length} totals arbs, ${validMiddles.length} middles`);
-
-  // Get remaining credits from the last API call
+  // Get remaining credits
   const remainingCredits = (h2hResult as { remainingRequests?: number }).remainingRequests;
 
-  // Update stats to reflect filtered counts
-  const filteredStats = {
-    ...stats,
-    arbsFound: validArbs.filter(a => a.type === 'arb').length,
-    nearArbsFound: validArbs.filter(a => a.type === 'near-arb').length,
-    valueBetsFound: validValueBets.length,
-  };
-
   return {
-    opportunities: arbsWithUrls,
-    valueBets: validValueBets,
-    spreadArbs: validSpreadArbs,
-    totalsArbs: validTotalsArbs,
-    middles: validMiddles,
-    stats: filteredStats,
+    opportunities: allArbs,
+    valueBets: allValueBets,
+    spreadArbs: allSpreadArbs,
+    totalsArbs: allTotalsArbs,
+    middles: allMiddles,
+    stats: runningStats,
     lineStats,
     remainingCredits,
   };
