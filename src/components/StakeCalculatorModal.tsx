@@ -394,6 +394,11 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
   const totalStaked = getTotalStaked();
   const profitPercent = totalStaked > 0 ? (minProfit / totalStaked) * 100 : 0;
 
+  // Calculate profit variance as a percentage of total staked
+  // Only show "Unbalanced Stakes" warning when the difference is meaningful (>5% of total staked)
+  const profitVariancePercent = totalStaked > 0 ? (profitVariance / totalStaked) * 100 : 0;
+  const UNBALANCED_THRESHOLD_PERCENT = 5; // Only warn when profit difference exceeds 5% of total stake
+
   // Check if current stakes are optimal
   const totalImplied = oddsToUse.reduce((sum, odds) => sum + (1 / odds), 0);
   const isArb = totalImplied < 1;
@@ -462,11 +467,13 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
 
   const handleFavourToggle = () => {
     if (favourMode) {
+      // Turning OFF — clear everything
       setFavourMode(false);
       setFavouredOutcome(null);
     } else {
+      // Turning ON — do NOT auto-select, let the user choose
       setFavourMode(true);
-      setFavouredOutcome(0);
+      setFavouredOutcome(null);
     }
     setStakesModified(false);
   };
@@ -733,7 +740,9 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                   Select Favoured Outcome
                 </h4>
                 <p className="text-xs mb-3" style={{ color: 'var(--muted)' }}>
-                  If your pick wins → double profit. Other outcomes → break even.
+                  {favouredOutcome === null
+                    ? 'Choose which outcome you want to favour for double profit.'
+                    : 'If your pick wins → double profit. Other outcomes → break even.'}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {outcomes.map((outcome, index) => (
@@ -1031,7 +1040,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                       Max: +${maxProfit.toFixed(2)}
                     </div>
                   )}
-                  {!favourMode && profitVariance > 0.01 && (
+                  {!favourMode && profitVariancePercent > UNBALANCED_THRESHOLD_PERCENT && (
                     <div className="text-[10px] sm:text-xs text-yellow-400">
                       ±${(profitVariance / 2).toFixed(2)}
                     </div>
@@ -1083,8 +1092,8 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
               </div>
             )}
 
-            {/* Profit Breakdown per Outcome (only show when not in favour mode) */}
-            {!favourMode && profitVariance > 0.01 && (
+            {/* Profit Breakdown per Outcome (only show when not in favour mode and variance exceeds threshold) */}
+            {!favourMode && profitVariancePercent > UNBALANCED_THRESHOLD_PERCENT && (
               <div 
                 className="p-3 sm:p-4 rounded-lg border"
                 style={{
