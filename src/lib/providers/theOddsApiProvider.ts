@@ -39,6 +39,9 @@ const RETRY_CONFIG = {
 // Only stop if critically low on quota
 const MIN_REMAINING_REQUESTS = 10;
 
+// Callback type for streaming results per-batch
+type BatchCallback = (events: SportEvent[], sportKeys: string[]) => Promise<void>;
+
 export class TheOddsApiProvider implements OddsProvider {
   name = 'The Odds API';
   private baseUrl: string;
@@ -140,7 +143,7 @@ export class TheOddsApiProvider implements OddsProvider {
   }
 
   /**
-   * Fetch odds for given sports - FAST PARALLEL VERSION
+   * Fetch odds for given sports - FAST PARALLEL VERSION (unchanged)
    * Uses higher concurrency with retry safety net for any 429s
    */
   async fetchOdds(
@@ -263,6 +266,164 @@ export class TheOddsApiProvider implements OddsProvider {
     if (remainingRequests !== undefined) {
       console.log(`[TheOddsApiProvider] API calls remaining: ${remainingRequests}`);
     }
+
+    return {
+      events: allEvents,
+      meta: {
+        remainingRequests,
+        usedRequests,
+        source: this.name,
+        errors: errors.length > 0 ? errors : undefined,
+      },
+    };
+  }
+
+  /**
+   * Fetch odds with a per-batch callback for streaming results.
+   * 
+   * Works identically to fetchOdds but calls onBatch(events, sportKeys) 
+   * after each parallel batch completes, allowing the caller to run arb
+   * detection immediately rather than waiting for all sports to finish.
+   * 
+   * Returns the same ProviderResult as fetchOdds for backwards compatibility.
+   */
+  async fetchOddsWithCallback(
+    sports: string[],
+    markets: string[] = ['h2h'],
+    regions: string = 'au',
+    onBatch?: BatchCallback
+  ): Promise<ProviderResult> {
+    if (!this.apiKey) {
+      console.log('[TheOddsApiProvider] No API key configured');
+      return {
+        events: [],
+        meta: { source: this.name },
+      };
+    }
+
+    const allEvents: SportEvent[] = [];
+    let remainingRequests: number | undefined;
+    let usedRequests: number | undefined;
+    const errors: string[] = [];
+    const rateLimitedSports: string[] = [];
+
+    const marketsStr = markets.join(',');
+    const sortedSports = this.sortByPriority(sports);
+
+    const scanStartTime = Date.now();
+    console.log(`[TheOddsApiProvider] Starting streaming scan of ${sortedSports.length} sports`);
+    console.log(`[TheOddsApiProvider] Regions: ${regions}, Markets: ${marketsStr}, Concurrency: ${PARALLEL_BATCH_SIZE}`);
+
+    for (let i = 0; i < sortedSports.length; i += PARALLEL_BATCH_SIZE) {
+      if (remainingRequests !== undefined && remainingRequests < MIN_REMAINING_REQUESTS) {
+        console.log(`[TheOddsApiProvider] ⚠️ Low API calls (${remainingRequests}), stopping`);
+        break;
+      }
+
+      const batch = sortedSports.slice(i, i + PARALLEL_BATCH_SIZE);
+      const batchNum = Math.floor(i / PARALLEL_BATCH_SIZE) + 1;
+      const batchStart = Date.now();
+
+      const results = await Promise.allSettled(
+        batch.map(sport => this.fetchSportOddsWithRetry(sport, regions, marketsStr))
+      );
+
+      // Collect this batch's events
+      const batchEvents: SportEvent[] = [];
+      const batchSportKeys: string[] = [];
+      let batchRateLimited = 0;
+
+      for (let j = 0; j < results.length; j++) {
+        const result = results[j];
+        const sport = batch[j];
+
+        if (result.status === 'fulfilled') {
+          if (result.value.rateLimited) {
+            batchRateLimited++;
+            rateLimitedSports.push(sport);
+          } else {
+            batchEvents.push(...result.value.events);
+            batchSportKeys.push(sport);
+            allEvents.push(...result.value.events);
+          }
+
+          if (result.value.remainingRequests !== undefined) {
+            remainingRequests = result.value.remainingRequests;
+          }
+          if (result.value.usedRequests !== undefined) {
+            usedRequests = result.value.usedRequests;
+          }
+        } else {
+          const msg = result.reason instanceof Error ? result.reason.message : String(result.reason);
+          if (!msg.includes('404')) {
+            if (msg.includes('429')) {
+              batchRateLimited++;
+              rateLimitedSports.push(sport);
+            } else {
+              errors.push(`${sport}: ${msg}`);
+            }
+          }
+        }
+      }
+
+      const batchDuration = Date.now() - batchStart;
+      console.log(`[TheOddsApiProvider] Batch ${batchNum}: ${batchEvents.length} events in ${batchDuration}ms (${remainingRequests ?? '?'} remaining)`);
+
+      // ⚡ STREAM: Call the callback with this batch's events immediately
+      if (onBatch && batchEvents.length > 0) {
+        try {
+          await onBatch(batchEvents, batchSportKeys);
+        } catch (err) {
+          console.error(`[TheOddsApiProvider] Batch callback error:`, err);
+          // Non-fatal: don't let callback errors break the scan
+        }
+      }
+    }
+
+    // Final retry pass for rate-limited sports
+    if (rateLimitedSports.length > 0 && rateLimitedSports.length <= 20) {
+      console.log(`[TheOddsApiProvider] Final retry for ${rateLimitedSports.length} sports...`);
+      await this.delay(1000);
+
+      for (let r = 0; r < rateLimitedSports.length; r += 4) {
+        const retryBatch = rateLimitedSports.slice(r, r + 4);
+
+        const retryResults = await Promise.allSettled(
+          retryBatch.map(sport => this.fetchSportOdds(sport, regions, retryBatch.join(',')))
+        );
+
+        const retryEvents: SportEvent[] = [];
+        const retrySportKeys: string[] = [];
+
+        for (let k = 0; k < retryResults.length; k++) {
+          const result = retryResults[k];
+          if (result.status === 'fulfilled' && !result.value.rateLimited) {
+            retryEvents.push(...result.value.events);
+            retrySportKeys.push(rateLimitedSports[r + k]);
+            allEvents.push(...result.value.events);
+            if (result.value.remainingRequests !== undefined) {
+              remainingRequests = result.value.remainingRequests;
+            }
+          }
+        }
+
+        // Stream retry results too
+        if (onBatch && retryEvents.length > 0) {
+          try {
+            await onBatch(retryEvents, retrySportKeys);
+          } catch (err) {
+            console.error(`[TheOddsApiProvider] Retry batch callback error:`, err);
+          }
+        }
+
+        if (r + 4 < rateLimitedSports.length) {
+          await this.delay(400);
+        }
+      }
+    }
+
+    const totalDuration = Date.now() - scanStartTime;
+    console.log(`[TheOddsApiProvider] ✅ Streaming scan complete: ${allEvents.length} events in ${totalDuration}ms`);
 
     return {
       events: allEvents,
