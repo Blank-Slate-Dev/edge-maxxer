@@ -50,12 +50,23 @@ export type OpportunityType = 'arb' | 'near-arb' | 'value-bet' | 'middle';
 export type ArbMode = 'book-vs-book' | 'book-vs-betfair';
 export type MarketType = 'h2h' | 'spreads' | 'totals';
 
+// Individual alternative bookmaker odds for the swap feature
+export interface AlternativeOdds {
+  bookmaker: string;      // Display name
+  bookmakerKey: string;   // API key
+  odds: number;
+}
+
 // Shared outcome type with bookmaker key for region filtering
 export interface ArbOutcome {
   name: string;
   bookmaker: string; // Display name for UI
   bookmakerKey: string; // API key for filtering
   odds: number;
+  // All bookmakers offering odds on this same outcome, sorted best-to-worst.
+  // The first entry matches the selected bookmaker/odds above.
+  // Used by the StakeCalculatorModal for the bookmaker swap feature.
+  alternativeOdds?: AlternativeOdds[];
 }
 
 export interface ArbOutcomeWithPoint extends ArbOutcome {
