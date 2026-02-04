@@ -3,7 +3,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Loader2, X, CheckCircle, RefreshCw } from 'lucide-react';
+import { Loader2, X, CheckCircle, RefreshCw, Zap } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal, Flag, SubscriptionRequiredModal } from '@/components';
 import { useBets } from '@/hooks/useBets';
@@ -38,6 +38,29 @@ interface GlobalArbsResponse {
   subscriptionRequired?: boolean;
 }
 
+// Types for scan progress streaming
+interface ScanProgressBatch {
+  region: string;
+  scanId: string;
+  batchIndex: number;
+  sportKeys: string[];
+  opportunities: ArbOpportunity[];
+  valueBets: ValueBet[];
+  spreadArbs: SpreadArb[];
+  totalsArbs: TotalsArb[];
+  middles: MiddleOpportunity[];
+  stats: ScanStats & { sportsTotal: number };
+  phase: 'h2h' | 'lines' | 'complete';
+  isLastBatch: boolean;
+  createdAt: string;
+}
+
+interface ScanProgressResponse {
+  batches: ScanProgressBatch[];
+  count: number;
+  serverTime: string;
+}
+
 interface SportsResponse {
   sports: Sport[];
   isUsingMockData: boolean;
@@ -56,14 +79,15 @@ const DEFAULT_FILTERS: FilterType = {
 
 type Tab = 'opportunities' | 'spreads' | 'totals' | 'value-bets' | 'history' | 'accounts';
 
-// Polling interval in seconds (how often we check for new data)
-const POLL_INTERVAL_SECONDS = 5;
+// Polling intervals
+const POLL_INTERVAL_SECONDS = 5;         // How often we check for complete scan data
+const PROGRESS_POLL_INTERVAL_MS = 2000;  // How often we check for streaming progress (2s)
 
 // Scan intervals by region
-const SCAN_INTERVAL_AU = 44; // AU scans every cron run
-const SCAN_INTERVAL_OTHER = 180; // UK/US/EU rotate every ~3 minutes
+const SCAN_INTERVAL_AU = 44;
+const SCAN_INTERVAL_OTHER = 180;
 
-// Region tab component - now acts as radio button
+// Region tab component
 function RegionTab({ 
   region, 
   isSelected, 
@@ -122,6 +146,77 @@ function getBookmakersFromTotalsArb(arb: TotalsArb): string[] {
   return [arb.over.bookmaker, arb.under.bookmaker];
 }
 
+/**
+ * Generate a unique key for an arb opportunity (for deduplication)
+ */
+function getArbKey(opp: ArbOpportunity): string {
+  if (opp.mode === 'book-vs-book') {
+    const parts = [opp.event.id, opp.outcome1.bookmakerKey, opp.outcome2.bookmakerKey];
+    if (opp.outcome3) parts.push(opp.outcome3.bookmakerKey);
+    parts.push(String(Math.round(opp.outcome1.odds * 100)));
+    parts.push(String(Math.round(opp.outcome2.odds * 100)));
+    return parts.join('-');
+  }
+  return `${opp.event.id}-${opp.backOutcome.bookmakerKey}-${Math.round(opp.backOutcome.odds * 100)}`;
+}
+
+function getSpreadKey(arb: SpreadArb): string {
+  return `${arb.event.id}-${arb.favorite.bookmakerKey}-${arb.underdog.bookmakerKey}-${arb.line}`;
+}
+
+function getTotalsKey(arb: TotalsArb): string {
+  return `${arb.event.id}-${arb.over.bookmakerKey}-${arb.under.bookmakerKey}-${arb.line}`;
+}
+
+function getMiddleKey(m: MiddleOpportunity): string {
+  return `${m.event.id}-${m.side1.bookmakerKey}-${m.side2.bookmakerKey}-${m.side1.point}-${m.side2.point}`;
+}
+
+/**
+ * Merge new items into existing array, deduplicating by key function.
+ * New items with the same key replace old ones (fresher odds).
+ */
+function mergeByKey<T>(existing: T[], incoming: T[], keyFn: (item: T) => string): T[] {
+  const map = new Map<string, T>();
+  // Add existing first
+  for (const item of existing) {
+    map.set(keyFn(item), item);
+  }
+  // Incoming overwrites (fresher data)
+  for (const item of incoming) {
+    map.set(keyFn(item), item);
+  }
+  return Array.from(map.values());
+}
+
+/**
+ * Parse dates in opportunity objects from API responses
+ */
+function parseArbDates(opp: ArbOpportunity): ArbOpportunity {
+  return {
+    ...opp,
+    event: { ...opp.event, commenceTime: new Date(opp.event.commenceTime) },
+    lastUpdated: new Date(opp.lastUpdated),
+  } as ArbOpportunity;
+}
+
+function parseSpreadDates(s: SpreadArb): SpreadArb {
+  return { ...s, event: { ...s.event, commenceTime: new Date(s.event.commenceTime) }, lastUpdated: new Date(s.lastUpdated) };
+}
+
+function parseTotalsDates(t: TotalsArb): TotalsArb {
+  return { ...t, event: { ...t.event, commenceTime: new Date(t.event.commenceTime) }, lastUpdated: new Date(t.lastUpdated) };
+}
+
+function parseMiddleDates(m: MiddleOpportunity): MiddleOpportunity {
+  return { ...m, event: { ...m.event, commenceTime: new Date(m.event.commenceTime) }, lastUpdated: new Date(m.lastUpdated) };
+}
+
+function parseValueBetDates(vb: ValueBet): ValueBet {
+  return { ...vb, event: { ...vb.event, commenceTime: new Date(vb.event.commenceTime) }, lastUpdated: new Date(vb.lastUpdated) };
+}
+
+
 export default function DashboardPage() {
   const { data: session, update: updateSession } = useSession();
   const searchParams = useSearchParams();
@@ -138,7 +233,7 @@ export default function DashboardPage() {
   const [sports, setSports] = useState<Sport[]>([]);
   const [bookmakers, setBookmakers] = useState<string[]>([]);
   
-  // Separate loading states for initial load vs background refresh
+  // Separate loading states
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -154,7 +249,7 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<Tab>('opportunities');
   const [showMiddles, setShowMiddles] = useState(true);
   
-  // Single region selection (not array)
+  // Single region selection
   const [selectedRegion, setSelectedRegion] = useState<UserRegion>('AU');
   const [userDefaultRegion, setUserDefaultRegion] = useState<UserRegion>('AU');
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -170,14 +265,29 @@ export default function DashboardPage() {
   const [scanAgeSeconds, setScanAgeSeconds] = useState<number | null>(null);
   const [showNewResultsFlash, setShowNewResultsFlash] = useState(false);
   
-  // Ref to track last scanned timestamp without causing re-renders
+  // Streaming scan progress state
+  const [scanProgress, setScanProgress] = useState<{
+    isActive: boolean;
+    phase: 'h2h' | 'lines' | 'complete' | null;
+    sportsScanned: number;
+    sportsTotal: number;
+    arbsFoundSoFar: number;
+    newArbsInLastBatch: number;
+  }>({
+    isActive: false,
+    phase: null,
+    sportsScanned: 0,
+    sportsTotal: 0,
+    arbsFoundSoFar: 0,
+    newArbsInLastBatch: 0,
+  });
+  
+  // Refs
   const lastScannedAtRef = useRef<string | null>(null);
-  
-  // Ref to track selected region for stable callback (used only for background polling)
   const selectedRegionRef = useRef<UserRegion>('AU');
-  
-  // Ref to track if a region switch is in progress (prevents poll interference)
   const isRegionSwitchingRef = useRef(false);
+  const progressSinceRef = useRef<string>(new Date().toISOString());
+  const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const { bets, isLoaded: betsLoaded, addBet, updateBet, deleteBet, clearAllBets } = useBets();
   const { 
@@ -189,20 +299,18 @@ export default function DashboardPage() {
     deleteTransaction 
   } = useAccounts();
 
-  // Get hasAccess from session (computed server-side in auth.ts)
   const hasAccess = (session?.user as { hasAccess?: boolean } | undefined)?.hasAccess ?? false;
 
-  // Keep ref in sync with state (for background polling only)
+  // Keep ref in sync
   useEffect(() => {
     selectedRegionRef.current = selectedRegion;
   }, [selectedRegion]);
 
-  // Calculate scan interval based on selected region
   const getScanInterval = useCallback(() => {
     return selectedRegion === 'AU' ? SCAN_INTERVAL_AU : SCAN_INTERVAL_OTHER;
   }, [selectedRegion]);
 
-  // Handle checkout success - refresh session to get updated subscription status
+  // Handle checkout success
   useEffect(() => {
     const checkoutParam = searchParams.get('checkout');
     const planParam = searchParams.get('plan');
@@ -230,7 +338,7 @@ export default function DashboardPage() {
     }
   }, [searchParams, updateSession, router]);
 
-  // Load user's default region from settings
+  // Load user's default region
   useEffect(() => {
     const fetchSettings = async () => {
       try {
@@ -240,7 +348,7 @@ export default function DashboardPage() {
           const region = data.region || 'AU';
           setUserDefaultRegion(region);
           setSelectedRegion(region);
-          selectedRegionRef.current = region; // Sync ref immediately
+          selectedRegionRef.current = region;
         }
       } catch (err) {
         console.error('Failed to fetch user settings:', err);
@@ -251,17 +359,161 @@ export default function DashboardPage() {
     fetchSettings();
   }, []);
 
-  // Fetch global arbs - accepts explicit region parameter to avoid race conditions
+  // =====================================================
+  // SCAN PROGRESS: Fast-poll /api/scan-progress for
+  // real-time incremental arb delivery during active scans
+  // =====================================================
+  const pollScanProgress = useCallback(async () => {
+    // Don't poll during region switch
+    if (isRegionSwitchingRef.current) return;
+    
+    const region = selectedRegionRef.current;
+    
+    try {
+      const res = await fetch(
+        `/api/scan-progress?region=${region}&since=${encodeURIComponent(progressSinceRef.current)}`
+      );
+      
+      if (!res.ok) return;
+      
+      const data: ScanProgressResponse = await res.json();
+      
+      if (data.count === 0) return;
+      
+      // Update the "since" cursor to the latest batch time
+      const latestBatch = data.batches[data.batches.length - 1];
+      progressSinceRef.current = latestBatch.createdAt;
+      
+      // Check if scan completed
+      const completeBatch = data.batches.find(b => b.isLastBatch);
+      
+      // Merge incremental results into state
+      for (const batch of data.batches) {
+        if (batch.isLastBatch) continue; // Complete batch has no data, just a signal
+        
+        // Verify region hasn't changed
+        if (batch.region !== selectedRegionRef.current) continue;
+        
+        const newOpps = (batch.opportunities || []).map(parseArbDates);
+        const newValueBets = (batch.valueBets || []).map(parseValueBetDates);
+        const newSpreads = (batch.spreadArbs || []).map(parseSpreadDates);
+        const newTotals = (batch.totalsArbs || []).map(parseTotalsDates);
+        const newMiddles = (batch.middles || []).map(parseMiddleDates);
+        
+        const newArbCount = newOpps.filter(o => o.type === 'arb').length;
+        
+        // Merge into existing state (deduplicate by key)
+        if (newOpps.length > 0) {
+          setOpportunities(prev => {
+            const merged = mergeByKey(prev, newOpps, getArbKey);
+            // Sort by profit descending
+            merged.sort((a, b) => b.profitPercentage - a.profitPercentage);
+            return merged;
+          });
+        }
+        
+        if (newValueBets.length > 0) {
+          setValueBets(prev => mergeByKey(prev, newValueBets, vb => `${vb.event.id}-${vb.outcome.bookmakerKey}-${vb.outcome.name}`));
+        }
+        
+        if (newSpreads.length > 0) {
+          setSpreadArbs(prev => {
+            const merged = mergeByKey(prev, newSpreads, getSpreadKey);
+            merged.sort((a, b) => b.profitPercentage - a.profitPercentage);
+            return merged;
+          });
+        }
+        
+        if (newTotals.length > 0) {
+          setTotalsArbs(prev => {
+            const merged = mergeByKey(prev, newTotals, getTotalsKey);
+            merged.sort((a, b) => b.profitPercentage - a.profitPercentage);
+            return merged;
+          });
+        }
+        
+        if (newMiddles.length > 0) {
+          setMiddles(prev => mergeByKey(prev, newMiddles, getMiddleKey));
+        }
+        
+        // Update progress indicator
+        setScanProgress({
+          isActive: true,
+          phase: batch.phase,
+          sportsScanned: batch.stats?.sportsScanned || 0,
+          sportsTotal: batch.stats?.sportsTotal || 0,
+          arbsFoundSoFar: batch.stats?.arbsFound || 0,
+          newArbsInLastBatch: newArbCount,
+        });
+        
+        // Update stats with running totals from the batch
+        if (batch.stats) {
+          setStats(prev => ({
+            totalEvents: batch.stats.totalEvents,
+            eventsWithMultipleBookmakers: batch.stats.eventsWithMultipleBookmakers,
+            totalBookmakers: batch.stats.totalBookmakers,
+            arbsFound: batch.stats.arbsFound,
+            nearArbsFound: batch.stats.nearArbsFound,
+            valueBetsFound: batch.stats.valueBetsFound,
+            sportsScanned: batch.stats.sportsScanned,
+          }));
+        }
+
+        // Extract bookmakers
+        const uniqueBookmakers = new Set<string>();
+        newOpps.forEach(opp => getBookmakersFromArb(opp).forEach(bm => uniqueBookmakers.add(bm)));
+        newSpreads.forEach(s => getBookmakersFromSpreadArb(s).forEach(bm => uniqueBookmakers.add(bm)));
+        newTotals.forEach(t => getBookmakersFromTotalsArb(t).forEach(bm => uniqueBookmakers.add(bm)));
+        if (uniqueBookmakers.size > 0) {
+          setBookmakers(prev => {
+            const combined = new Set([...prev, ...uniqueBookmakers]);
+            return Array.from(combined);
+          });
+        }
+        
+        // Flash if new arbs arrived
+        if (newArbCount > 0) {
+          setShowNewResultsFlash(true);
+          setTimeout(() => setShowNewResultsFlash(false), 1500);
+        }
+        
+        setHasFetchedArbs(true);
+        setError(null);
+      }
+      
+      // If scan completed, mark progress as inactive
+      if (completeBatch) {
+        setScanProgress(prev => ({ ...prev, isActive: false, phase: 'complete' }));
+        // The regular 5s poll will pick up the full final dataset from GlobalScanCache
+      }
+      
+    } catch (err) {
+      // Non-fatal: progress polling failure just means we wait for the 5s poll
+      console.debug('[Dashboard] Progress poll error:', err);
+    }
+  }, []);
+
+  // Start/stop progress polling
+  useEffect(() => {
+    if (!settingsLoaded || !hasAccess) return;
+
+    // Start progress polling
+    progressIntervalRef.current = setInterval(pollScanProgress, PROGRESS_POLL_INTERVAL_MS);
+
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, [settingsLoaded, hasAccess, pollScanProgress]);
+
+  // Fetch global arbs (existing 5s poll - now acts as the "final state" sync)
   const fetchGlobalArbs = useCallback(async (
     mode: 'initial' | 'background' | 'manual' = 'background',
     explicitRegion?: UserRegion
   ) => {
-    // Skip background polls during region switch
-    if (mode === 'background' && isRegionSwitchingRef.current) {
-      return;
-    }
+    if (mode === 'background' && isRegionSwitchingRef.current) return;
 
-    // Set appropriate loading state
     if (mode === 'initial') {
       setIsInitialLoading(true);
     } else if (mode === 'manual') {
@@ -271,12 +523,10 @@ export default function DashboardPage() {
     }
 
     try {
-      // Use explicit region if provided, otherwise use ref (for background polls)
       const region = explicitRegion ?? selectedRegionRef.current;
       const res = await fetch(`/api/global-arbs?region=${region}`);
       const data: GlobalArbsResponse = await res.json();
 
-      // Check for subscription required
       if (data.subscriptionRequired) {
         setShowSubscriptionModal(true);
         return;
@@ -286,67 +536,22 @@ export default function DashboardPage() {
         throw new Error(data.error || 'Failed to fetch opportunities');
       }
 
-      // Verify we're still on the same region (prevents stale data from appearing)
       if (data.region && data.region !== selectedRegionRef.current) {
         console.log(`[Dashboard] Ignoring stale response for ${data.region}, now on ${selectedRegionRef.current}`);
         return;
       }
 
       if (data.hasCachedResults) {
-        // Check if this is new data using ref (doesn't cause re-render)
         const isNewData = data.scannedAt !== lastScannedAtRef.current;
 
-        // Parse dates in H2H opportunities
-        const parsedOpportunities = (data.opportunities || []).map(opp => ({
-          ...opp,
-          event: {
-            ...opp.event,
-            commenceTime: new Date(opp.event.commenceTime),
-          },
-          lastUpdated: new Date(opp.lastUpdated),
-        }));
+        const parsedOpportunities = (data.opportunities || []).map(parseArbDates);
+        const parsedValueBets = (data.valueBets || []).map(parseValueBetDates);
+        const parsedSpreadArbs = (data.spreadArbs || []).map(parseSpreadDates);
+        const parsedTotalsArbs = (data.totalsArbs || []).map(parseTotalsDates);
+        const parsedMiddles = (data.middles || []).map(parseMiddleDates);
 
-        // Parse dates in value bets
-        const parsedValueBets = (data.valueBets || []).map(vb => ({
-          ...vb,
-          event: {
-            ...vb.event,
-            commenceTime: new Date(vb.event.commenceTime),
-          },
-          lastUpdated: new Date(vb.lastUpdated),
-        }));
-
-        // Parse dates in spread arbs
-        const parsedSpreadArbs = (data.spreadArbs || []).map(s => ({
-          ...s,
-          event: {
-            ...s.event,
-            commenceTime: new Date(s.event.commenceTime),
-          },
-          lastUpdated: new Date(s.lastUpdated),
-        }));
-
-        // Parse dates in totals arbs
-        const parsedTotalsArbs = (data.totalsArbs || []).map(t => ({
-          ...t,
-          event: {
-            ...t.event,
-            commenceTime: new Date(t.event.commenceTime),
-          },
-          lastUpdated: new Date(t.lastUpdated),
-        }));
-
-        // Parse dates in middles
-        const parsedMiddles = (data.middles || []).map(m => ({
-          ...m,
-          event: {
-            ...m.event,
-            commenceTime: new Date(m.event.commenceTime),
-          },
-          lastUpdated: new Date(m.lastUpdated),
-        }));
-
-        // Update state - data is already filtered by region on server
+        // Full replace from the authoritative GlobalScanCache
+        // (this is the complete dataset after scan finishes)
         setOpportunities(parsedOpportunities);
         setValueBets(parsedValueBets);
         setSpreadArbs(parsedSpreadArbs);
@@ -363,7 +568,6 @@ export default function DashboardPage() {
         setHasFetchedArbs(true);
         setError(null);
 
-        // Extract bookmakers from all opportunity types
         const uniqueBookmakers = new Set<string>();
         parsedOpportunities.forEach(opp => {
           getBookmakersFromArb(opp).forEach(bm => uniqueBookmakers.add(bm));
@@ -376,7 +580,6 @@ export default function DashboardPage() {
         });
         setBookmakers(Array.from(uniqueBookmakers));
 
-        // Show flash animation if new data arrived during polling
         if (isNewData && lastScannedAtRef.current !== null && mode !== 'initial') {
           setShowNewResultsFlash(true);
           setTimeout(() => setShowNewResultsFlash(false), 2000);
@@ -386,7 +589,6 @@ export default function DashboardPage() {
       }
     } catch (err) {
       console.error('Failed to fetch global arbs:', err);
-      // Only show error if this was initial load or manual refresh
       if (mode !== 'background') {
         setError(err instanceof Error ? err.message : 'Failed to load opportunities');
       }
@@ -397,16 +599,14 @@ export default function DashboardPage() {
       setIsRegionSwitching(false);
       isRegionSwitchingRef.current = false;
     }
-  }, []); // No dependencies - uses ref for region in background polls, explicit param for switches
+  }, []);
 
   // Initial fetch and polling
   useEffect(() => {
     if (!settingsLoaded) return;
 
-    // Initial fetch with explicit region
     fetchGlobalArbs('initial', selectedRegionRef.current);
 
-    // Poll for updates every 5 seconds
     const pollInterval = setInterval(() => {
       fetchGlobalArbs('background');
     }, POLL_INTERVAL_SECONDS * 1000);
@@ -414,20 +614,16 @@ export default function DashboardPage() {
     return () => clearInterval(pollInterval);
   }, [fetchGlobalArbs, settingsLoaded]);
 
-  // Single region selection - clicking a region selects it and triggers fetch
+  // Region selection
   const selectRegion = useCallback((region: UserRegion) => {
     if (region !== selectedRegion) {
-      // Mark as switching BEFORE state update to prevent race conditions
       isRegionSwitchingRef.current = true;
       setIsRegionSwitching(true);
       
-      // Update ref BEFORE state update
       selectedRegionRef.current = region;
-      
-      // Update state
       setSelectedRegion(region);
       
-      // Clear existing data immediately for instant feedback
+      // Clear existing data
       setOpportunities([]);
       setValueBets([]);
       setSpreadArbs([]);
@@ -438,12 +634,15 @@ export default function DashboardPage() {
       setScanAgeSeconds(null);
       lastScannedAtRef.current = null;
       
-      // Fetch with explicit region parameter
+      // Reset progress cursor so we get fresh batches for the new region
+      progressSinceRef.current = new Date().toISOString();
+      setScanProgress({ isActive: false, phase: null, sportsScanned: 0, sportsTotal: 0, arbsFoundSoFar: 0, newArbsInLastBatch: 0 });
+      
       fetchGlobalArbs('initial', region);
     }
   }, [selectedRegion, fetchGlobalArbs]);
 
-  // Increment age counter every second
+  // Increment age counter
   useEffect(() => {
     if (scanAgeSeconds === null) return;
 
@@ -466,7 +665,6 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // Manual refresh
   const handleRefresh = useCallback(() => {
     fetchGlobalArbs('manual', selectedRegion);
   }, [fetchGlobalArbs, selectedRegion]);
@@ -478,7 +676,7 @@ export default function DashboardPage() {
     setSelectedLineOpp(null);
   };
 
-  // Data is already filtered by region on server, just apply local filters
+  // Apply local filters
   const filteredOpportunities = opportunities.filter(opp => {
     if (filters.profitableOnly && opp.profitPercentage < 0) return false;
     if (!filters.showNearArbs && opp.type === 'near-arb') return false;
@@ -490,24 +688,20 @@ export default function DashboardPage() {
     return true;
   });
 
-  // Value bets already filtered by region on server
   const filteredValueBets = valueBets;
 
-  // Spread arbs already filtered by region on server, just apply local filters
   const filteredSpreads = spreadArbs.filter(s => {
     if (filters.profitableOnly && s.profitPercentage < 0) return false;
     if (!filters.showNearArbs && s.type === 'near-arb') return false;
     return true;
   });
 
-  // Totals arbs already filtered by region on server, just apply local filters
   const filteredTotals = totalsArbs.filter(t => {
     if (filters.profitableOnly && t.profitPercentage < 0) return false;
     if (!filters.showNearArbs && t.type === 'near-arb') return false;
     return true;
   });
 
-  // Middles already filtered by region on server
   const filteredMiddles = middles;
 
   const profitableCount = filteredOpportunities.filter(o => o.profitPercentage >= 0).length;
@@ -534,19 +728,15 @@ export default function DashboardPage() {
     return `${hours}h ${minutes % 60}m ago`;
   };
 
-  // Get progress bar color based on scan age relative to expected interval
   const getProgressBarColor = (seconds: number, interval: number) => {
     const progress = seconds / interval;
-    if (progress < 0.25) return '#22c55e'; // Green - very fresh
-    if (progress < 0.5) return '#84cc16'; // Lime - fresh
-    if (progress < 0.75) return '#eab308'; // Yellow - getting stale
-    return '#f97316'; // Orange - stale, new scan expected soon
+    if (progress < 0.25) return '#22c55e';
+    if (progress < 0.5) return '#84cc16';
+    if (progress < 0.75) return '#eab308';
+    return '#f97316';
   };
 
-  // Combined loading state for header
   const isLoading = isInitialLoading || isManualRefreshing || isRegionSwitching;
-  
-  // Get current scan interval based on selected region
   const currentScanInterval = getScanInterval();
 
   return (
@@ -620,7 +810,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Live Scan Status Banner */}
+        {/* Live Scan Status Banner - now with streaming progress */}
         {hasFetchedArbs && !isInitialLoading && !isRegionSwitching && (
           <div 
             className={`border px-4 py-3 rounded-lg transition-all duration-500 ${showNewResultsFlash ? 'ring-2 ring-green-500' : ''}`}
@@ -630,9 +820,9 @@ export default function DashboardPage() {
             }}
           >
             <div className="flex items-center gap-3">
-              {/* Live indicator with background refresh state */}
+              {/* Live indicator */}
               <div className="relative w-5 h-5 shrink-0 flex items-center justify-center">
-                {isBackgroundRefreshing ? (
+                {isBackgroundRefreshing || scanProgress.isActive ? (
                   <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#22c55e' }} />
                 ) : (
                   <>
@@ -652,16 +842,40 @@ export default function DashboardPage() {
                 <div className="font-medium text-sm flex items-center gap-2" style={{ color: '#22c55e' }}>
                   <span>Live Scanner Active</span>
                   <span className="text-xs font-normal opacity-75">({selectedRegion})</span>
-                  {isBackgroundRefreshing && (
+                  
+                  {/* Streaming progress indicator */}
+                  {scanProgress.isActive && (
+                    <span className="flex items-center gap-1 text-xs font-normal bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
+                      <Zap className="w-3 h-3" />
+                      Scanning {scanProgress.phase === 'h2h' ? 'H2H' : 'Lines'}
+                      {scanProgress.sportsTotal > 0 && (
+                        <span className="opacity-75">
+                          ({scanProgress.sportsScanned}/{scanProgress.sportsTotal})
+                        </span>
+                      )}
+                      {scanProgress.arbsFoundSoFar > 0 && (
+                        <span className="text-green-300 font-medium">
+                          • {scanProgress.arbsFoundSoFar} arbs
+                        </span>
+                      )}
+                    </span>
+                  )}
+                  
+                  {!scanProgress.isActive && isBackgroundRefreshing && (
                     <span className="text-xs font-normal opacity-75">Checking...</span>
                   )}
                   {showNewResultsFlash && (
-                    <span className="text-xs font-normal bg-green-500 text-black px-1.5 py-0.5 rounded animate-pulse">Updated!</span>
+                    <span className="text-xs font-normal bg-green-500 text-black px-1.5 py-0.5 rounded animate-pulse">
+                      {scanProgress.newArbsInLastBatch > 0 ? `+${scanProgress.newArbsInLastBatch} arbs!` : 'Updated!'}
+                    </span>
                   )}
                 </div>
                 <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                  {scanAgeSeconds !== null && (
+                  {scanAgeSeconds !== null && !scanProgress.isActive && (
                     <span>Last scan: {formatScanAge(scanAgeSeconds)}</span>
+                  )}
+                  {scanProgress.isActive && (
+                    <span>Results streaming live — arbs appear as they&apos;re found</span>
                   )}
                 </div>
               </div>
@@ -681,27 +895,50 @@ export default function DashboardPage() {
               </button>
             </div>
             
-            {/* Scan age progress bar */}
-            <div 
-              className="mt-2 h-1 rounded-full overflow-hidden"
-              style={{ backgroundColor: 'color-mix(in srgb, #22c55e 20%, transparent)' }}
-            >
-              <div 
-                className="h-full rounded-full transition-all duration-1000 ease-linear"
-                style={{ 
-                  backgroundColor: scanAgeSeconds !== null ? getProgressBarColor(scanAgeSeconds, currentScanInterval) : '#22c55e',
-                  width: `${Math.min(100, ((scanAgeSeconds || 0) / currentScanInterval) * 100)}%`,
-                }}
-              />
-            </div>
-            <div className="mt-1 text-[10px] flex justify-between" style={{ color: 'var(--muted-foreground)' }}>
-              <span>Updated</span>
-              <span>Next scan</span>
-            </div>
+            {/* Scan age / progress bar */}
+            {scanProgress.isActive && scanProgress.sportsTotal > 0 ? (
+              <>
+                <div 
+                  className="mt-2 h-1 rounded-full overflow-hidden"
+                  style={{ backgroundColor: 'color-mix(in srgb, #22c55e 20%, transparent)' }}
+                >
+                  <div 
+                    className="h-full rounded-full transition-all duration-500 ease-out"
+                    style={{ 
+                      backgroundColor: '#22c55e',
+                      width: `${Math.min(100, (scanProgress.sportsScanned / scanProgress.sportsTotal) * 100)}%`,
+                    }}
+                  />
+                </div>
+                <div className="mt-1 text-[10px] flex justify-between" style={{ color: 'var(--muted-foreground)' }}>
+                  <span>Scanning {scanProgress.phase === 'h2h' ? 'H2H markets' : 'Lines markets'}...</span>
+                  <span>{Math.round((scanProgress.sportsScanned / scanProgress.sportsTotal) * 100)}%</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div 
+                  className="mt-2 h-1 rounded-full overflow-hidden"
+                  style={{ backgroundColor: 'color-mix(in srgb, #22c55e 20%, transparent)' }}
+                >
+                  <div 
+                    className="h-full rounded-full transition-all duration-1000 ease-linear"
+                    style={{ 
+                      backgroundColor: scanAgeSeconds !== null ? getProgressBarColor(scanAgeSeconds, currentScanInterval) : '#22c55e',
+                      width: `${Math.min(100, ((scanAgeSeconds || 0) / currentScanInterval) * 100)}%`,
+                    }}
+                  />
+                </div>
+                <div className="mt-1 text-[10px] flex justify-between" style={{ color: 'var(--muted-foreground)' }}>
+                  <span>Updated</span>
+                  <span>Next scan</span>
+                </div>
+              </>
+            )}
           </div>
         )}
 
-        {/* Region Tabs - single selection (radio style) */}
+        {/* Region Tabs */}
         {settingsLoaded && (
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <span className="text-xs sm:text-sm mr-1 sm:mr-2" style={{ color: 'var(--muted)' }}>Region:</span>
@@ -772,7 +1009,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Stats Grid - with smooth transitions */}
+        {/* Stats Grid */}
         {hasFetchedArbs && stats && !isRegionSwitching && (
           <div 
             className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-px rounded-lg overflow-hidden transition-opacity duration-300"
@@ -885,8 +1122,8 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Tab Content - wrapped in transition container */}
-        <div className={`transition-opacity duration-200 ${isBackgroundRefreshing ? 'opacity-90' : 'opacity-100'}`}>
+        {/* Tab Content */}
+        <div className={`transition-opacity duration-200 ${isBackgroundRefreshing && !scanProgress.isActive ? 'opacity-90' : 'opacity-100'}`}>
           {hasFetchedArbs && !isRegionSwitching && activeTab === 'opportunities' && (
             <ArbTable
               opportunities={filteredOpportunities}
