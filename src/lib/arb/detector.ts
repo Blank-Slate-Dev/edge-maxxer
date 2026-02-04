@@ -9,6 +9,7 @@ import type {
   BestOdds,
   OpportunityType,
   ScanStats,
+  AlternativeOdds,
 } from '../types';
 import { normalizeEvent, findMatchingOutcome } from '../normalization/eventMatcher';
 import { config } from '../config';
@@ -137,6 +138,20 @@ export function detectBookVsBookArbs(
 }
 
 /**
+ * Build the alternativeOdds array for a given outcome name from all tracked odds.
+ * Returns all bookmakers sorted by odds descending (best first).
+ */
+function buildAlternativeOdds(allOddsForOutcome: TrackedOdds[]): AlternativeOdds[] {
+  return [...allOddsForOutcome]
+    .sort((a, b) => b.odds - a.odds)
+    .map(o => ({
+      bookmaker: o.bookmaker,
+      bookmakerKey: o.bookmakerKey,
+      odds: o.odds,
+    }));
+}
+
+/**
  * Finds arbitrage opportunities within a single event
  * Handles both 2-way (tennis, basketball) and 3-way (soccer, boxing) markets
  */
@@ -242,12 +257,14 @@ function findArbitrageInEvent(
           bookmaker: bestOutcomes[0].bookmaker,
           bookmakerKey: bestOutcomes[0].bookmakerKey,
           odds: bestOutcomes[0].odds,
+          alternativeOdds: buildAlternativeOdds(outcomesByName.get(bestOutcomes[0].name) || []),
         },
         outcome2: {
           name: bestOutcomes[1].name,
           bookmaker: bestOutcomes[1].bookmaker,
           bookmakerKey: bestOutcomes[1].bookmakerKey,
           odds: bestOutcomes[1].odds,
+          alternativeOdds: buildAlternativeOdds(outcomesByName.get(bestOutcomes[1].name) || []),
         },
         impliedProbabilitySum: impliedSum,
         profitPercentage: profitPct,
@@ -267,18 +284,21 @@ function findArbitrageInEvent(
           bookmaker: bestOutcomes[0].bookmaker,
           bookmakerKey: bestOutcomes[0].bookmakerKey,
           odds: bestOutcomes[0].odds,
+          alternativeOdds: buildAlternativeOdds(outcomesByName.get(bestOutcomes[0].name) || []),
         },
         outcome2: {
           name: bestOutcomes[1].name,
           bookmaker: bestOutcomes[1].bookmaker,
           bookmakerKey: bestOutcomes[1].bookmakerKey,
           odds: bestOutcomes[1].odds,
+          alternativeOdds: buildAlternativeOdds(outcomesByName.get(bestOutcomes[1].name) || []),
         },
         outcome3: {
           name: bestOutcomes[2].name,
           bookmaker: bestOutcomes[2].bookmaker,
           bookmakerKey: bestOutcomes[2].bookmakerKey,
           odds: bestOutcomes[2].odds,
+          alternativeOdds: buildAlternativeOdds(outcomesByName.get(bestOutcomes[2].name) || []),
         },
         impliedProbabilitySum: impliedSum,
         profitPercentage: profitPct,
