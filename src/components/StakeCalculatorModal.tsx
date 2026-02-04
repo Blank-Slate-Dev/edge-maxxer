@@ -2,8 +2,8 @@
 
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { X, Star } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { X, Star, ChevronDown, ArrowLeftRight } from 'lucide-react';
 import { 
   naturalizeArbStakes,
   naturalize3WayArbStakes,
@@ -13,8 +13,10 @@ import {
   getBookmakerProfile, 
   getRiskColor 
 } from '@/lib/stealth/bookmakerProfiles';
-import { ArbOpportunity } from '@/lib/types';
+import { ArbOpportunity, AlternativeOdds } from '@/lib/types';
 import { PlacedBet } from '@/lib/bets';
+import { getBookmakerName } from '@/lib/config';
+import { BookLogo } from './BookLogo';
 
 interface StakeCalculatorModalProps {
   arb: ArbOpportunity | null;
@@ -54,20 +56,160 @@ function RiskBadge({ bookmaker }: { bookmaker: string }) {
 }
 
 // Helper to get outcomes array from the arb
-function getOutcomesFromArb(arb: ArbOpportunity): { name: string; bookmaker: string; odds: number }[] {
+function getOutcomesFromArb(arb: ArbOpportunity): { name: string; bookmaker: string; bookmakerKey?: string; odds: number; alternativeOdds?: AlternativeOdds[] }[] {
   if (arb.mode === 'book-vs-book') {
-    const outcomes = [arb.outcome1, arb.outcome2];
+    const outcomes: { name: string; bookmaker: string; bookmakerKey?: string; odds: number; alternativeOdds?: AlternativeOdds[] }[] = [
+      { ...arb.outcome1 },
+      { ...arb.outcome2 },
+    ];
     if (arb.outcome3) {
-      outcomes.push(arb.outcome3);
+      outcomes.push({ ...arb.outcome3 });
     }
     return outcomes;
   } else {
-    // book-vs-betfair
+    // book-vs-betfair — no swapping available
     return [
       arb.backOutcome,
       { name: arb.layOutcome.name, bookmaker: 'Betfair', odds: arb.layOutcome.odds }
     ];
   }
+}
+
+/**
+ * Bookmaker Swap Dropdown
+ * Shows all bookmakers offering odds on this outcome, sorted best-to-worst.
+ * Current selection is highlighted. Selecting a new one updates odds.
+ */
+function BookmakerSwapDropdown({
+  alternatives,
+  currentBookmaker,
+  currentOdds,
+  onSwap,
+}: {
+  alternatives: AlternativeOdds[];
+  currentBookmaker: string;
+  currentOdds: number;
+  onSwap: (bookmaker: string, bookmakerKey: string, odds: number) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close on click outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    if (isOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isOpen]);
+
+  if (!alternatives || alternatives.length <= 1) return null;
+
+  // Calculate what profit % would be with each alternative
+  // (We show the odds difference from current as a quick indicator)
+  const sortedAlts = [...alternatives].sort((a, b) => b.odds - a.odds);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] sm:text-xs rounded transition-colors border"
+        style={{
+          backgroundColor: 'color-mix(in srgb, var(--info) 10%, transparent)',
+          borderColor: 'color-mix(in srgb, var(--info) 30%, transparent)',
+          color: 'var(--info)',
+        }}
+        title="Swap bookmaker for this outcome"
+      >
+        <ArrowLeftRight className="w-3 h-3" />
+        <span className="hidden sm:inline">Swap</span>
+        <ChevronDown className={`w-3 h-3 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+      </button>
+
+      {isOpen && (
+        <div
+          className="absolute right-0 top-full mt-1 z-50 min-w-[240px] max-h-[280px] overflow-y-auto rounded-lg border shadow-xl"
+          style={{
+            backgroundColor: 'var(--background)',
+            borderColor: 'var(--border)',
+          }}
+        >
+          <div className="px-3 py-2 border-b" style={{ borderColor: 'var(--border)' }}>
+            <div className="text-[10px] uppercase tracking-wide font-medium" style={{ color: 'var(--muted-foreground)' }}>
+              Available Bookmakers ({sortedAlts.length})
+            </div>
+          </div>
+          {sortedAlts.map((alt, i) => {
+            const isCurrent = alt.bookmaker === currentBookmaker && Math.abs(alt.odds - currentOdds) < 0.001;
+            const oddsDiff = alt.odds - currentOdds;
+            
+            return (
+              <button
+                key={`${alt.bookmakerKey}-${i}`}
+                onClick={() => {
+                  onSwap(alt.bookmaker, alt.bookmakerKey, alt.odds);
+                  setIsOpen(false);
+                }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-[var(--surface)]"
+                style={{
+                  backgroundColor: isCurrent ? 'color-mix(in srgb, var(--info) 10%, transparent)' : 'transparent',
+                  borderBottom: '1px solid var(--border)',
+                }}
+              >
+                <BookLogo bookKey={alt.bookmakerKey} size={20} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span 
+                      className="text-xs font-medium truncate"
+                      style={{ color: isCurrent ? 'var(--info)' : 'var(--foreground)' }}
+                    >
+                      {getBookmakerName(alt.bookmaker) || alt.bookmaker}
+                    </span>
+                    {isCurrent && (
+                      <span className="text-[9px] px-1 py-0.5 rounded" style={{
+                        backgroundColor: 'var(--info)',
+                        color: 'white',
+                      }}>
+                        CURRENT
+                      </span>
+                    )}
+                    {i === 0 && !isCurrent && (
+                      <span className="text-[9px] px-1 py-0.5 rounded" style={{
+                        backgroundColor: 'var(--success)',
+                        color: 'white',
+                      }}>
+                        BEST
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <RiskBadge bookmaker={alt.bookmaker} />
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <div className="font-mono text-sm font-bold" style={{ color: 'var(--foreground)' }}>
+                    {alt.odds.toFixed(2)}
+                  </div>
+                  {!isCurrent && (
+                    <div 
+                      className="text-[10px] font-mono"
+                      style={{ color: oddsDiff > 0 ? 'var(--success)' : oddsDiff < 0 ? 'var(--danger)' : 'var(--muted)' }}
+                    >
+                      {oddsDiff > 0 ? '+' : ''}{oddsDiff.toFixed(2)}
+                    </div>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculatorModalProps) {
@@ -80,6 +222,8 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
   const [customStakeStrings, setCustomStakeStrings] = useState<string[]>([]);
   const [oddsModified, setOddsModified] = useState<boolean>(false);
   const [stakesModified, setStakesModified] = useState<boolean>(false);
+  // Track which bookmaker is currently selected per outcome (for swap feature)
+  const [selectedBookmakers, setSelectedBookmakers] = useState<{ bookmaker: string; bookmakerKey: string }[]>([]);
 
   // Initialize when arb changes
   useEffect(() => {
@@ -91,6 +235,10 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
       setStakesModified(false);
       setFavourMode(false);
       setFavouredOutcome(null);
+      setSelectedBookmakers(outcomes.map(o => ({
+        bookmaker: o.bookmaker,
+        bookmakerKey: o.bookmakerKey || '',
+      })));
     }
   }, [arb]);
 
@@ -178,12 +326,18 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
     const stake = parseFloat(totalStake) || 0;
     const outcomes = getOutcomesFromArb(arb);
     
+    // Use selectedBookmakers for stealth mode (it needs the bookmaker name)
+    const outcomesForCalc = outcomes.map((o, i) => ({
+      ...o,
+      bookmaker: selectedBookmakers[i]?.bookmaker || o.bookmaker,
+    }));
+    
     const oddsToUse = customOddsStrings.map((s, i) => {
       const parsed = parseFloat(s);
       return !isNaN(parsed) && parsed > 1 ? parsed : outcomes[i].odds;
     });
     
-    const { stakes, naturalized } = calculateOptimalStakes(oddsToUse, stake, outcomes);
+    const { stakes, naturalized } = calculateOptimalStakes(oddsToUse, stake, outcomesForCalc);
     
     setNaturalizedStakes(naturalized);
     
@@ -192,7 +346,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
     } else {
       setCustomStakeStrings(stakes.map(s => s.toFixed(2)));
     }
-  }, [arb, totalStake, customOddsStrings, calculateOptimalStakes, stealthMode]);
+  }, [arb, totalStake, customOddsStrings, calculateOptimalStakes, stealthMode, selectedBookmakers]);
 
   // Auto-recalculate when inputs change and stakes aren't manually modified
   useEffect(() => {
@@ -266,9 +420,36 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
     setStakesModified(true);
   };
 
+  // Handle bookmaker swap — update the odds and bookmaker name for this outcome
+  const handleBookmakerSwap = (index: number, bookmaker: string, bookmakerKey: string, odds: number) => {
+    // Update odds
+    const updatedOdds = [...customOddsStrings];
+    updatedOdds[index] = odds.toFixed(2);
+    setCustomOddsStrings(updatedOdds);
+    
+    // Update selected bookmaker tracking
+    const updatedBookmakers = [...selectedBookmakers];
+    updatedBookmakers[index] = { bookmaker, bookmakerKey };
+    setSelectedBookmakers(updatedBookmakers);
+    
+    // Check if odds differ from original
+    const originalOdds = getOutcomesFromArb(arb)[index].odds;
+    const originalBookmaker = getOutcomesFromArb(arb)[index].bookmaker;
+    if (Math.abs(odds - originalOdds) > 0.001 || bookmaker !== originalBookmaker) {
+      setOddsModified(true);
+    }
+    
+    // Recalculate stakes
+    setStakesModified(false);
+  };
+
   const resetAll = () => {
     const outcomes = getOutcomesFromArb(arb);
     setCustomOddsStrings(outcomes.map(o => o.odds.toFixed(2)));
+    setSelectedBookmakers(outcomes.map(o => ({
+      bookmaker: o.bookmaker,
+      bookmakerKey: o.bookmakerKey || '',
+    })));
     setOddsModified(false);
     setStakesModified(false);
     setFavourMode(false);
@@ -298,7 +479,11 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
   // Calculate what optimal stakes would be (for comparison)
   const getOptimalStakes = () => {
     const stake = parseFloat(totalStake) || 0;
-    const { stakes, naturalized } = calculateOptimalStakes(oddsToUse, stake, outcomes);
+    const outcomesForCalc = outcomes.map((o, i) => ({
+      ...o,
+      bookmaker: selectedBookmakers[i]?.bookmaker || o.bookmaker,
+    }));
+    const { stakes, naturalized } = calculateOptimalStakes(oddsToUse, stake, outcomesForCalc);
     
     if (stealthMode && naturalized.length > 0) {
       return naturalized.map(n => n.naturalized);
@@ -308,9 +493,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
   
   const optimalStakes = getOptimalStakes();
 
-  // FIX: Don't generate id or createdAt here — useBets.addBet() handles that.
-  // This prevents the mismatch where StakeCalculatorModal generates a non-ObjectId
-  // string like "bet_123_abc" that later fails on PUT/DELETE in MongoDB.
+  // Build the bet object for logging — don't generate id or createdAt
   const handleLogBet = () => {
     const bet: Omit<PlacedBet, 'id' | 'createdAt'> = {
       event: {
@@ -327,21 +510,22 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
     };
 
     if (arb.mode === 'book-vs-book') {
+      // Use the SELECTED bookmaker (possibly swapped), not the original
       bet.bet1 = {
-        bookmaker: outcomes[0].bookmaker,
+        bookmaker: selectedBookmakers[0]?.bookmaker || outcomes[0].bookmaker,
         outcome: outcomes[0].name,
         odds: oddsToUse[0],
         stake: stakesToUse[0] || 0,
       };
       bet.bet2 = {
-        bookmaker: outcomes[1].bookmaker,
+        bookmaker: selectedBookmakers[1]?.bookmaker || outcomes[1].bookmaker,
         outcome: outcomes[1].name,
         odds: oddsToUse[1],
         stake: stakesToUse[1] || 0,
       };
       if (outcomes[2]) {
         bet.bet3 = {
-          bookmaker: outcomes[2].bookmaker,
+          bookmaker: selectedBookmakers[2]?.bookmaker || outcomes[2].bookmaker,
           outcome: outcomes[2].name,
           odds: oddsToUse[2],
           stake: stakesToUse[2] || 0,
@@ -364,6 +548,12 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
     onLogBet(bet);
     onClose();
   };
+
+  // Check if any bookmaker has been swapped from original
+  const hasSwappedBookmakers = selectedBookmakers.some((sb, i) => {
+    const original = getOutcomesFromArb(arb)[i];
+    return original && sb.bookmaker !== original.bookmaker;
+  });
 
   return (
     <div 
@@ -419,6 +609,18 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                   <span className="font-medium text-sm sm:text-base" style={{ color: isArb ? 'var(--success)' : 'var(--danger)' }}>
                     {isArb ? 'Arbitrage' : 'No Arb'}
                   </span>
+                  {hasSwappedBookmakers && (
+                    <span 
+                      className="text-[10px] sm:text-xs px-1.5 py-0.5 rounded"
+                      style={{
+                        backgroundColor: 'color-mix(in srgb, var(--info) 20%, transparent)',
+                        color: 'var(--info)',
+                      }}
+                    >
+                      <ArrowLeftRight className="w-3 h-3 inline mr-0.5" />
+                      Swapped
+                    </span>
+                  )}
                 </div>
                 <div className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
                   {(totalImplied * 100).toFixed(2)}% implied
@@ -620,11 +822,13 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                 <div className="flex items-center gap-2 text-xs sm:text-sm" style={{ color: 'var(--info)' }}>
                   <span>✏️</span>
                   <span>
-                    {oddsModified && stakesModified 
-                      ? 'Odds & stakes modified' 
-                      : oddsModified 
-                        ? 'Odds modified' 
-                        : 'Stakes adjusted'}
+                    {hasSwappedBookmakers && oddsModified
+                      ? 'Bookmaker swapped'
+                      : oddsModified && stakesModified 
+                        ? 'Odds & stakes modified' 
+                        : oddsModified 
+                          ? 'Odds modified' 
+                          : 'Stakes adjusted'}
                   </span>
                 </div>
                 <div className="flex gap-2">
@@ -669,13 +873,21 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                 
                 const isFavoured = favourMode && favouredOutcome === index;
                 
+                // Determine display bookmaker — may have been swapped
+                const displayBookmaker = selectedBookmakers[index]?.bookmaker || outcome.bookmaker;
+                const displayBookmakerKey = selectedBookmakers[index]?.bookmakerKey || outcome.bookmakerKey || '';
+                const isSwapped = displayBookmaker !== outcome.bookmaker;
+                
+                // Get alternative odds for this outcome (only for book-vs-book)
+                const altOdds = arb.mode === 'book-vs-book' ? outcome.alternativeOdds : undefined;
+                
                 return (
                   <div 
                     key={index}
                     className="p-3 sm:p-4 rounded-lg border"
                     style={{
                       backgroundColor: 'var(--surface)',
-                      borderColor: isFavoured ? 'var(--warning)' : 'var(--border)'
+                      borderColor: isFavoured ? 'var(--warning)' : isSwapped ? 'var(--info)' : 'var(--border)'
                     }}
                   >
                     {/* Outcome Header */}
@@ -686,8 +898,11 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                           <div className="font-medium text-sm sm:text-base truncate" style={{ color: 'var(--foreground)' }}>{outcome.name}</div>
                         </div>
                         <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                          <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>{outcome.bookmaker}</span>
-                          <RiskBadge bookmaker={outcome.bookmaker} />
+                          {displayBookmakerKey && <BookLogo bookKey={displayBookmakerKey} size={16} />}
+                          <span className="text-xs sm:text-sm" style={{ color: isSwapped ? 'var(--info)' : 'var(--muted)' }}>
+                            {getBookmakerName(displayBookmaker) || displayBookmaker}
+                          </span>
+                          <RiskBadge bookmaker={displayBookmaker} />
                           {isFavoured && (
                             <span 
                               className="text-[10px] sm:text-xs px-1.5 py-0.5 rounded font-medium"
@@ -699,11 +914,30 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                               FAVOURED
                             </span>
                           )}
+                          {isSwapped && (
+                            <span 
+                              className="text-[10px] sm:text-xs px-1.5 py-0.5 rounded font-medium"
+                              style={{ 
+                                backgroundColor: 'color-mix(in srgb, var(--info) 20%, transparent)',
+                                color: 'var(--info)'
+                              }}
+                            >
+                              SWAPPED
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="text-right shrink-0">
                         <div className="flex items-center gap-1 sm:gap-2">
-                          <span className="text-[10px] sm:text-xs hidden sm:inline" style={{ color: 'var(--muted-foreground)' }}>Odds:</span>
+                          {/* Swap button */}
+                          {altOdds && altOdds.length > 1 && (
+                            <BookmakerSwapDropdown
+                              alternatives={altOdds}
+                              currentBookmaker={displayBookmaker}
+                              currentOdds={currentOdds}
+                              onSwap={(bm, bmKey, odds) => handleBookmakerSwap(index, bm, bmKey, odds)}
+                            />
+                          )}
                           <input
                             type="text"
                             inputMode="decimal"
@@ -897,11 +1131,12 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                 <h4 className="font-medium mb-1.5 sm:mb-2 text-sm" style={{ color: 'var(--muted)' }}>🥷 Stealth Tips</h4>
                 <ul className="text-xs sm:text-sm space-y-1" style={{ color: 'var(--muted-foreground)' }}>
                   {outcomes.map((outcome, i) => {
-                    const profile = getBookmakerProfile(outcome.bookmaker);
+                    const bm = selectedBookmakers[i]?.bookmaker || outcome.bookmaker;
+                    const profile = getBookmakerProfile(bm);
                     if (profile?.riskLevel === 'extreme' || profile?.riskLevel === 'high') {
                       return (
                         <li key={i}>
-                          • <strong style={{ color: 'var(--muted)' }}>{outcome.bookmaker}</strong>: {profile.recommendations[0]}
+                          • <strong style={{ color: 'var(--muted)' }}>{bm}</strong>: {profile.recommendations[0]}
                         </li>
                       );
                     }
