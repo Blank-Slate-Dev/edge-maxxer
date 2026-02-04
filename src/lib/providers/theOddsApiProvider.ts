@@ -40,7 +40,8 @@ const RETRY_CONFIG = {
 const MIN_REMAINING_REQUESTS = 10;
 
 // Callback type for streaming results per-batch
-type BatchCallback = (events: SportEvent[], sportKeys: string[]) => Promise<void>;
+// SYNCHRONOUS: caller handles any async work via fire-and-forget
+type BatchCallback = (events: SportEvent[], sportKeys: string[]) => void;
 
 export class TheOddsApiProvider implements OddsProvider {
   name = 'The Odds API';
@@ -282,8 +283,9 @@ export class TheOddsApiProvider implements OddsProvider {
    * Fetch odds with a per-batch callback for streaming results.
    * 
    * Works identically to fetchOdds but calls onBatch(events, sportKeys) 
-   * after each parallel batch completes, allowing the caller to run arb
-   * detection immediately rather than waiting for all sports to finish.
+   * after each parallel batch completes. The callback is called SYNCHRONOUSLY
+   * (not awaited) so it does NOT block the scan pipeline. The caller is
+   * responsible for handling any async work (like DB writes) via fire-and-forget.
    * 
    * Returns the same ProviderResult as fetchOdds for backwards compatibility.
    */
@@ -369,10 +371,10 @@ export class TheOddsApiProvider implements OddsProvider {
       const batchDuration = Date.now() - batchStart;
       console.log(`[TheOddsApiProvider] Batch ${batchNum}: ${batchEvents.length} events in ${batchDuration}ms (${remainingRequests ?? '?'} remaining)`);
 
-      // ⚡ STREAM: Call the callback with this batch's events immediately
+      // ⚡ STREAM: Call the callback SYNCHRONOUSLY - does NOT block the next batch
       if (onBatch && batchEvents.length > 0) {
         try {
-          await onBatch(batchEvents, batchSportKeys);
+          onBatch(batchEvents, batchSportKeys);
         } catch (err) {
           console.error(`[TheOddsApiProvider] Batch callback error:`, err);
           // Non-fatal: don't let callback errors break the scan
@@ -389,7 +391,7 @@ export class TheOddsApiProvider implements OddsProvider {
         const retryBatch = rateLimitedSports.slice(r, r + 4);
 
         const retryResults = await Promise.allSettled(
-          retryBatch.map(sport => this.fetchSportOdds(sport, regions, retryBatch.join(',')))
+          retryBatch.map(sport => this.fetchSportOdds(sport, regions, marketsStr))
         );
 
         const retryEvents: SportEvent[] = [];
@@ -407,10 +409,10 @@ export class TheOddsApiProvider implements OddsProvider {
           }
         }
 
-        // Stream retry results too
+        // Stream retry results too - SYNCHRONOUS
         if (onBatch && retryEvents.length > 0) {
           try {
-            await onBatch(retryEvents, retrySportKeys);
+            onBatch(retryEvents, retrySportKeys);
           } catch (err) {
             console.error(`[TheOddsApiProvider] Retry batch callback error:`, err);
           }
