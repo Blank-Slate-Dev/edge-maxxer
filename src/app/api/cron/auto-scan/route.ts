@@ -67,7 +67,8 @@ interface BatchResult {
   };
 }
 
-type OnBatchCallback = (result: BatchResult) => Promise<void>;
+// Callback is SYNCHRONOUS - it fires DB writes but does NOT await them
+type OnBatchCallback = (result: BatchResult) => void;
 
 // Track scan count for rotation
 let globalScanCounter = 0;
@@ -184,6 +185,9 @@ export async function GET(request: NextRequest) {
       errors: [] as string[],
     };
 
+    // Collect fire-and-forget promises so we can try to wait for them at the end
+    const backgroundWrites: Promise<unknown>[] = [];
+
     for (const user of users) {
       results.processed++;
 
@@ -211,8 +215,9 @@ export async function GET(request: NextRequest) {
         
         // =====================================================
         // STREAMING SCAN: Results are written to GlobalScanProgress
-        // incrementally as each sport batch completes, so the
-        // dashboard can display arbs within seconds of detection.
+        // as FIRE-AND-FORGET (non-blocking) so they don't slow
+        // down the scan. The dashboard polls /api/scan-progress
+        // every 2s to pick them up.
         // =====================================================
         const allOpportunities: ArbWithUrls[] = [];
         const allValueBets: ValueBet[] = [];
@@ -253,39 +258,46 @@ export async function GET(request: NextRequest) {
           const scanId = `scan-${region}-${Date.now()}`;
           let batchIndex = 0;
 
-          // Clean up old progress batches for this region
+          // Clean up old progress batches - FIRE AND FORGET (TTL also handles this)
           if (isMasterAccount) {
-            await GlobalScanProgress.clearRegion(region, scanId);
+            backgroundWrites.push(
+              GlobalScanProgress.clearRegion(region, scanId).catch(err =>
+                console.error(`[AutoScan] clearRegion failed:`, err)
+              )
+            );
           }
 
-          // Callback: write each batch of results to GlobalScanProgress immediately
-          const onBatch: OnBatchCallback = async (batchResult) => {
-            if (!isMasterAccount) return; // Only master account streams to global progress
+          // Callback: write each batch of results to GlobalScanProgress
+          // FIRE-AND-FORGET: Does NOT block the scan pipeline
+          const onBatch: OnBatchCallback = (batchResult) => {
+            if (!isMasterAccount) return;
 
-            try {
-              await GlobalScanProgress.writeBatch({
-                region,
-                scanId,
-                batchIndex: batchIndex++,
-                sportKeys: batchResult.sportKeys,
-                opportunities: batchResult.opportunities,
-                valueBets: batchResult.valueBets,
-                spreadArbs: batchResult.spreadArbs,
-                totalsArbs: batchResult.totalsArbs,
-                middles: batchResult.middles,
-                stats: batchResult.runningStats,
-                phase: batchResult.phase,
-                isLastBatch: false,
-              });
+            const currentBatchIndex = batchIndex++;
+            const arbCount = batchResult.opportunities.filter(o => o.type === 'arb').length;
 
-              const arbCount = batchResult.opportunities.filter(o => o.type === 'arb').length;
+            // Fire and forget - don't await, don't block the scan
+            const writePromise = GlobalScanProgress.writeBatch({
+              region,
+              scanId,
+              batchIndex: currentBatchIndex,
+              sportKeys: batchResult.sportKeys,
+              opportunities: batchResult.opportunities,
+              valueBets: batchResult.valueBets,
+              spreadArbs: batchResult.spreadArbs,
+              totalsArbs: batchResult.totalsArbs,
+              middles: batchResult.middles,
+              stats: batchResult.runningStats,
+              phase: batchResult.phase,
+              isLastBatch: false,
+            }).then(() => {
               if (arbCount > 0) {
-                console.log(`[AutoScan] ⚡ ${region} batch ${batchIndex - 1}: ${arbCount} arbs streamed to progress`);
+                console.log(`[AutoScan] ⚡ ${region} batch ${currentBatchIndex}: ${arbCount} arbs streamed`);
               }
-            } catch (err) {
-              // Non-fatal: progress write failure shouldn't break the scan
-              console.error(`[AutoScan] Progress write failed for ${region} batch:`, err);
-            }
+            }).catch(err => {
+              console.error(`[AutoScan] Progress write failed for ${region} batch ${currentBatchIndex}:`, err);
+            });
+
+            backgroundWrites.push(writePromise);
           };
           
           const regionResult = await runScanForRegion(user, region, onBatch);
@@ -314,10 +326,10 @@ export async function GET(request: NextRequest) {
           
           remainingCredits = regionResult.remainingCredits;
 
-          // Write "complete" progress batch so dashboard knows scan finished
+          // Write "complete" progress batch - FIRE AND FORGET
           if (isMasterAccount) {
-            try {
-              await GlobalScanProgress.writeBatch({
+            backgroundWrites.push(
+              GlobalScanProgress.writeBatch({
                 region,
                 scanId,
                 batchIndex: batchIndex++,
@@ -333,13 +345,13 @@ export async function GET(request: NextRequest) {
                 },
                 phase: 'complete',
                 isLastBatch: true,
-              });
-            } catch (err) {
-              console.error(`[AutoScan] Final progress write failed for ${region}:`, err);
-            }
+              }).catch(err => {
+                console.error(`[AutoScan] Final progress write failed for ${region}:`, err);
+              })
+            );
           }
 
-          // Update GlobalScanCache for this region (same as before)
+          // Update GlobalScanCache for this region (this one we DO await - it's the authoritative store)
           if (isMasterAccount) {
             const regionStats = {
               ...regionResult.stats,
@@ -421,7 +433,16 @@ export async function GET(request: NextRequest) {
     // Increment scan counter for next rotation
     globalScanCounter++;
 
-    console.log(`[AutoScan] Completed. Processed: ${results.processed}, Scanned: ${results.scanned}, Regions: ${results.regionsScanned.join(',')}, GlobalCache: ${results.globalCacheUpdated}, Alerts: ${results.alertsSent}`);
+    // Best-effort: wait up to 2s for background progress writes to finish
+    // If the function is about to timeout, Vercel will kill it - that's fine,
+    // the progress data is nice-to-have, not critical (GlobalScanCache is authoritative)
+    const bgTimeout = Promise.race([
+      Promise.allSettled(backgroundWrites),
+      delay(2000),
+    ]);
+    await bgTimeout;
+
+    console.log(`[AutoScan] Completed. Processed: ${results.processed}, Scanned: ${results.scanned}, Regions: ${results.regionsScanned.join(',')}, GlobalCache: ${results.globalCacheUpdated}, Alerts: ${results.alertsSent}, BgWrites: ${backgroundWrites.length}`);
 
     return NextResponse.json({
       success: true,
@@ -683,10 +704,9 @@ function addUrlsToArbs(arbs: BookVsBookArb[]): ArbWithUrls[] {
 /**
  * Run scan for a SINGLE region with incremental result streaming.
  * 
- * The onBatch callback is fired after each sport batch completes with
- * the arbs found in that batch + running totals. This allows the cron
- * to write results to GlobalScanProgress immediately so the dashboard
- * can display arbs within seconds of detection.
+ * The onBatch callback is fired SYNCHRONOUSLY (fire-and-forget) after
+ * each sport batch completes with the arbs found in that batch.
+ * DB writes happen in the background and do NOT block the scan pipeline.
  */
 async function runScanForRegion(
   user: IUser,
@@ -756,7 +776,6 @@ async function runScanForRegion(
   // =====================
   console.log(`[AutoScan] Fetching H2H for ${region} (API regions: ${regionsStr})`);
   
-  // Use the streaming version that calls back per-batch
   const h2hResult = await provider.fetchOddsWithCallback(
     allSportsKeys,
     ['h2h'],
@@ -798,9 +817,9 @@ async function runScanForRegion(
       runningStats.valueBetsFound += validValueBets.length;
       runningStats.sportsScanned += batchSportKeys.length;
 
-      // Fire the streaming callback with this batch's results
+      // Fire the streaming callback - SYNCHRONOUS call, does NOT block
       if (onBatch && (arbsWithUrls.length > 0 || validValueBets.length > 0)) {
-        await onBatch({
+        onBatch({
           phase: 'h2h',
           sportKeys: batchSportKeys,
           opportunities: arbsWithUrls,
@@ -889,9 +908,9 @@ async function runScanForRegion(
         lineStats.nearArbsFound += validSpreads.filter(s => s.type === 'near-arb').length +
                                    validTotals.filter(t => t.type === 'near-arb').length;
 
-        // Fire callback if we found anything
+        // Fire callback - SYNCHRONOUS, does not block
         if (onBatch && (validSpreads.length > 0 || validTotals.length > 0 || validMiddles.length > 0)) {
-          await onBatch({
+          onBatch({
             phase: 'lines',
             sportKeys: batchSportKeys,
             opportunities: [],
