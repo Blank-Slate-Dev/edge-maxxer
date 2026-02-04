@@ -109,9 +109,9 @@ export const metadata: Metadata = {
   applicationName: 'Edge Maxxer',
   category: 'Sports Betting Tools',
   
-  // Additional metadata
+  // Additional metadata — FIX: use mobile-web-app-capable instead of deprecated apple version
   other: {
-    'apple-mobile-web-app-capable': 'yes',
+    'mobile-web-app-capable': 'yes',
     'apple-mobile-web-app-status-bar-style': 'black-translucent',
     'format-detection': 'telephone=no',
   },
