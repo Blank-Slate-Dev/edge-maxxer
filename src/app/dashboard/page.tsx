@@ -288,6 +288,10 @@ export default function DashboardPage() {
   const isRegionSwitchingRef = useRef(false);
   const progressSinceRef = useRef<string>(new Date().toISOString());
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // NEW: Track whether a scan is actively streaming so fetchGlobalArbs can read it synchronously
+  const scanProgressActiveRef = useRef(false);
+  // NEW: Track the scanAgeSeconds value for the age counter interval
+  const scanAgeSecondsRef = useRef<number | null>(null);
 
   const { bets, isLoaded: betsLoaded, addBet, updateBet, deleteBet, clearAllBets } = useBets();
   const { 
@@ -301,10 +305,20 @@ export default function DashboardPage() {
 
   const hasAccess = (session?.user as { hasAccess?: boolean } | undefined)?.hasAccess ?? false;
 
-  // Keep ref in sync
+  // Keep refs in sync
   useEffect(() => {
     selectedRegionRef.current = selectedRegion;
   }, [selectedRegion]);
+
+  // Keep scanProgressActiveRef in sync with state
+  useEffect(() => {
+    scanProgressActiveRef.current = scanProgress.isActive;
+  }, [scanProgress.isActive]);
+
+  // Keep scanAgeSecondsRef in sync
+  useEffect(() => {
+    scanAgeSecondsRef.current = scanAgeSeconds;
+  }, [scanAgeSeconds]);
 
   const getScanInterval = useCallback(() => {
     return selectedRegion === 'AU' ? SCAN_INTERVAL_AU : SCAN_INTERVAL_OTHER;
@@ -448,7 +462,7 @@ export default function DashboardPage() {
         
         // Update stats with running totals from the batch
         if (batch.stats) {
-          setStats(prev => ({
+          setStats({
             totalEvents: batch.stats.totalEvents,
             eventsWithMultipleBookmakers: batch.stats.eventsWithMultipleBookmakers,
             totalBookmakers: batch.stats.totalBookmakers,
@@ -456,7 +470,7 @@ export default function DashboardPage() {
             nearArbsFound: batch.stats.nearArbsFound,
             valueBetsFound: batch.stats.valueBetsFound,
             sportsScanned: batch.stats.sportsScanned,
-          }));
+          });
         }
 
         // Extract bookmakers
@@ -484,7 +498,8 @@ export default function DashboardPage() {
       // If scan completed, mark progress as inactive
       if (completeBatch) {
         setScanProgress(prev => ({ ...prev, isActive: false, phase: 'complete' }));
-        // The regular 5s poll will pick up the full final dataset from GlobalScanCache
+        // Reset the lastScannedAt so the next global-arbs poll picks up the fresh cache
+        lastScannedAtRef.current = null;
       }
       
     } catch (err) {
@@ -513,6 +528,20 @@ export default function DashboardPage() {
     explicitRegion?: UserRegion
   ) => {
     if (mode === 'background' && isRegionSwitchingRef.current) return;
+
+    // =====================================================
+    // FIX: During an active streaming scan, SKIP background
+    // polls entirely. The progress poller is delivering fresh
+    // data incrementally, and the global cache still holds
+    // the PREVIOUS scan's data. Replacing state with stale
+    // cache data is what causes the flickering.
+    //
+    // We still allow 'initial' and 'manual' modes through
+    // so the user can force-refresh or load on first visit.
+    // =====================================================
+    if (mode === 'background' && scanProgressActiveRef.current) {
+      return;
+    }
 
     if (mode === 'initial') {
       setIsInitialLoading(true);
@@ -550,15 +579,44 @@ export default function DashboardPage() {
         const parsedTotalsArbs = (data.totalsArbs || []).map(parseTotalsDates);
         const parsedMiddles = (data.middles || []).map(parseMiddleDates);
 
-        // Full replace from the authoritative GlobalScanCache
-        // (this is the complete dataset after scan finishes)
-        setOpportunities(parsedOpportunities);
-        setValueBets(parsedValueBets);
-        setSpreadArbs(parsedSpreadArbs);
-        setTotalsArbs(parsedTotalsArbs);
-        setMiddles(parsedMiddles);
-        if (data.stats) setStats(data.stats);
-        if (data.lineStats) setLineStats(data.lineStats);
+        // =====================================================
+        // FIX: Only do a FULL REPLACE when:
+        //   1. This is a new scan (scannedAt changed), OR
+        //   2. This is an initial load or manual refresh
+        //
+        // For background polls where the data hasn't changed,
+        // just update the age — don't replace state. This prevents
+        // the scenario where stale cache data overwrites fresh
+        // progress data.
+        // =====================================================
+        if (isNewData || mode === 'initial' || mode === 'manual') {
+          setOpportunities(parsedOpportunities);
+          setValueBets(parsedValueBets);
+          setSpreadArbs(parsedSpreadArbs);
+          setTotalsArbs(parsedTotalsArbs);
+          setMiddles(parsedMiddles);
+          if (data.stats) setStats(data.stats);
+          if (data.lineStats) setLineStats(data.lineStats);
+          
+          const uniqueBookmakers = new Set<string>();
+          parsedOpportunities.forEach(opp => {
+            getBookmakersFromArb(opp).forEach(bm => uniqueBookmakers.add(bm));
+          });
+          parsedSpreadArbs.forEach(s => {
+            getBookmakersFromSpreadArb(s).forEach(bm => uniqueBookmakers.add(bm));
+          });
+          parsedTotalsArbs.forEach(t => {
+            getBookmakersFromTotalsArb(t).forEach(bm => uniqueBookmakers.add(bm));
+          });
+          setBookmakers(Array.from(uniqueBookmakers));
+
+          if (isNewData && lastScannedAtRef.current !== null && mode !== 'initial') {
+            setShowNewResultsFlash(true);
+            setTimeout(() => setShowNewResultsFlash(false), 2000);
+          }
+        }
+
+        // Always update metadata (age, credits, scannedAt) regardless
         if (data.scannedAt) {
           setLastUpdated(new Date(data.scannedAt));
           lastScannedAtRef.current = data.scannedAt;
@@ -568,24 +626,7 @@ export default function DashboardPage() {
         setHasFetchedArbs(true);
         setError(null);
 
-        const uniqueBookmakers = new Set<string>();
-        parsedOpportunities.forEach(opp => {
-          getBookmakersFromArb(opp).forEach(bm => uniqueBookmakers.add(bm));
-        });
-        parsedSpreadArbs.forEach(s => {
-          getBookmakersFromSpreadArb(s).forEach(bm => uniqueBookmakers.add(bm));
-        });
-        parsedTotalsArbs.forEach(t => {
-          getBookmakersFromTotalsArb(t).forEach(bm => uniqueBookmakers.add(bm));
-        });
-        setBookmakers(Array.from(uniqueBookmakers));
-
-        if (isNewData && lastScannedAtRef.current !== null && mode !== 'initial') {
-          setShowNewResultsFlash(true);
-          setTimeout(() => setShowNewResultsFlash(false), 2000);
-        }
-
-        console.log(`[Dashboard] ${region}: ${parsedOpportunities.length} H2H, ${parsedSpreadArbs.length} spreads, ${parsedTotalsArbs.length} totals, ${parsedMiddles.length} middles (${data.ageSeconds}s old)`);
+        console.log(`[Dashboard] ${region}: ${parsedOpportunities.length} H2H, ${parsedSpreadArbs.length} spreads, ${parsedTotalsArbs.length} totals, ${parsedMiddles.length} middles (${data.ageSeconds}s old)${isNewData ? ' [NEW]' : ''}`);
       }
     } catch (err) {
       console.error('Failed to fetch global arbs:', err);
@@ -643,15 +684,17 @@ export default function DashboardPage() {
   }, [selectedRegion, fetchGlobalArbs]);
 
   // Increment age counter
+  // FIX: Use a ref-based check instead of depending on scanAgeSeconds state
+  // to avoid the eslint warning and unnecessary re-renders
   useEffect(() => {
-    if (scanAgeSeconds === null) return;
-
     const ageInterval = setInterval(() => {
-      setScanAgeSeconds(prev => (prev !== null ? prev + 1 : null));
+      if (scanAgeSecondsRef.current !== null) {
+        setScanAgeSeconds(prev => (prev !== null ? prev + 1 : null));
+      }
     }, 1000);
 
     return () => clearInterval(ageInterval);
-  }, [scanAgeSeconds !== null]);
+  }, []);
 
   const fetchSports = useCallback(async () => {
     try {
