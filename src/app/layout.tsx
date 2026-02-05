@@ -317,10 +317,9 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         
         {/* 
-          PERFORMANCE FIX: Removed render-blocking flag-icons CSS from here.
-          It was a ~30KB stylesheet loaded on EVERY page (including landing page
-          where flags aren't visible above the fold). Now loaded dynamically
-          only on the dashboard via FlagIconsLoader component.
+          PERFORMANCE FIX: Flag icons CSS is now loaded locally via npm package
+          imported in globals.css (@import "flag-icons/css/flag-icons.min.css").
+          No external CDN link needed — eliminates Edge tracking prevention errors.
         */}
         
         {/* Favicon and app icons */}
