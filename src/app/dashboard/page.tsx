@@ -1,21 +1,12 @@
 // src/app/dashboard/page.tsx
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Loader2, X, CheckCircle, RefreshCw, Zap } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 
-// =========================================================================
-// PERFORMANCE FIX: Direct imports instead of barrel exports.
-//
-// BEFORE: import { Header, ArbFilters, ArbTable, ... } from '@/components';
-// This barrel import pulled in ALL 25+ components into the dashboard bundle,
-// including landing-page-only components like LiveFeedPreview, StepsSection,
-// TestimonialsSection, FeaturesShowcase, etc.
-//
-// AFTER: Direct imports only pull in what the dashboard actually uses.
-// =========================================================================
+// PERFORMANCE FIX: Direct imports instead of barrel exports
 import { Header } from '@/components/Header';
 import { ArbFilters } from '@/components/ArbFilters';
 import { ArbTable } from '@/components/ArbTable';
@@ -62,7 +53,6 @@ interface GlobalArbsResponse {
   subscriptionRequired?: boolean;
 }
 
-// Types for scan progress streaming
 interface ScanProgressBatch {
   region: string;
   scanId: string;
@@ -103,11 +93,8 @@ const DEFAULT_FILTERS: FilterType = {
 
 type Tab = 'opportunities' | 'spreads' | 'totals' | 'value-bets' | 'history' | 'accounts';
 
-// Polling intervals
-const POLL_INTERVAL_SECONDS = 5;         // How often we check for complete scan data
-const PROGRESS_POLL_INTERVAL_MS = 2000;  // How often we check for streaming progress (2s)
-
-// Scan intervals by region
+const POLL_INTERVAL_SECONDS = 5;
+const PROGRESS_POLL_INTERVAL_MS = 2000;
 const SCAN_INTERVAL_AU = 44;
 const SCAN_INTERVAL_OTHER = 180;
 
@@ -147,7 +134,7 @@ function RegionTab({
   );
 }
 
-// Helper function to extract bookmakers from an ArbOpportunity
+// Helper functions
 function getBookmakersFromArb(opp: ArbOpportunity): string[] {
   if (opp.mode === 'book-vs-book') {
     const bookmakers = [opp.outcome1.bookmaker, opp.outcome2.bookmaker];
@@ -160,19 +147,14 @@ function getBookmakersFromArb(opp: ArbOpportunity): string[] {
   }
 }
 
-// Helper to get bookmakers from spread arb
 function getBookmakersFromSpreadArb(arb: SpreadArb): string[] {
   return [arb.favorite.bookmaker, arb.underdog.bookmaker];
 }
 
-// Helper to get bookmakers from totals arb
 function getBookmakersFromTotalsArb(arb: TotalsArb): string[] {
   return [arb.over.bookmaker, arb.under.bookmaker];
 }
 
-/**
- * Generate a unique key for an arb opportunity (for deduplication)
- */
 function getArbKey(opp: ArbOpportunity): string {
   if (opp.mode === 'book-vs-book') {
     const parts = [opp.event.id, opp.outcome1.bookmakerKey, opp.outcome2.bookmakerKey];
@@ -196,26 +178,17 @@ function getMiddleKey(m: MiddleOpportunity): string {
   return `${m.event.id}-${m.side1.bookmakerKey}-${m.side2.bookmakerKey}-${m.side1.point}-${m.side2.point}`;
 }
 
-/**
- * Merge new items into existing array, deduplicating by key function.
- * New items with the same key replace old ones (fresher odds).
- */
 function mergeByKey<T>(existing: T[], incoming: T[], keyFn: (item: T) => string): T[] {
   const map = new Map<string, T>();
-  // Add existing first
   for (const item of existing) {
     map.set(keyFn(item), item);
   }
-  // Incoming overwrites (fresher data)
   for (const item of incoming) {
     map.set(keyFn(item), item);
   }
   return Array.from(map.values());
 }
 
-/**
- * Parse dates in opportunity objects from API responses
- */
 function parseArbDates(opp: ArbOpportunity): ArbOpportunity {
   return {
     ...opp,
@@ -240,8 +213,16 @@ function parseValueBetDates(vb: ValueBet): ValueBet {
   return { ...vb, event: { ...vb.event, commenceTime: new Date(vb.event.commenceTime) }, lastUpdated: new Date(vb.lastUpdated) };
 }
 
-
+// SUSPENSE FIX: useSearchParams() requires a Suspense boundary in Next.js 16
 export default function DashboardPage() {
+  return (
+    <Suspense fallback={null}>
+      <DashboardContent />
+    </Suspense>
+  );
+}
+
+function DashboardContent() {
   const { data: session, update: updateSession } = useSession();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -257,7 +238,6 @@ export default function DashboardPage() {
   const [sports, setSports] = useState<Sport[]>([]);
   const [bookmakers, setBookmakers] = useState<string[]>([]);
   
-  // Separate loading states
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isBackgroundRefreshing, setIsBackgroundRefreshing] = useState(false);
   const [isManualRefreshing, setIsManualRefreshing] = useState(false);
@@ -273,23 +253,18 @@ export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState<Tab>('opportunities');
   const [showMiddles, setShowMiddles] = useState(true);
   
-  // Single region selection
   const [selectedRegion, setSelectedRegion] = useState<UserRegion>('AU');
   const [userDefaultRegion, setUserDefaultRegion] = useState<UserRegion>('AU');
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   
-  // Subscription modal state
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
   
-  // Checkout success state
   const [checkoutSuccess, setCheckoutSuccess] = useState<string | null>(null);
   const [isRefreshingSession, setIsRefreshingSession] = useState(false);
 
-  // Global scan state
   const [scanAgeSeconds, setScanAgeSeconds] = useState<number | null>(null);
   const [showNewResultsFlash, setShowNewResultsFlash] = useState(false);
   
-  // Streaming scan progress state
   const [scanProgress, setScanProgress] = useState<{
     isActive: boolean;
     phase: 'h2h' | 'lines' | 'complete' | null;
@@ -306,15 +281,12 @@ export default function DashboardPage() {
     newArbsInLastBatch: 0,
   });
   
-  // Refs
   const lastScannedAtRef = useRef<string | null>(null);
   const selectedRegionRef = useRef<UserRegion>('AU');
   const isRegionSwitchingRef = useRef(false);
   const progressSinceRef = useRef<string>(new Date().toISOString());
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Track whether a scan is actively streaming so fetchGlobalArbs can read it synchronously
   const scanProgressActiveRef = useRef(false);
-  // Track the scanAgeSeconds value for the age counter interval
   const scanAgeSecondsRef = useRef<number | null>(null);
 
   const { bets, isLoaded: betsLoaded, addBet, updateBet, deleteBet, clearAllBets } = useBets();
@@ -329,17 +301,14 @@ export default function DashboardPage() {
 
   const hasAccess = (session?.user as { hasAccess?: boolean } | undefined)?.hasAccess ?? false;
 
-  // Keep refs in sync
   useEffect(() => {
     selectedRegionRef.current = selectedRegion;
   }, [selectedRegion]);
 
-  // Keep scanProgressActiveRef in sync with state
   useEffect(() => {
     scanProgressActiveRef.current = scanProgress.isActive;
   }, [scanProgress.isActive]);
 
-  // Keep scanAgeSecondsRef in sync
   useEffect(() => {
     scanAgeSecondsRef.current = scanAgeSeconds;
   }, [scanAgeSeconds]);
@@ -397,12 +366,8 @@ export default function DashboardPage() {
     fetchSettings();
   }, []);
 
-  // =====================================================
-  // SCAN PROGRESS: Fast-poll /api/scan-progress for
-  // real-time incremental arb delivery during active scans
-  // =====================================================
+  // Scan progress polling
   const pollScanProgress = useCallback(async () => {
-    // Don't poll during region switch
     if (isRegionSwitchingRef.current) return;
     
     const region = selectedRegionRef.current;
@@ -418,18 +383,13 @@ export default function DashboardPage() {
       
       if (data.count === 0) return;
       
-      // Update the "since" cursor to the latest batch time
       const latestBatch = data.batches[data.batches.length - 1];
       progressSinceRef.current = latestBatch.createdAt;
       
-      // Check if scan completed
       const completeBatch = data.batches.find(b => b.isLastBatch);
       
-      // Merge incremental results into state
       for (const batch of data.batches) {
-        if (batch.isLastBatch) continue; // Complete batch has no data, just a signal
-        
-        // Verify region hasn't changed
+        if (batch.isLastBatch) continue;
         if (batch.region !== selectedRegionRef.current) continue;
         
         const newOpps = (batch.opportunities || []).map(parseArbDates);
@@ -440,11 +400,9 @@ export default function DashboardPage() {
         
         const newArbCount = newOpps.filter(o => o.type === 'arb').length;
         
-        // Merge into existing state (deduplicate by key)
         if (newOpps.length > 0) {
           setOpportunities(prev => {
             const merged = mergeByKey(prev, newOpps, getArbKey);
-            // Sort by profit descending
             merged.sort((a, b) => b.profitPercentage - a.profitPercentage);
             return merged;
           });
@@ -474,7 +432,6 @@ export default function DashboardPage() {
           setMiddles(prev => mergeByKey(prev, newMiddles, getMiddleKey));
         }
         
-        // Update progress indicator
         setScanProgress({
           isActive: true,
           phase: batch.phase,
@@ -484,7 +441,6 @@ export default function DashboardPage() {
           newArbsInLastBatch: newArbCount,
         });
         
-        // Update stats with running totals from the batch
         if (batch.stats) {
           setStats({
             totalEvents: batch.stats.totalEvents,
@@ -497,7 +453,6 @@ export default function DashboardPage() {
           });
         }
 
-        // Extract bookmakers
         const uniqueBookmakers = new Set<string>();
         newOpps.forEach(opp => getBookmakersFromArb(opp).forEach(bm => uniqueBookmakers.add(bm)));
         newSpreads.forEach(s => getBookmakersFromSpreadArb(s).forEach(bm => uniqueBookmakers.add(bm)));
@@ -509,7 +464,6 @@ export default function DashboardPage() {
           });
         }
         
-        // Flash if new arbs arrived
         if (newArbCount > 0) {
           setShowNewResultsFlash(true);
           setTimeout(() => setShowNewResultsFlash(false), 1500);
@@ -519,15 +473,12 @@ export default function DashboardPage() {
         setError(null);
       }
       
-      // If scan completed, mark progress as inactive
       if (completeBatch) {
         setScanProgress(prev => ({ ...prev, isActive: false, phase: 'complete' }));
-        // Reset the lastScannedAt so the next global-arbs poll picks up the fresh cache
         lastScannedAtRef.current = null;
       }
       
     } catch (err) {
-      // Non-fatal: progress polling failure just means we wait for the 5s poll
       console.debug('[Dashboard] Progress poll error:', err);
     }
   }, []);
@@ -536,7 +487,6 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!settingsLoaded || !hasAccess) return;
 
-    // Start progress polling
     progressIntervalRef.current = setInterval(pollScanProgress, PROGRESS_POLL_INTERVAL_MS);
 
     return () => {
@@ -546,17 +496,13 @@ export default function DashboardPage() {
     };
   }, [settingsLoaded, hasAccess, pollScanProgress]);
 
-  // Fetch global arbs (existing 5s poll - now acts as the "final state" sync)
+  // Fetch global arbs
   const fetchGlobalArbs = useCallback(async (
     mode: 'initial' | 'background' | 'manual' = 'background',
     explicitRegion?: UserRegion
   ) => {
     if (mode === 'background' && isRegionSwitchingRef.current) return;
-
-    // During an active streaming scan, SKIP background polls entirely.
-    if (mode === 'background' && scanProgressActiveRef.current) {
-      return;
-    }
+    if (mode === 'background' && scanProgressActiveRef.current) return;
 
     if (mode === 'initial') {
       setIsInitialLoading(true);
@@ -621,7 +567,6 @@ export default function DashboardPage() {
           }
         }
 
-        // Always update metadata (age, credits, scannedAt) regardless
         if (data.scannedAt) {
           setLastUpdated(new Date(data.scannedAt));
           lastScannedAtRef.current = data.scannedAt;
@@ -669,7 +614,6 @@ export default function DashboardPage() {
       selectedRegionRef.current = region;
       setSelectedRegion(region);
       
-      // Clear existing data
       setOpportunities([]);
       setValueBets([]);
       setSpreadArbs([]);
@@ -680,7 +624,6 @@ export default function DashboardPage() {
       setScanAgeSeconds(null);
       lastScannedAtRef.current = null;
       
-      // Reset progress cursor so we get fresh batches for the new region
       progressSinceRef.current = new Date().toISOString();
       setScanProgress({ isActive: false, phase: null, sportsScanned: 0, sportsTotal: 0, arbsFoundSoFar: 0, newArbsInLastBatch: 0 });
       
@@ -859,7 +802,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Live Scan Status Banner - now with streaming progress */}
+        {/* Live Scan Status Banner */}
         {hasFetchedArbs && !isInitialLoading && !isRegionSwitching && (
           <div 
             className={`border px-4 py-3 rounded-lg transition-all duration-500 ${showNewResultsFlash ? 'ring-2 ring-green-500' : ''}`}
@@ -869,7 +812,6 @@ export default function DashboardPage() {
             }}
           >
             <div className="flex items-center gap-3">
-              {/* Live indicator */}
               <div className="relative w-5 h-5 shrink-0 flex items-center justify-center">
                 {isBackgroundRefreshing || scanProgress.isActive ? (
                   <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#22c55e' }} />
@@ -892,7 +834,6 @@ export default function DashboardPage() {
                   <span>Live Scanner Active</span>
                   <span className="text-xs font-normal opacity-75">({selectedRegion})</span>
                   
-                  {/* Streaming progress indicator */}
                   {scanProgress.isActive && (
                     <span className="flex items-center gap-1 text-xs font-normal bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
                       <Zap className="w-3 h-3" />
@@ -929,7 +870,6 @@ export default function DashboardPage() {
                 </div>
               </div>
               
-              {/* Manual refresh button */}
               <button
                 onClick={handleRefresh}
                 disabled={isManualRefreshing}
@@ -944,7 +884,6 @@ export default function DashboardPage() {
               </button>
             </div>
             
-            {/* Scan age / progress bar */}
             {scanProgress.isActive && scanProgress.sportsTotal > 0 ? (
               <>
                 <div 
