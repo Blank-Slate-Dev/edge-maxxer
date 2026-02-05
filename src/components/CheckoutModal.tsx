@@ -1,7 +1,7 @@
 // src/components/CheckoutModal.tsx
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import {
   EmbeddedCheckoutProvider,
@@ -10,8 +10,11 @@ import {
 import { useTheme } from '@/contexts/ThemeContext';
 import { X, CreditCard, Shield, Lock } from 'lucide-react';
 
-// Initialize Stripe
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
+// NOTE: Stripe is NOT loaded at module level. It is loaded lazily inside the
+// component only when the modal is actually open. This prevents Stripe's JS
+// (and its tracking/fingerprinting scripts) from loading on every page,
+// which was causing dozens of "Tracking Prevention blocked access to storage"
+// console errors on the landing page in Edge and other privacy-aware browsers.
 
 type PlanType = 'trial' | 'monthly' | 'yearly';
 
@@ -54,6 +57,12 @@ interface CheckoutModalProps {
 export function CheckoutModal({ isOpen, onClose, plan }: CheckoutModalProps) {
   const { theme } = useTheme();
   const [error, setError] = useState<string | null>(null);
+
+  // Lazy-load Stripe only when the modal is open
+  const stripePromise = useMemo(() => {
+    if (!isOpen) return null;
+    return loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
+  }, [isOpen]);
 
   // Prevent body scroll when modal is open
   useEffect(() => {
@@ -192,7 +201,7 @@ export function CheckoutModal({ isOpen, onClose, plan }: CheckoutModalProps) {
                 Close
               </button>
             </div>
-          ) : (
+          ) : stripePromise ? (
             <EmbeddedCheckoutProvider
               stripe={stripePromise}
               options={{ 
@@ -202,7 +211,7 @@ export function CheckoutModal({ isOpen, onClose, plan }: CheckoutModalProps) {
             >
               <EmbeddedCheckout />
             </EmbeddedCheckoutProvider>
-          )}
+          ) : null}
         </div>
 
         {/* Footer - fixed */}
