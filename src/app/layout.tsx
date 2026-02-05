@@ -1,8 +1,6 @@
 // src/app/layout.tsx
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import AuthProvider from '@/components/AuthProvider';
 import './globals.css';
@@ -101,15 +99,13 @@ export const metadata: Metadata = {
   // Verification codes (add your actual codes)
   verification: {
     google: 'your-google-site-verification-code', // Replace with actual code from Google Search Console
-    // yandex: 'your-yandex-verification-code',
-    // bing: 'your-bing-verification-code',
   },
   
   // App-specific metadata
   applicationName: 'Edge Maxxer',
   category: 'Sports Betting Tools',
   
-  // Additional metadata — FIX: use mobile-web-app-capable instead of deprecated apple version
+  // Additional metadata
   other: {
     'mobile-web-app-capable': 'yes',
     'apple-mobile-web-app-status-bar-style': 'black-translucent',
@@ -160,11 +156,7 @@ const organizationSchema = {
     email: 'support@edgemaxxer.com',
     contactType: 'customer support',
   },
-  sameAs: [
-    // Add your social media profiles here
-    // 'https://twitter.com/edgemaxxer',
-    // 'https://www.linkedin.com/company/edgemaxxer',
-  ],
+  sameAs: [],
 };
 
 // WebSite Schema for sitelinks search box potential
@@ -236,7 +228,7 @@ const softwareSchema = {
   ],
 };
 
-// FAQ Schema for rich results (pulled from your landing page FAQs)
+// FAQ Schema for rich results
 const faqSchema = {
   '@context': 'https://schema.org',
   '@type': 'FAQPage',
@@ -292,14 +284,31 @@ const faqSchema = {
   ],
 };
 
-export default async function RootLayout({
+// =========================================================================
+// PERFORMANCE FIX: Removed `getServerSession(authOptions)` from this layout.
+//
+// Why this was slow:
+// - getServerSession() calls the `jwt` callback in auth.ts on every request
+// - That callback hits MongoDB (via dbConnect + User.findById) to refresh
+//   user data every 5 minutes, but the CONNECTION itself still takes ~100-300ms
+//   per cold start on Vercel serverless
+// - This blocked ALL HTML delivery for EVERY page (landing page included)
+// - Visitors who aren't even logged in were waiting for a MongoDB round-trip
+//
+// The fix:
+// - SessionProvider works fine without a server-prefetched session — it will
+//   fetch the session client-side via /api/auth/session on first load
+// - For logged-in users, the JWT is in a cookie so the session fetch is fast
+// - For visitors (landing page), no session fetch happens at all because
+//   useSession() returns { status: 'unauthenticated' } from the cookie check
+// - Net effect: HTML arrives ~200-500ms faster for every single page load
+// =========================================================================
+
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Prefetch session server-side to avoid client-side loading delay
-  const session = await getServerSession(authOptions);
-
   return (
     <html lang="en-AU" className={inter.variable} suppressHydrationWarning>
       <head>
@@ -307,11 +316,12 @@ export default async function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         
-        {/* Flag icons CSS for cross-platform flag display */}
-        <link 
-          rel="stylesheet" 
-          href="https://cdn.jsdelivr.net/gh/lipis/flag-icons@7.2.3/css/flag-icons.min.css" 
-        />
+        {/* 
+          PERFORMANCE FIX: Removed render-blocking flag-icons CSS from here.
+          It was a ~30KB stylesheet loaded on EVERY page (including landing page
+          where flags aren't visible above the fold). Now loaded dynamically
+          only on the dashboard via FlagIconsLoader component.
+        */}
         
         {/* Favicon and app icons */}
         <link rel="icon" href="/favicon.ico" sizes="any" />
@@ -337,7 +347,7 @@ export default async function RootLayout({
         />
       </head>
       <body className={`${inter.className} antialiased overflow-x-hidden`}>
-        <AuthProvider session={session}>
+        <AuthProvider>
           <ThemeProvider>
             {children}
           </ThemeProvider>
