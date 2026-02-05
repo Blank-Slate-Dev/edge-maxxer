@@ -20,17 +20,35 @@ if (!global.mongoose) {
 async function dbConnect(): Promise<typeof mongoose> {
   const MONGODB_URI = process.env.MONGODB_URI;
 
-  // ✅ Only throw when the function is called (runtime), not during build/module eval
   if (!MONGODB_URI) {
     throw new Error('Please define the MONGODB_URI environment variable');
   }
 
   if (cached.conn) {
-    return cached.conn;
+    // Verify the connection is still alive before reusing
+    if (cached.conn.connection.readyState === 1) {
+      return cached.conn;
+    }
+    // Connection dropped — reset and reconnect
+    cached.conn = null;
+    cached.promise = null;
   }
 
   if (!cached.promise) {
-    const opts = { bufferCommands: false };
+    const opts: mongoose.ConnectOptions = {
+      bufferCommands: false,
+      // Serverless-optimized connection settings:
+      // Smaller pool since each Vercel function is short-lived
+      maxPoolSize: 5,
+      minPoolSize: 1,
+      // Faster timeouts for cold starts — fail fast rather than hang
+      serverSelectionTimeoutMS: 5000,  // Max 5s to find a server (default 30s)
+      connectTimeoutMS: 5000,          // Max 5s to establish connection (default 30s)
+      socketTimeoutMS: 30000,          // 30s for operations (default 360s)
+      // Heartbeat and idle settings for serverless
+      heartbeatFrequencyMS: 15000,
+      maxIdleTimeMS: 30000,            // Close idle connections after 30s
+    };
 
     cached.promise = mongoose.connect(MONGODB_URI, opts).then((m) => m);
   }

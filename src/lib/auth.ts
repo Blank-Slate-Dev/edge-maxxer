@@ -42,12 +42,21 @@ export const authOptions: NextAuthOptions = {
         if (!isPasswordValid) {
           throw new Error('Invalid password');
         }
+
+        // Return ALL needed user data so the jwt callback doesn't need
+        // a second DB call. NextAuth only passes id/name/email/image by
+        // default, so we smuggle the rest via extra fields.
         return {
           id: user._id.toString(),
           email: user.email,
           name: user.name,
           image: user.image,
           rememberMe: credentials.rememberMe === 'true',
+          // Extra fields — picked up in the jwt callback below
+          plan: user.plan,
+          subscriptionStatus: user.subscriptionStatus,
+          subscriptionEndsAt: user.subscriptionEndsAt?.toISOString() ?? null,
+          region: user.region,
         };
       },
     }),
@@ -77,41 +86,68 @@ export const authOptions: NextAuthOptions = {
       }
       return true;
     },
-    async jwt({ token, user, trigger }) {
-      // Initial sign in - user object is available
+    async jwt({ token, user, trigger, account }) {
+      // ================================================================
+      // INITIAL SIGN IN — user object is available
+      // ================================================================
       if (user) {
         token.id = user.id;
+
         // Set token expiration based on rememberMe preference
         const rememberMe = (user as { rememberMe?: boolean }).rememberMe ?? true;
         const maxAge = rememberMe ? SESSION_MAX_AGE_REMEMBER : SESSION_MAX_AGE_DEFAULT;
         token.exp = Math.floor(Date.now() / 1000) + maxAge;
-        
-        // Fetch and cache user data on initial sign in
-        try {
-          await dbConnect();
-          const dbUser = await User.findById(user.id);
-          if (dbUser) {
-            token.plan = dbUser.plan;
-            token.subscriptionStatus = dbUser.subscriptionStatus;
-            token.subscriptionEndsAt = dbUser.subscriptionEndsAt?.toISOString();
-            token.region = dbUser.region;
-            token.userDataFetchedAt = Date.now();
+
+        // For CREDENTIALS sign-in: authorize() already fetched everything,
+        // so we can populate the token directly — NO extra DB call needed.
+        const extUser = user as {
+          plan?: string;
+          subscriptionStatus?: string;
+          subscriptionEndsAt?: string | null;
+          region?: string;
+        };
+
+        if (extUser.plan !== undefined) {
+          // Data came from authorize() — use it directly
+          token.plan = extUser.plan;
+          token.subscriptionStatus = extUser.subscriptionStatus;
+          token.subscriptionEndsAt = extUser.subscriptionEndsAt ?? undefined;
+          token.region = extUser.region;
+          token.userDataFetchedAt = Date.now();
+        } else if (account?.provider === 'google') {
+          // Google OAuth — we don't have plan data on the user object,
+          // so we need one DB call here. This is unavoidable for OAuth.
+          try {
+            await dbConnect();
+            const dbUser = await User.findOne({ email: user.email?.toLowerCase() })
+              .select('plan subscriptionStatus subscriptionEndsAt region')
+              .lean();
+            if (dbUser) {
+              token.plan = dbUser.plan;
+              token.subscriptionStatus = dbUser.subscriptionStatus;
+              token.subscriptionEndsAt = dbUser.subscriptionEndsAt?.toISOString();
+              token.region = dbUser.region;
+            }
+          } catch (error) {
+            console.error('Failed to fetch user data on Google sign in:', error);
+            token.plan = 'none';
+            token.subscriptionStatus = 'inactive';
           }
-        } catch (error) {
-          console.error('Failed to fetch user data on sign in:', error);
-          // Set defaults so the session callback doesn't break
-          token.plan = token.plan || 'none';
-          token.subscriptionStatus = token.subscriptionStatus || 'inactive';
           token.userDataFetchedAt = Date.now();
         }
+
         return token;
       }
       
-      // For manual trigger (e.g. after checkout), always refresh
+      // ================================================================
+      // MANUAL TRIGGER (e.g. after checkout) — always refresh
+      // ================================================================
       if (trigger === 'update') {
         try {
           await dbConnect();
-          const dbUser = await User.findById(token.id);
+          const dbUser = await User.findById(token.id)
+            .select('plan subscriptionStatus subscriptionEndsAt region')
+            .lean();
           if (dbUser) {
             token.plan = dbUser.plan;
             token.subscriptionStatus = dbUser.subscriptionStatus;
@@ -125,14 +161,18 @@ export const authOptions: NextAuthOptions = {
         return token;
       }
       
-      // Periodic refresh — only if interval has actually elapsed
-      // This is the hot path that fires on every session check, so we minimize DB calls
+      // ================================================================
+      // PERIODIC REFRESH — only if interval has elapsed
+      // This is the hot path that fires on every session check.
+      // ================================================================
       if (token.id && token.userDataFetchedAt) {
         const elapsed = Date.now() - (token.userDataFetchedAt as number);
         if (elapsed > USER_DATA_REFRESH_INTERVAL * 1000) {
           try {
             await dbConnect();
-            const dbUser = await User.findById(token.id);
+            const dbUser = await User.findById(token.id)
+              .select('plan subscriptionStatus subscriptionEndsAt region')
+              .lean();
             if (dbUser) {
               token.plan = dbUser.plan;
               token.subscriptionStatus = dbUser.subscriptionStatus;
@@ -141,34 +181,34 @@ export const authOptions: NextAuthOptions = {
               token.userDataFetchedAt = Date.now();
             }
           } catch (error) {
-            // If refresh fails, keep using cached data — don't break the session
+            // If refresh fails, keep using cached data
             console.error('Failed to refresh user data:', error);
           }
         }
       } else if (token.id && !token.userDataFetchedAt) {
-        // Edge case: token exists but was never populated (e.g. old token format)
-        // Refresh once, then the interval takes over
+        // Edge case: old token format without cached data — refresh once
         try {
           await dbConnect();
-          const dbUser = await User.findById(token.id);
+          const dbUser = await User.findById(token.id)
+            .select('plan subscriptionStatus subscriptionEndsAt region')
+            .lean();
           if (dbUser) {
             token.plan = dbUser.plan;
             token.subscriptionStatus = dbUser.subscriptionStatus;
             token.subscriptionEndsAt = dbUser.subscriptionEndsAt?.toISOString();
             token.region = dbUser.region;
-            token.userDataFetchedAt = Date.now();
           }
         } catch (error) {
           console.error('Failed to backfill user data:', error);
-          // Set timestamp anyway so we don't retry every request
-          token.userDataFetchedAt = Date.now();
         }
+        // Set timestamp so we don't retry every request
+        token.userDataFetchedAt = Date.now();
       }
       
       return token;
     },
     async session({ session, token }) {
-      // This callback now just maps token data to session — NO database calls
+      // This callback just maps token data to session — NO database calls
       if (session.user) {
         (session.user as { id: string }).id = token.id as string;
         (session.user as { plan: string }).plan = (token.plan as string) || 'none';
