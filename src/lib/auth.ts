@@ -11,8 +11,6 @@ const SESSION_MAX_AGE_REMEMBER = 63072000; // 24 months
 const SESSION_MAX_AGE_DEFAULT = 5184000;   // 60 days (2 months)
 
 // Target bcrypt cost factor. 10 is the standard recommendation.
-// Existing passwords hashed with higher cost (e.g. 12) will be
-// transparently re-hashed to this cost on next successful login.
 const BCRYPT_TARGET_ROUNDS = 10;
 
 // How often to refresh user data from DB (in seconds)
@@ -35,29 +33,39 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.email || !credentials?.password) {
           throw new Error('Email and password are required');
         }
+
+        const t0 = Date.now();
         await dbConnect();
+        const t1 = Date.now();
+
         const user = await User.findOne({ email: credentials.email.toLowerCase() });
+        const t2 = Date.now();
+
         if (!user) {
           throw new Error('No account found with this email');
         }
+
         const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
+        const t3 = Date.now();
+
         if (!isPasswordValid) {
           throw new Error('Invalid password');
         }
 
         // Transparent re-hash: if the stored hash uses a higher cost factor
         // than our target, re-hash with the lower cost for faster future logins.
-        // bcrypt hashes encode the cost in the hash itself: $2a$12$... means cost 12.
-        // This runs AFTER successful auth, so it doesn't slow down the login.
+        // MUST be awaited — Vercel kills fire-and-forget promises after function returns.
         const currentRounds = bcrypt.getRounds(user.password);
+        let t4 = t3;
         if (currentRounds > BCRYPT_TARGET_ROUNDS) {
-          const newHash = await bcrypt.hash(credentials.password, BCRYPT_TARGET_ROUNDS);
-          // Fire-and-forget — don't await, don't block the login response
-          User.findByIdAndUpdate(user._id, { password: newHash }).exec().catch(err => {
-            console.error('[Auth] Failed to re-hash password:', err);
-          });
           console.log(`[Auth] Re-hashing password for ${user.email} from cost ${currentRounds} to ${BCRYPT_TARGET_ROUNDS}`);
+          const newHash = await bcrypt.hash(credentials.password, BCRYPT_TARGET_ROUNDS);
+          await User.findByIdAndUpdate(user._id, { password: newHash });
+          t4 = Date.now();
+          console.log(`[Auth] Re-hash completed in ${t4 - t3}ms`);
         }
+
+        console.log(`[Auth] authorize() timing: dbConnect=${t1-t0}ms, findUser=${t2-t1}ms, bcryptCompare=${t3-t2}ms, rehash=${t4-t3}ms, total=${t4-t0}ms`);
 
         // Return ALL needed user data so the jwt callback doesn't need
         // a second DB call.
@@ -67,7 +75,6 @@ export const authOptions: NextAuthOptions = {
           name: user.name,
           image: user.image,
           rememberMe: credentials.rememberMe === 'true',
-          // Extra fields — picked up in the jwt callback below
           plan: user.plan,
           subscriptionStatus: user.subscriptionStatus,
           subscriptionEndsAt: user.subscriptionEndsAt?.toISOString() ?? null,
@@ -87,7 +94,6 @@ export const authOptions: NextAuthOptions = {
         const existingUser = await User.findOne({ email });
         
         if (!existingUser) {
-          // Create new user with no subscription (they need to purchase a plan)
           await User.create({
             name: user.name || 'User',
             email,
@@ -108,13 +114,10 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
 
-        // Set token expiration based on rememberMe preference
         const rememberMe = (user as { rememberMe?: boolean }).rememberMe ?? true;
         const maxAge = rememberMe ? SESSION_MAX_AGE_REMEMBER : SESSION_MAX_AGE_DEFAULT;
         token.exp = Math.floor(Date.now() / 1000) + maxAge;
 
-        // For CREDENTIALS sign-in: authorize() already fetched everything,
-        // so we can populate the token directly — NO extra DB call needed.
         const extUser = user as {
           plan?: string;
           subscriptionStatus?: string;
@@ -123,15 +126,12 @@ export const authOptions: NextAuthOptions = {
         };
 
         if (extUser.plan !== undefined) {
-          // Data came from authorize() — use it directly
           token.plan = extUser.plan;
           token.subscriptionStatus = extUser.subscriptionStatus;
           token.subscriptionEndsAt = extUser.subscriptionEndsAt ?? undefined;
           token.region = extUser.region;
           token.userDataFetchedAt = Date.now();
         } else if (account?.provider === 'google') {
-          // Google OAuth — we don't have plan data on the user object,
-          // so we need one DB call here. This is unavoidable for OAuth.
           try {
             await dbConnect();
             const dbUser = await User.findOne({ email: user.email?.toLowerCase() })
@@ -199,7 +199,6 @@ export const authOptions: NextAuthOptions = {
           }
         }
       } else if (token.id && !token.userDataFetchedAt) {
-        // Edge case: old token format without cached data — refresh once
         try {
           await dbConnect();
           const dbUser = await User.findById(token.id)
@@ -220,7 +219,6 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      // This callback just maps token data to session — NO database calls
       if (session.user) {
         (session.user as { id: string }).id = token.id as string;
         (session.user as { plan: string }).plan = (token.plan as string) || 'none';
@@ -230,7 +228,6 @@ export const authOptions: NextAuthOptions = {
           token.subscriptionEndsAt as string | undefined;
         (session.user as { region: string }).region = (token.region as string) || 'AU';
         
-        // Calculate hasAccess from cached token data
         const hasActiveSubscription: boolean = 
           token.subscriptionStatus === 'active' && 
           typeof token.subscriptionEndsAt === 'string' &&
