@@ -1,5 +1,6 @@
 /* src/app/globals.css */
 @import "tailwindcss";
+@import "flag-icons/css/flag-icons.min.css";
 
 :root {
   /* Dark mode (default) - warm charcoal */
@@ -111,7 +112,7 @@
 
 html {
   overflow-x: hidden;
-  scrollbar-gutter: stable; /* ✅ prevents layout shift when scrollbar appears/disappears */
+  scrollbar-gutter: stable;
 }
 
 body {
@@ -241,26 +242,22 @@ input::placeholder {
    STRIPE EMBEDDED CHECKOUT STYLES
    ======================================== */
 
-/* Container for the embedded checkout */
 .stripe-checkout-container {
   min-height: 400px;
 }
 
-/* Override Stripe iframe container to fit modal */
 #checkout-root,
 .EmbeddedCheckoutProvider,
 [data-stripe-embedded-checkout] {
   width: 100% !important;
 }
 
-/* Ensure the checkout iframe is properly sized */
 iframe[name^="embedded-checkout"] {
   width: 100% !important;
   min-height: 500px;
   border: none !important;
 }
 
-/* Dark mode specific adjustments for Stripe checkout container */
 :root {
   --stripe-checkout-bg: #232321;
   --stripe-checkout-text: #ffffff;
@@ -560,7 +557,7 @@ iframe[name^="embedded-checkout"] {
   background-clip: text;
 }
 
-/* Convex underline effect - wave style like reference image */
+/* Convex underline effect */
 .convex-underline {
   position: relative;
   display: inline-block;
@@ -611,7 +608,7 @@ iframe[name^="embedded-checkout"] {
   pointer-events: none;
 }
 
-/* Theme-aware logo visibility - prevents flash on page load */
+/* Theme-aware logo visibility */
 .logo-dark {
   display: block;
 }
@@ -625,18 +622,16 @@ iframe[name^="embedded-checkout"] {
   display: block;
 }
 
-/* Footer logo - matches muted text color */
+/* Footer logo */
 .logo-footer {
-  /* Dark mode: #888888 (--muted) */
   filter: brightness(0) invert(0.53);
 }
 
 .light .logo-footer {
-  /* Light mode: #6b7280 (--muted) */
   filter: brightness(0) invert(0.42);
 }
 
-/* Flag icon size utilities (prefixed to avoid conflict with country codes like fi-sm = San Marino) */
+/* Flag icon size utilities */
 .flag-size-sm {
   width: 1rem;
   height: 0.75rem;
