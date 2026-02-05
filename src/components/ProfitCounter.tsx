@@ -3,6 +3,19 @@
 
 import { useState, useEffect, useRef } from 'react';
 
+// =========================================================================
+// PERFORMANCE FIX: Reduced default polling from 5s to 15s.
+//
+// This component was polling /api/global-stats every 5 seconds on the
+// landing page. Combined with TestimonialsSection (also polling every 5s),
+// every visitor was making 24 API requests per minute for cosmetic counters.
+//
+// Changes:
+// - Default refreshInterval bumped from 5000ms to 15000ms
+// - The caller (LandingPageClient) now also passes 15000ms explicitly
+// - Uses IntersectionObserver to only poll when the counter is visible
+// =========================================================================
+
 interface ProfitCounterProps {
   initialValue?: number;
   refreshInterval?: number;
@@ -10,15 +23,43 @@ interface ProfitCounterProps {
 
 export function ProfitCounter({ 
   initialValue = 0, 
-  refreshInterval = 5000
+  refreshInterval = 15000
 }: ProfitCounterProps) {
   const [displayValue, setDisplayValue] = useState<number | null>(null);
   const [floatingAmount, setFloatingAmount] = useState<number | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
   const previousValue = useRef<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Fetch latest stats
+  // Only start polling when visible in viewport
   useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsVisible(entry.isIntersecting);
+      },
+      { threshold: 0.1 }
+    );
+
+    if (containerRef.current) {
+      observer.observe(containerRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Fetch latest stats — only when visible
+  useEffect(() => {
+    if (!isVisible) {
+      // Clear interval when not visible
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      return;
+    }
+
     const fetchStats = async () => {
       try {
         const res = await fetch('/api/global-stats');
@@ -33,26 +74,21 @@ export function ProfitCounter({
             // Show floating amount
             setFloatingAmount(difference);
             setIsAnimating(true);
-
             // Animate counter
             const startValue = previousValue.current;
             const duration = 1500;
             const startTime = performance.now();
-
             const animate = (currentTime: number) => {
               const elapsed = currentTime - startTime;
               const progress = Math.min(elapsed / duration, 1);
               const easeOut = 1 - Math.pow(1 - progress, 3);
               const value = startValue + (newValue - startValue) * easeOut;
               setDisplayValue(value);
-
               if (progress < 1) {
                 requestAnimationFrame(animate);
               }
             };
-
             requestAnimationFrame(animate);
-
             // Hide floating amount after 4 seconds
             setTimeout(() => {
               setFloatingAmount(null);
@@ -61,7 +97,6 @@ export function ProfitCounter({
           } else {
             setDisplayValue(newValue);
           }
-
           previousValue.current = newValue;
         }
       } catch (err) {
@@ -69,10 +104,17 @@ export function ProfitCounter({
       }
     };
 
+    // Fetch immediately when becoming visible
     fetchStats();
-    const interval = setInterval(fetchStats, refreshInterval);
-    return () => clearInterval(interval);
-  }, [refreshInterval]);
+    intervalRef.current = setInterval(fetchStats, refreshInterval);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [refreshInterval, isVisible]);
 
   // Format the display value
   const formattedValue = displayValue !== null 
@@ -83,7 +125,7 @@ export function ProfitCounter({
     : '0.00';
 
   return (
-    <div className="relative inline-flex flex-col items-center">
+    <div ref={containerRef} className="relative inline-flex flex-col items-center">
       {/* Floating profit indicator */}
       {floatingAmount !== null && (
         <div 
