@@ -200,10 +200,13 @@ export function Header({
                   >
                     <Key className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--muted)' }} />
                     <input
+                      id="odds-api-key"
+                      name="odds-api-key"
                       type={showApiKey ? 'text' : 'password'}
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
                       placeholder="Enter Odds API key"
+                      autoComplete="off"
                       className="flex-1 bg-transparent text-xs font-mono outline-none min-w-0"
                       style={{ color: 'var(--foreground)' }}
                     />
@@ -502,7 +505,11 @@ export function Header({
             {/* API Key Section */}
             {hasLoadedKey && (
               <div className="px-4 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-                <label className="block text-xs font-medium mb-2" style={{ color: 'var(--muted)' }}>
+                <label
+                  htmlFor="odds-api-key-mobile"
+                  className="block text-xs font-medium mb-2"
+                  style={{ color: 'var(--muted)' }}
+                >
                   Odds API Key
                 </label>
                 <div
@@ -516,10 +523,13 @@ export function Header({
                 >
                   <Key className="w-4 h-4 shrink-0" style={{ color: 'var(--muted)' }} />
                   <input
+                    id="odds-api-key-mobile"
+                    name="odds-api-key-mobile"
                     type={showApiKey ? 'text' : 'password'}
                     value={apiKey}
                     onChange={(e) => setApiKey(e.target.value)}
                     placeholder="Enter API key"
+                    autoComplete="off"
                     className="flex-1 bg-transparent text-sm font-mono outline-none min-w-0"
                     style={{ color: 'var(--foreground)' }}
                   />
