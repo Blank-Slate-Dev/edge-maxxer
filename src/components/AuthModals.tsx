@@ -39,6 +39,15 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
     region: 'AU' as UserRegion,
   });
 
+  // Pre-warm MongoDB connection when login/signup modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetch('/api/warmup').catch(() => {
+        // Best-effort — ignore failures silently
+      });
+    }
+  }, [isOpen]);
+
   // Reset form when modal changes
   useEffect(() => {
     if (isOpen) {

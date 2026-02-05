@@ -25,6 +25,13 @@ export default function LoginClient() {
   const [apiError, setApiError] = useState('');
   const [showRegisteredMessage, setShowRegisteredMessage] = useState(false);
 
+  // Pre-warm MongoDB connection on page load
+  useEffect(() => {
+    fetch('/api/warmup').catch(() => {
+      // Best-effort — ignore failures silently
+    });
+  }, []);
+
   useEffect(() => {
     // Check if user just registered
     if (searchParams.get('registered') === 'true') {
