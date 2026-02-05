@@ -25,9 +25,12 @@ export default function LoginClient() {
   const [apiError, setApiError] = useState('');
   const [showRegisteredMessage, setShowRegisteredMessage] = useState(false);
 
-  // Pre-warm MongoDB connection on page load
+  // Pre-warm MongoDB connection in the NextAuth function process.
+  // Hits the [...nextauth] catch-all route with ?warmup=1 so that
+  // dbConnect() + User model priming happen in the SAME serverless
+  // function instance that will handle the credentials POST.
   useEffect(() => {
-    fetch('/api/warmup').catch(() => {
+    fetch('/api/auth/callback/credentials?warmup=1').catch(() => {
       // Best-effort — ignore failures silently
     });
   }, []);
