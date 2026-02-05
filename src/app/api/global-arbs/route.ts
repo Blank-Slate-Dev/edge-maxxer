@@ -4,7 +4,6 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
 import GlobalScanCache from '@/lib/models/GlobalScanCache';
-import User from '@/lib/models/User';
 import type { ArbOpportunity, SpreadArb, TotalsArb, MiddleOpportunity } from '@/lib/types';
 import type { UserRegion } from '@/lib/config';
 
@@ -22,22 +21,20 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    await dbConnect();
-
-    // Fetch user to check subscription status
-    const user = await User.findById((session.user as { id: string }).id).select(
-      'plan subscriptionStatus subscriptionEndsAt'
-    );
-
-    if (!user) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      );
-    }
-
-    // Check if user has active subscription (trial, monthly, or yearly)
-    const hasAccess = user.hasAccess();
+    // =========================================================================
+    // PERFORMANCE FIX: Use the session's cached hasAccess flag instead of
+    // doing a separate User.findById() on every request.
+    //
+    // The JWT callback in auth.ts already fetches subscription data from the
+    // DB and caches it in the token (refreshed every 15 minutes or on manual
+    // trigger after checkout). The session callback then computes hasAccess
+    // from that cached data. This eliminates a redundant DB round-trip on
+    // every 5-second poll from the dashboard.
+    //
+    // Previously: getServerSession (JWT callback) + User.findById (2nd DB call)
+    // Now:        getServerSession (JWT callback, usually cached) + no extra call
+    // =========================================================================
+    const hasAccess = (session.user as { hasAccess?: boolean }).hasAccess ?? false;
     
     if (!hasAccess) {
       return NextResponse.json({
@@ -65,6 +62,8 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    await dbConnect();
 
     // Get cached scan for the specific region
     const cachedScan = await GlobalScanCache.getScanForRegion(region);
