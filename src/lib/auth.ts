@@ -11,7 +11,10 @@ const SESSION_MAX_AGE_REMEMBER = 63072000; // 24 months
 const SESSION_MAX_AGE_DEFAULT = 5184000;   // 60 days (2 months)
 
 // How often to refresh user data from DB (in seconds)
-const USER_DATA_REFRESH_INTERVAL = 300; // 5 minutes
+// Increased from 5 minutes to 15 minutes to reduce DB load.
+// The session callback uses cached token data, so this only affects
+// how quickly subscription changes are reflected in the UI.
+const USER_DATA_REFRESH_INTERVAL = 900; // 15 minutes
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -84,24 +87,28 @@ export const authOptions: NextAuthOptions = {
         token.exp = Math.floor(Date.now() / 1000) + maxAge;
         
         // Fetch and cache user data on initial sign in
-        await dbConnect();
-        const dbUser = await User.findById(user.id);
-        if (dbUser) {
-          token.plan = dbUser.plan;
-          token.subscriptionStatus = dbUser.subscriptionStatus;
-          token.subscriptionEndsAt = dbUser.subscriptionEndsAt?.toISOString();
-          token.region = dbUser.region;
+        try {
+          await dbConnect();
+          const dbUser = await User.findById(user.id);
+          if (dbUser) {
+            token.plan = dbUser.plan;
+            token.subscriptionStatus = dbUser.subscriptionStatus;
+            token.subscriptionEndsAt = dbUser.subscriptionEndsAt?.toISOString();
+            token.region = dbUser.region;
+            token.userDataFetchedAt = Date.now();
+          }
+        } catch (error) {
+          console.error('Failed to fetch user data on sign in:', error);
+          // Set defaults so the session callback doesn't break
+          token.plan = token.plan || 'none';
+          token.subscriptionStatus = token.subscriptionStatus || 'inactive';
           token.userDataFetchedAt = Date.now();
         }
+        return token;
       }
       
-      // Refresh user data periodically (every 5 minutes) or on manual trigger
-      const shouldRefresh = 
-        trigger === 'update' || 
-        !token.userDataFetchedAt ||
-        (Date.now() - (token.userDataFetchedAt as number)) > USER_DATA_REFRESH_INTERVAL * 1000;
-      
-      if (shouldRefresh && token.id) {
+      // For manual trigger (e.g. after checkout), always refresh
+      if (trigger === 'update') {
         try {
           await dbConnect();
           const dbUser = await User.findById(token.id);
@@ -113,15 +120,55 @@ export const authOptions: NextAuthOptions = {
             token.userDataFetchedAt = Date.now();
           }
         } catch (error) {
-          // If refresh fails, keep using cached data
-          console.error('Failed to refresh user data:', error);
+          console.error('Failed to refresh user data on trigger:', error);
+        }
+        return token;
+      }
+      
+      // Periodic refresh — only if interval has actually elapsed
+      // This is the hot path that fires on every session check, so we minimize DB calls
+      if (token.id && token.userDataFetchedAt) {
+        const elapsed = Date.now() - (token.userDataFetchedAt as number);
+        if (elapsed > USER_DATA_REFRESH_INTERVAL * 1000) {
+          try {
+            await dbConnect();
+            const dbUser = await User.findById(token.id);
+            if (dbUser) {
+              token.plan = dbUser.plan;
+              token.subscriptionStatus = dbUser.subscriptionStatus;
+              token.subscriptionEndsAt = dbUser.subscriptionEndsAt?.toISOString();
+              token.region = dbUser.region;
+              token.userDataFetchedAt = Date.now();
+            }
+          } catch (error) {
+            // If refresh fails, keep using cached data — don't break the session
+            console.error('Failed to refresh user data:', error);
+          }
+        }
+      } else if (token.id && !token.userDataFetchedAt) {
+        // Edge case: token exists but was never populated (e.g. old token format)
+        // Refresh once, then the interval takes over
+        try {
+          await dbConnect();
+          const dbUser = await User.findById(token.id);
+          if (dbUser) {
+            token.plan = dbUser.plan;
+            token.subscriptionStatus = dbUser.subscriptionStatus;
+            token.subscriptionEndsAt = dbUser.subscriptionEndsAt?.toISOString();
+            token.region = dbUser.region;
+            token.userDataFetchedAt = Date.now();
+          }
+        } catch (error) {
+          console.error('Failed to backfill user data:', error);
+          // Set timestamp anyway so we don't retry every request
+          token.userDataFetchedAt = Date.now();
         }
       }
       
       return token;
     },
     async session({ session, token }) {
-      // This callback now just maps token data to session - NO database calls
+      // This callback now just maps token data to session — NO database calls
       if (session.user) {
         (session.user as { id: string }).id = token.id as string;
         (session.user as { plan: string }).plan = (token.plan as string) || 'none';
