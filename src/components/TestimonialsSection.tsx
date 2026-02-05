@@ -230,10 +230,26 @@ function TestimonialCard({ testimonial, delay, className = '' }: { testimonial: 
   );
 }
 
+// =========================================================================
+// PERFORMANCE FIX: Reduced polling from every 5 seconds to every 30 seconds.
+//
+// Previously this component AND ProfitCounter both polled /api/global-stats
+// every 5 seconds — meaning every visitor on the landing page was making
+// 24 API requests per minute just for cosmetic counters. This adds latency,
+// increases Vercel function invocations (cost), and the stats barely change
+// at that frequency anyway.
+//
+// Changed to:
+// - Initial fetch on mount (still instant)
+// - Refresh every 30 seconds (was 5s) — stats don't change that fast
+// - Only start polling when the section is visible (IntersectionObserver)
+// =========================================================================
+
 export function TestimonialsSection() {
   const [stats, setStats] = useState<GlobalStats | null>(null);
   const [isVisible, setIsVisible] = useState(false);
   const sectionRef = useRef<HTMLDivElement>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -250,34 +266,32 @@ export function TestimonialsSection() {
     }
   }, []);
 
-  // Initial fetch
-  useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
-
-  // Refresh every 5 seconds (matches hero ProfitCounter)
-  useEffect(() => {
-    const interval = setInterval(fetchStats, 5000);
-    return () => clearInterval(interval);
-  }, [fetchStats]);
-
-  // Intersection observer for triggering animations
+  // Intersection observer — only fetch and start polling when visible
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting) {
+        if (entry.isIntersecting && !isVisible) {
           setIsVisible(true);
+          // Fetch immediately when section becomes visible
+          fetchStats();
+          // Start polling at a reasonable interval (30s instead of 5s)
+          intervalRef.current = setInterval(fetchStats, 30000);
         }
       },
-      { threshold: 0.2 }
+      { threshold: 0.1 }
     );
 
     if (sectionRef.current) {
       observer.observe(sectionRef.current);
     }
 
-    return () => observer.disconnect();
-  }, []);
+    return () => {
+      observer.disconnect();
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [fetchStats, isVisible]);
 
   // Animated values
   const animatedUsers = useAnimatedCount(
