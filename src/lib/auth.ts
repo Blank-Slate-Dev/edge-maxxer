@@ -10,10 +10,12 @@ import User from '@/lib/models/User';
 const SESSION_MAX_AGE_REMEMBER = 63072000; // 24 months
 const SESSION_MAX_AGE_DEFAULT = 5184000;   // 60 days (2 months)
 
+// Target bcrypt cost factor. 10 is the standard recommendation.
+// Existing passwords hashed with higher cost (e.g. 12) will be
+// transparently re-hashed to this cost on next successful login.
+const BCRYPT_TARGET_ROUNDS = 10;
+
 // How often to refresh user data from DB (in seconds)
-// Increased from 5 minutes to 15 minutes to reduce DB load.
-// The session callback uses cached token data, so this only affects
-// how quickly subscription changes are reflected in the UI.
 const USER_DATA_REFRESH_INTERVAL = 900; // 15 minutes
 
 export const authOptions: NextAuthOptions = {
@@ -43,9 +45,22 @@ export const authOptions: NextAuthOptions = {
           throw new Error('Invalid password');
         }
 
+        // Transparent re-hash: if the stored hash uses a higher cost factor
+        // than our target, re-hash with the lower cost for faster future logins.
+        // bcrypt hashes encode the cost in the hash itself: $2a$12$... means cost 12.
+        // This runs AFTER successful auth, so it doesn't slow down the login.
+        const currentRounds = bcrypt.getRounds(user.password);
+        if (currentRounds > BCRYPT_TARGET_ROUNDS) {
+          const newHash = await bcrypt.hash(credentials.password, BCRYPT_TARGET_ROUNDS);
+          // Fire-and-forget — don't await, don't block the login response
+          User.findByIdAndUpdate(user._id, { password: newHash }).exec().catch(err => {
+            console.error('[Auth] Failed to re-hash password:', err);
+          });
+          console.log(`[Auth] Re-hashing password for ${user.email} from cost ${currentRounds} to ${BCRYPT_TARGET_ROUNDS}`);
+        }
+
         // Return ALL needed user data so the jwt callback doesn't need
-        // a second DB call. NextAuth only passes id/name/email/image by
-        // default, so we smuggle the rest via extra fields.
+        // a second DB call.
         return {
           id: user._id.toString(),
           email: user.email,
@@ -77,8 +92,8 @@ export const authOptions: NextAuthOptions = {
             name: user.name || 'User',
             email,
             image: user.image || undefined,
-            password: await bcrypt.hash(Math.random().toString(36), 10),
-            region: 'AU', // Default region for Google OAuth users
+            password: await bcrypt.hash(Math.random().toString(36), BCRYPT_TARGET_ROUNDS),
+            region: 'AU',
             plan: 'none',
             subscriptionStatus: 'inactive',
           });
@@ -163,7 +178,6 @@ export const authOptions: NextAuthOptions = {
       
       // ================================================================
       // PERIODIC REFRESH — only if interval has elapsed
-      // This is the hot path that fires on every session check.
       // ================================================================
       if (token.id && token.userDataFetchedAt) {
         const elapsed = Date.now() - (token.userDataFetchedAt as number);
@@ -181,7 +195,6 @@ export const authOptions: NextAuthOptions = {
               token.userDataFetchedAt = Date.now();
             }
           } catch (error) {
-            // If refresh fails, keep using cached data
             console.error('Failed to refresh user data:', error);
           }
         }
@@ -201,7 +214,6 @@ export const authOptions: NextAuthOptions = {
         } catch (error) {
           console.error('Failed to backfill user data:', error);
         }
-        // Set timestamp so we don't retry every request
         token.userDataFetchedAt = Date.now();
       }
       

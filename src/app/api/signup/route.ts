@@ -6,6 +6,12 @@ import User, { UserRegion } from '@/lib/models/User';
 
 const VALID_REGIONS: UserRegion[] = ['US', 'EU', 'UK', 'AU'];
 
+// Salt rounds for bcrypt hashing.
+// 10 is the standard recommendation — secure enough for password hashing
+// while keeping serverless function execution fast (~100-300ms).
+// Previously was 12 (4096 iterations) which took 3-5s on Vercel.
+const BCRYPT_SALT_ROUNDS = 10;
+
 export async function POST(request: NextRequest) {
   try {
     const { name, email, password, region, referralCode } = await request.json();
@@ -48,7 +54,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12);
+    const hashedPassword = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 
     // Create user with no subscription (they need to purchase a plan)
     const user = await User.create({
