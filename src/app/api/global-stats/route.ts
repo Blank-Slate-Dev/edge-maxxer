@@ -6,38 +6,75 @@ import User from '@/lib/models/User';
 
 export const dynamic = 'force-dynamic';
 
+// =========================================================================
+// IN-MEMORY CACHE for GET requests
+// The landing page ProfitCounter polls this every 15 seconds, and every
+// visitor triggers it. Without caching, that's a DB round-trip per visitor
+// per poll. With a 30-second cache, we serve stale-but-acceptable data
+// from memory and only hit MongoDB twice per minute regardless of traffic.
+// =========================================================================
+let cachedStats: {
+  totalProfit: number;
+  totalBets: number;
+  totalUsers: number;
+  lastUpdated: Date | null;
+} | null = null;
+let cacheTimestamp = 0;
+const CACHE_TTL_MS = 30_000; // 30 seconds
+
 // Maximum profit that can be added in a single update (prevents abuse/errors)
 const MAX_PROFIT_PER_UPDATE = 10000;
 
 // Secret key for admin operations (set this in your environment variables)
 const ADMIN_RESET_KEY = process.env.ADMIN_RESET_KEY || 'your-secret-reset-key';
 
-// GET - Fetch global stats (public)
+// GET - Fetch global stats (public, cached)
 export async function GET() {
   try {
+    const now = Date.now();
+
+    // Return cached data if still fresh
+    if (cachedStats && (now - cacheTimestamp) < CACHE_TTL_MS) {
+      return NextResponse.json(cachedStats);
+    }
+
     await dbConnect();
     
     // Fetch stats and user count in parallel
     const [stats, userCount] = await Promise.all([
-      GlobalStats.findById('global'),
+      GlobalStats.findById('global').lean(),
       User.countDocuments(),
     ]);
     
     // Initialize stats if doesn't exist
-    const finalStats = stats || await GlobalStats.create({
-      _id: 'global',
-      totalProfit: 0,
-      totalBets: 0,
-    });
+    if (!stats) {
+      await GlobalStats.create({
+        _id: 'global',
+        totalProfit: 0,
+        totalBets: 0,
+      });
+    }
 
-    return NextResponse.json({
-      totalProfit: finalStats.totalProfit,
-      totalBets: finalStats.totalBets,
+    const result = {
+      totalProfit: stats?.totalProfit ?? 0,
+      totalBets: stats?.totalBets ?? 0,
       totalUsers: userCount,
-      lastUpdated: finalStats.lastUpdated,
-    });
+      lastUpdated: stats?.lastUpdated ?? null,
+    };
+
+    // Update cache
+    cachedStats = result;
+    cacheTimestamp = now;
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error('GlobalStats GET error:', error);
+
+    // If DB fails but we have stale cache, return it rather than erroring
+    if (cachedStats) {
+      return NextResponse.json(cachedStats);
+    }
+
     return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 });
   }
 }
@@ -69,6 +106,10 @@ export async function POST(request: NextRequest) {
       },
       { new: true, upsert: true }
     );
+
+    // Invalidate cache so the next GET picks up fresh data
+    cachedStats = null;
+    cacheTimestamp = 0;
 
     return NextResponse.json({
       totalProfit: stats.totalProfit,
@@ -116,6 +157,10 @@ export async function DELETE(request: NextRequest) {
       },
       { new: true, upsert: true }
     );
+
+    // Invalidate cache
+    cachedStats = null;
+    cacheTimestamp = 0;
 
     return NextResponse.json({
       message: 'Stats reset successfully',
