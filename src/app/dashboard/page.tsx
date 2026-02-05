@@ -1,11 +1,9 @@
 // src/app/dashboard/page.tsx
 'use client';
-
 import { useState, useCallback, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Loader2, X, CheckCircle, RefreshCw, Zap } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-
 // PERFORMANCE FIX: Direct imports instead of barrel exports
 import { Header } from '@/components/Header';
 import { ArbFilters } from '@/components/ArbFilters';
@@ -20,7 +18,6 @@ import { LineCalculatorModal } from '@/components/LineCalculatorModal';
 import { Flag } from '@/components/Flag';
 import { SubscriptionRequiredModal } from '@/components/SubscriptionRequiredModal';
 import { FlagIconsLoader } from '@/components/FlagIconsLoader';
-
 import { useBets } from '@/hooks/useBets';
 import { useAccounts } from '@/hooks/useAccounts';
 import type { ArbOpportunity, ValueBet, ArbFilters as FilterType, ScanStats, SpreadArb, TotalsArb, MiddleOpportunity, LineStats } from '@/lib/types';
@@ -93,8 +90,15 @@ const DEFAULT_FILTERS: FilterType = {
 
 type Tab = 'opportunities' | 'spreads' | 'totals' | 'value-bets' | 'history' | 'accounts';
 
-const POLL_INTERVAL_SECONDS = 5;
-const PROGRESS_POLL_INTERVAL_MS = 2000;
+// =========================================================================
+// PERFORMANCE FIX: Reduced polling frequency to lower server/DB load.
+// - Arb poll: 5s → 15s (the auto-scanner updates every ~45-180s anyway,
+//   so polling faster than that just returns the same cached data)
+// - Progress poll: 2s → 4s (still responsive for live scan updates)
+// =========================================================================
+const POLL_INTERVAL_SECONDS = 15;
+const PROGRESS_POLL_INTERVAL_MS = 4000;
+
 const SCAN_INTERVAL_AU = 44;
 const SCAN_INTERVAL_OTHER = 180;
 
@@ -261,7 +265,6 @@ function DashboardContent() {
   
   const [checkoutSuccess, setCheckoutSuccess] = useState<string | null>(null);
   const [isRefreshingSession, setIsRefreshingSession] = useState(false);
-
   const [scanAgeSeconds, setScanAgeSeconds] = useState<number | null>(null);
   const [showNewResultsFlash, setShowNewResultsFlash] = useState(false);
   
@@ -486,9 +489,7 @@ function DashboardContent() {
   // Start/stop progress polling
   useEffect(() => {
     if (!settingsLoaded || !hasAccess) return;
-
     progressIntervalRef.current = setInterval(pollScanProgress, PROGRESS_POLL_INTERVAL_MS);
-
     return () => {
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
@@ -533,7 +534,6 @@ function DashboardContent() {
 
       if (data.hasCachedResults) {
         const isNewData = data.scannedAt !== lastScannedAtRef.current;
-
         const parsedOpportunities = (data.opportunities || []).map(parseArbDates);
         const parsedValueBets = (data.valueBets || []).map(parseValueBetDates);
         const parsedSpreadArbs = (data.spreadArbs || []).map(parseSpreadDates);
@@ -575,7 +575,6 @@ function DashboardContent() {
         if (data.remainingCredits !== undefined) setRemainingCredits(data.remainingCredits);
         setHasFetchedArbs(true);
         setError(null);
-
         console.log(`[Dashboard] ${region}: ${parsedOpportunities.length} H2H, ${parsedSpreadArbs.length} spreads, ${parsedTotalsArbs.length} totals, ${parsedMiddles.length} middles (${data.ageSeconds}s old)${isNewData ? ' [NEW]' : ''}`);
       }
     } catch (err) {
@@ -595,13 +594,10 @@ function DashboardContent() {
   // Initial fetch and polling
   useEffect(() => {
     if (!settingsLoaded) return;
-
     fetchGlobalArbs('initial', selectedRegionRef.current);
-
     const pollInterval = setInterval(() => {
       fetchGlobalArbs('background');
     }, POLL_INTERVAL_SECONDS * 1000);
-
     return () => clearInterval(pollInterval);
   }, [fetchGlobalArbs, settingsLoaded]);
 
@@ -638,7 +634,6 @@ function DashboardContent() {
         setScanAgeSeconds(prev => (prev !== null ? prev + 1 : null));
       }
     }, 1000);
-
     return () => clearInterval(ageInterval);
   }, []);
 
@@ -697,7 +692,6 @@ function DashboardContent() {
   const activeAccountsCount = accounts.filter(a => a.isActive).length;
   const spreadMiddles = filteredMiddles.filter(m => m.marketType === 'spreads');
   const totalsMiddles = filteredMiddles.filter(m => m.marketType === 'totals');
-
   const selectedBookmakerCount = countBookmakersForRegions([selectedRegion]);
 
   const getPlanDisplayName = (plan: string) => {
@@ -1174,13 +1168,11 @@ function DashboardContent() {
         onClose={() => setSelectedArb(null)}
         onLogBet={handleLogBet}
       />
-
       <ValueBetCalculatorModal
         valueBet={selectedValueBet}
         onClose={() => setSelectedValueBet(null)}
         onLogBet={handleLogBet}
       />
-
       <LineCalculatorModal
         opportunity={selectedLineOpp}
         onClose={() => setSelectedLineOpp(null)}
