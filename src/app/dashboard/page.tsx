@@ -5,7 +5,31 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { Loader2, X, CheckCircle, RefreshCw, Zap } from 'lucide-react';
 import { useSession } from 'next-auth/react';
-import { Header, ArbFilters, ArbTable, StakeCalculatorModal, ValueBetCalculatorModal, BetTracker, AccountsManager, SpreadsTable, TotalsTable, LineCalculatorModal, Flag, SubscriptionRequiredModal } from '@/components';
+
+// =========================================================================
+// PERFORMANCE FIX: Direct imports instead of barrel exports.
+//
+// BEFORE: import { Header, ArbFilters, ArbTable, ... } from '@/components';
+// This barrel import pulled in ALL 25+ components into the dashboard bundle,
+// including landing-page-only components like LiveFeedPreview, StepsSection,
+// TestimonialsSection, FeaturesShowcase, etc.
+//
+// AFTER: Direct imports only pull in what the dashboard actually uses.
+// =========================================================================
+import { Header } from '@/components/Header';
+import { ArbFilters } from '@/components/ArbFilters';
+import { ArbTable } from '@/components/ArbTable';
+import { StakeCalculatorModal } from '@/components/StakeCalculatorModal';
+import { ValueBetCalculatorModal } from '@/components/ValueBetCalculatorModal';
+import { BetTracker } from '@/components/BetTracker';
+import { AccountsManager } from '@/components/AccountsManager';
+import { SpreadsTable } from '@/components/SpreadsTable';
+import { TotalsTable } from '@/components/TotalsTable';
+import { LineCalculatorModal } from '@/components/LineCalculatorModal';
+import { Flag } from '@/components/Flag';
+import { SubscriptionRequiredModal } from '@/components/SubscriptionRequiredModal';
+import { FlagIconsLoader } from '@/components/FlagIconsLoader';
+
 import { useBets } from '@/hooks/useBets';
 import { useAccounts } from '@/hooks/useAccounts';
 import type { ArbOpportunity, ValueBet, ArbFilters as FilterType, ScanStats, SpreadArb, TotalsArb, MiddleOpportunity, LineStats } from '@/lib/types';
@@ -288,9 +312,9 @@ export default function DashboardPage() {
   const isRegionSwitchingRef = useRef(false);
   const progressSinceRef = useRef<string>(new Date().toISOString());
   const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // NEW: Track whether a scan is actively streaming so fetchGlobalArbs can read it synchronously
+  // Track whether a scan is actively streaming so fetchGlobalArbs can read it synchronously
   const scanProgressActiveRef = useRef(false);
-  // NEW: Track the scanAgeSeconds value for the age counter interval
+  // Track the scanAgeSeconds value for the age counter interval
   const scanAgeSecondsRef = useRef<number | null>(null);
 
   const { bets, isLoaded: betsLoaded, addBet, updateBet, deleteBet, clearAllBets } = useBets();
@@ -529,16 +553,7 @@ export default function DashboardPage() {
   ) => {
     if (mode === 'background' && isRegionSwitchingRef.current) return;
 
-    // =====================================================
-    // FIX: During an active streaming scan, SKIP background
-    // polls entirely. The progress poller is delivering fresh
-    // data incrementally, and the global cache still holds
-    // the PREVIOUS scan's data. Replacing state with stale
-    // cache data is what causes the flickering.
-    //
-    // We still allow 'initial' and 'manual' modes through
-    // so the user can force-refresh or load on first visit.
-    // =====================================================
+    // During an active streaming scan, SKIP background polls entirely.
     if (mode === 'background' && scanProgressActiveRef.current) {
       return;
     }
@@ -579,16 +594,6 @@ export default function DashboardPage() {
         const parsedTotalsArbs = (data.totalsArbs || []).map(parseTotalsDates);
         const parsedMiddles = (data.middles || []).map(parseMiddleDates);
 
-        // =====================================================
-        // FIX: Only do a FULL REPLACE when:
-        //   1. This is a new scan (scannedAt changed), OR
-        //   2. This is an initial load or manual refresh
-        //
-        // For background polls where the data hasn't changed,
-        // just update the age — don't replace state. This prevents
-        // the scenario where stale cache data overwrites fresh
-        // progress data.
-        // =====================================================
         if (isNewData || mode === 'initial' || mode === 'manual') {
           setOpportunities(parsedOpportunities);
           setValueBets(parsedValueBets);
@@ -684,8 +689,6 @@ export default function DashboardPage() {
   }, [selectedRegion, fetchGlobalArbs]);
 
   // Increment age counter
-  // FIX: Use a ref-based check instead of depending on scanAgeSeconds state
-  // to avoid the eslint warning and unnecessary re-renders
   useEffect(() => {
     const ageInterval = setInterval(() => {
       if (scanAgeSecondsRef.current !== null) {
@@ -787,6 +790,9 @@ export default function DashboardPage() {
       className="min-h-screen transition-colors"
       style={{ backgroundColor: 'var(--background)' }}
     >
+      {/* PERFORMANCE FIX: Load flag-icons CSS only on dashboard */}
+      <FlagIconsLoader />
+
       <Header
         lastUpdated={lastUpdated}
         isLoading={isLoading}
