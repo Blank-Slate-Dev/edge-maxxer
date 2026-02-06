@@ -7,21 +7,23 @@ import {
   Moon,
   LogOut,
   Settings,
-  Eye,
-  EyeOff,
-  Loader2,
-  ExternalLink,
   Zap,
   Menu,
   X,
   Clock,
+  Sparkles,
+  Calendar,
+  Repeat,
+  Crown,
 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSession, signOut } from 'next-auth/react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useState, useRef, useEffect } from 'react';
+import { CheckoutModal } from '@/components/CheckoutModal';
+
+type PlanType = 'trial' | 'monthly' | 'yearly';
 
 interface HeaderProps {
   lastUpdated: Date | null;
@@ -50,11 +52,20 @@ export function Header({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Close menu when clicking outside
+  // Plan picker & checkout state
+  const [showPlanPicker, setShowPlanPicker] = useState(false);
+  const [checkoutPlan, setCheckoutPlan] = useState<PlanType | null>(null);
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const planPickerRef = useRef<HTMLDivElement>(null);
+
+  // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
         setShowUserMenu(false);
+      }
+      if (planPickerRef.current && !planPickerRef.current.contains(event.target as Node)) {
+        setShowPlanPicker(false);
       }
     };
 
@@ -67,6 +78,7 @@ export function Header({
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setMobileMenuOpen(false);
+        setShowPlanPicker(false);
       }
     };
     document.addEventListener('keydown', handleEscape);
@@ -90,6 +102,13 @@ export function Header({
     await signOut({ callbackUrl: '/' });
   };
 
+  const handleSelectPlan = (plan: PlanType) => {
+    setShowPlanPicker(false);
+    setMobileMenuOpen(false);
+    setCheckoutPlan(plan);
+    setShowCheckoutModal(true);
+  };
+
   const subscription = (session?.user as { subscription?: string })?.subscription;
 
   // Format free trial remaining time as M:SS
@@ -109,6 +128,166 @@ export function Header({
 
   const trialColor = getTrialColor(freeTrialRemainingMs);
 
+  // Plan picker dropdown component (reused for desktop & mobile)
+  const PlanPickerDropdown = ({ isMobile = false }: { isMobile?: boolean }) => (
+    <div
+      className={
+        isMobile
+          ? 'space-y-2'
+          : 'absolute right-0 mt-2 w-64 rounded-xl border shadow-xl overflow-hidden'
+      }
+      style={
+        isMobile
+          ? undefined
+          : {
+              backgroundColor: 'var(--surface)',
+              borderColor: 'var(--border)',
+            }
+      }
+    >
+      {!isMobile && (
+        <div
+          className="px-4 py-3 border-b"
+          style={{ borderColor: 'var(--border)' }}
+        >
+          <p
+            className="text-sm font-semibold"
+            style={{ color: 'var(--foreground)' }}
+          >
+            Choose a plan
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+            Get full access to the scanner
+          </p>
+        </div>
+      )}
+
+      <div className={isMobile ? 'space-y-2' : 'p-2 space-y-1'}>
+        {/* 3-Day Trial */}
+        <button
+          onClick={() => handleSelectPlan('trial')}
+          className={`w-full flex items-center gap-3 text-left rounded-lg transition-colors hover:bg-[var(--background)] ${
+            isMobile ? 'px-3 py-3 border' : 'px-3 py-2.5'
+          }`}
+          style={
+            isMobile
+              ? {
+                  borderColor: 'var(--border)',
+                  backgroundColor: 'var(--surface)',
+                }
+              : undefined
+          }
+        >
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+            style={{
+              backgroundColor: 'color-mix(in srgb, #f97316 15%, transparent)',
+            }}
+          >
+            <Calendar className="w-4 h-4" style={{ color: '#f97316' }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div
+              className="text-sm font-medium"
+              style={{ color: 'var(--foreground)' }}
+            >
+              3-Day Trial
+            </div>
+            <div className="text-xs" style={{ color: 'var(--muted)' }}>
+              $2.99 one-time
+            </div>
+          </div>
+        </button>
+
+        {/* Monthly */}
+        <button
+          onClick={() => handleSelectPlan('monthly')}
+          className={`w-full flex items-center gap-3 text-left rounded-lg transition-colors hover:bg-[var(--background)] ${
+            isMobile ? 'px-3 py-3 border' : 'px-3 py-2.5'
+          }`}
+          style={
+            isMobile
+              ? {
+                  borderColor: '#22c55e',
+                  backgroundColor: 'color-mix(in srgb, #22c55e 5%, var(--surface))',
+                }
+              : undefined
+          }
+        >
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+            style={{
+              backgroundColor: 'color-mix(in srgb, #22c55e 15%, transparent)',
+            }}
+          >
+            <Repeat className="w-4 h-4" style={{ color: '#22c55e' }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span
+                className="text-sm font-medium"
+                style={{ color: 'var(--foreground)' }}
+              >
+                Monthly
+              </span>
+              <span
+                className="text-[10px] font-semibold px-1.5 py-0.5 rounded"
+                style={{
+                  backgroundColor: 'color-mix(in srgb, #22c55e 15%, transparent)',
+                  color: '#22c55e',
+                }}
+              >
+                POPULAR
+              </span>
+            </div>
+            <div className="text-xs" style={{ color: 'var(--muted)' }}>
+              <span style={{ textDecoration: 'line-through', opacity: 0.6 }}>
+                $9.99
+              </span>{' '}
+              $4.99 first month
+            </div>
+          </div>
+        </button>
+
+        {/* Yearly */}
+        <button
+          onClick={() => handleSelectPlan('yearly')}
+          className={`w-full flex items-center gap-3 text-left rounded-lg transition-colors hover:bg-[var(--background)] ${
+            isMobile ? 'px-3 py-3 border' : 'px-3 py-2.5'
+          }`}
+          style={
+            isMobile
+              ? {
+                  borderColor: 'var(--border)',
+                  backgroundColor: 'var(--surface)',
+                }
+              : undefined
+          }
+        >
+          <div
+            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+            style={{
+              backgroundColor: 'color-mix(in srgb, #a855f7 15%, transparent)',
+            }}
+          >
+            <Crown className="w-4 h-4" style={{ color: '#a855f7' }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div
+              className="text-sm font-medium"
+              style={{ color: 'var(--foreground)' }}
+            >
+              Yearly
+            </div>
+            <div className="text-xs" style={{ color: 'var(--muted)' }}>
+              $99/year — save 17%
+            </div>
+          </div>
+        </button>
+      </div>
+    </div>
+  );
+
   return (
     <>
       <header
@@ -121,9 +300,8 @@ export function Header({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between gap-2 sm:gap-4">
             {/* Logo & Brand */}
-            <div className="flex items-center gap-3 sm:gap-6 shrink-0">
+            <div className="flex items-center shrink-0">
               <Link href="/" className="flex items-center">
-                {/* Responsive logo - smaller on mobile */}
                 <Image
                   src="/logo_thin_dark_version.png"
                   alt="Edge Maxxer"
@@ -141,16 +319,11 @@ export function Header({
                   className="h-10 sm:h-12 lg:h-16 w-auto logo-light"
                 />
               </Link>
-              {lastUpdated && (
-                <span className="text-xs sm:text-sm hidden lg:block" style={{ color: 'var(--muted)' }}>
-                  Updated {formatDistanceToNow(lastUpdated, { addSuffix: true })}
-                </span>
-              )}
             </div>
 
-            {/* Center: Free Trial Countdown (when active) */}
+            {/* Center: Free Trial Countdown (desktop — centered with flex-1) */}
             {freeTrialActive && freeTrialRemainingMs > 0 && (
-              <div className="hidden lg:flex items-center gap-2">
+              <div className="hidden lg:flex flex-1 items-center justify-center gap-2">
                 <div
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
                   style={{
@@ -158,8 +331,14 @@ export function Header({
                     border: `1px solid color-mix(in srgb, ${trialColor} 40%, transparent)`,
                   }}
                 >
-                  <Clock className="w-3.5 h-3.5 shrink-0" style={{ color: trialColor }} />
-                  <span className="text-xs font-medium" style={{ color: trialColor }}>
+                  <Clock
+                    className="w-3.5 h-3.5 shrink-0"
+                    style={{ color: trialColor }}
+                  />
+                  <span
+                    className="text-xs font-medium"
+                    style={{ color: trialColor }}
+                  >
                     Free Trial
                   </span>
                   <span
@@ -169,17 +348,25 @@ export function Header({
                     {formatTrialRemaining(freeTrialRemainingMs)}
                   </span>
                 </div>
-                <a
-                  href="https://www.edgemaxxer.com/#pricing"
-                  className="text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all hover:opacity-90"
-                  style={{
-                    backgroundColor: trialColor,
-                    color: 'white',
-                  }}
-                >
-                  Subscribe
-                </a>
+                <div className="relative" ref={planPickerRef}>
+                  <button
+                    onClick={() => setShowPlanPicker(!showPlanPicker)}
+                    className="text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all hover:opacity-90"
+                    style={{
+                      backgroundColor: trialColor,
+                      color: 'white',
+                    }}
+                  >
+                    Subscribe
+                  </button>
+                  {showPlanPicker && <PlanPickerDropdown />}
+                </div>
               </div>
+            )}
+
+            {/* If no trial active, still need flex-1 spacer for centering */}
+            {!(freeTrialActive && freeTrialRemainingMs > 0) && (
+              <div className="hidden lg:flex flex-1" />
             )}
 
             {/* Right Side Actions */}
@@ -193,7 +380,10 @@ export function Header({
                     border: `1px solid color-mix(in srgb, ${trialColor} 40%, transparent)`,
                   }}
                 >
-                  <Clock className="w-3 h-3" style={{ color: trialColor }} />
+                  <Clock
+                    className="w-3 h-3"
+                    style={{ color: trialColor }}
+                  />
                   <span
                     className="font-mono text-xs font-semibold tabular-nums"
                     style={{ color: trialColor }}
@@ -223,7 +413,11 @@ export function Header({
                 style={{ color: 'var(--muted)' }}
                 title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
               >
-                {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+                {theme === 'dark' ? (
+                  <Sun className="w-4 h-4" />
+                ) : (
+                  <Moon className="w-4 h-4" />
+                )}
               </button>
 
               {/* User Menu - Desktop */}
@@ -243,7 +437,9 @@ export function Header({
                     >
                       {session.user.name?.charAt(0).toUpperCase() || 'U'}
                     </div>
-                    <span className="text-sm hidden lg:block">{session.user.name?.split(' ')[0] || 'User'}</span>
+                    <span className="text-sm hidden lg:block">
+                      {session.user.name?.split(' ')[0] || 'User'}
+                    </span>
                     {subscription && (
                       <span
                         className="text-xs px-1.5 py-0.5 rounded font-medium hidden md:block"
@@ -252,7 +448,10 @@ export function Header({
                             subscription === 'active'
                               ? 'color-mix(in srgb, #22c55e 15%, transparent)'
                               : 'color-mix(in srgb, var(--warning) 15%, transparent)',
-                          color: subscription === 'active' ? '#22c55e' : 'var(--warning)',
+                          color:
+                            subscription === 'active'
+                              ? '#22c55e'
+                              : 'var(--warning)',
                         }}
                       >
                         {subscription === 'active' ? 'PRO' : 'TRIAL'}
@@ -269,11 +468,20 @@ export function Header({
                         borderColor: 'var(--border)',
                       }}
                     >
-                      <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
-                        <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                      <div
+                        className="px-4 py-3 border-b"
+                        style={{ borderColor: 'var(--border)' }}
+                      >
+                        <p
+                          className="text-sm font-medium"
+                          style={{ color: 'var(--foreground)' }}
+                        >
                           {session.user.name}
                         </p>
-                        <p className="text-xs truncate" style={{ color: 'var(--muted)' }}>
+                        <p
+                          className="text-xs truncate"
+                          style={{ color: 'var(--muted)' }}
+                        >
                           {session.user.email}
                         </p>
                       </div>
@@ -285,7 +493,10 @@ export function Header({
                           className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-[var(--background)]"
                           style={{ color: 'var(--foreground)' }}
                         >
-                          <Settings className="w-4 h-4" style={{ color: 'var(--muted)' }} />
+                          <Settings
+                            className="w-4 h-4"
+                            style={{ color: 'var(--muted)' }}
+                          />
                           Settings
                         </Link>
                         <button
@@ -335,8 +546,12 @@ export function Header({
                 <span className={isLoading ? 'animate-spin' : ''}>
                   <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 </span>
-                <span className="hidden sm:inline">{isLoading ? 'Scanning...' : 'Full Scan'}</span>
-                <span className="sm:hidden">{isLoading ? '...' : 'Scan'}</span>
+                <span className="hidden sm:inline">
+                  {isLoading ? 'Scanning...' : 'Full Scan'}
+                </span>
+                <span className="sm:hidden">
+                  {isLoading ? '...' : 'Scan'}
+                </span>
               </button>
 
               {/* Mobile Menu Button */}
@@ -354,7 +569,10 @@ export function Header({
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 sm:hidden" onClick={() => setMobileMenuOpen(false)}>
+        <div
+          className="fixed inset-0 z-50 sm:hidden"
+          onClick={() => setMobileMenuOpen(false)}
+        >
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -368,8 +586,14 @@ export function Header({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Drawer Header */}
-            <div className="flex items-center justify-between px-4 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-              <span className="font-medium" style={{ color: 'var(--foreground)' }}>
+            <div
+              className="flex items-center justify-between px-4 py-4 border-b"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              <span
+                className="font-medium"
+                style={{ color: 'var(--foreground)' }}
+              >
                 Menu
               </span>
               <button
@@ -383,7 +607,10 @@ export function Header({
 
             {/* User Info */}
             {session?.user && (
-              <div className="px-4 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <div
+                className="px-4 py-4 border-b"
+                style={{ borderColor: 'var(--border)' }}
+              >
                 <div className="flex items-center gap-3">
                   <div
                     className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium"
@@ -395,10 +622,16 @@ export function Header({
                     {session.user.name?.charAt(0).toUpperCase() || 'U'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium truncate" style={{ color: 'var(--foreground)' }}>
+                    <p
+                      className="font-medium truncate"
+                      style={{ color: 'var(--foreground)' }}
+                    >
                       {session.user.name}
                     </p>
-                    <p className="text-xs truncate" style={{ color: 'var(--muted)' }}>
+                    <p
+                      className="text-xs truncate"
+                      style={{ color: 'var(--muted)' }}
+                    >
                       {session.user.email}
                     </p>
                   </div>
@@ -410,7 +643,10 @@ export function Header({
                           subscription === 'active'
                             ? 'color-mix(in srgb, #22c55e 15%, transparent)'
                             : 'color-mix(in srgb, var(--warning) 15%, transparent)',
-                        color: subscription === 'active' ? '#22c55e' : 'var(--warning)',
+                        color:
+                          subscription === 'active'
+                            ? '#22c55e'
+                            : 'var(--warning)',
                       }}
                     >
                       {subscription === 'active' ? 'PRO' : 'TRIAL'}
@@ -420,42 +656,39 @@ export function Header({
               </div>
             )}
 
-            {/* Free Trial Notice (mobile drawer) */}
+            {/* Free Trial + Plan Picker (mobile drawer) */}
             {freeTrialActive && freeTrialRemainingMs > 0 && (
-              <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4" style={{ color: trialColor }} />
-                    <span className="text-sm font-medium" style={{ color: trialColor }}>
-                      Free Trial
-                    </span>
-                    <span
-                      className="font-mono text-sm font-semibold tabular-nums"
-                      style={{ color: trialColor }}
-                    >
-                      {formatTrialRemaining(freeTrialRemainingMs)}
-                    </span>
-                  </div>
-                  <a
-                    href="https://www.edgemaxxer.com/#pricing"
-                    className="text-xs font-medium px-2.5 py-1.5 rounded-lg"
-                    style={{
-                      backgroundColor: trialColor,
-                      color: 'white',
-                    }}
+              <div
+                className="px-4 py-4 border-b"
+                style={{ borderColor: 'var(--border)' }}
+              >
+                <div className="flex items-center gap-2 mb-3">
+                  <Clock
+                    className="w-4 h-4"
+                    style={{ color: trialColor }}
+                  />
+                  <span
+                    className="text-sm font-medium"
+                    style={{ color: trialColor }}
                   >
-                    Subscribe
-                  </a>
+                    Free Trial
+                  </span>
+                  <span
+                    className="font-mono text-sm font-semibold tabular-nums"
+                    style={{ color: trialColor }}
+                  >
+                    {formatTrialRemaining(freeTrialRemainingMs)}
+                  </span>
                 </div>
-              </div>
-            )}
 
-            {/* Last Updated */}
-            {lastUpdated && (
-              <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
-                <p className="text-xs" style={{ color: 'var(--muted)' }}>
-                  Last updated {formatDistanceToNow(lastUpdated, { addSuffix: true })}
+                <p
+                  className="text-xs mb-3"
+                  style={{ color: 'var(--muted)' }}
+                >
+                  Subscribe to keep access after your trial ends
                 </p>
+
+                <PlanPickerDropdown isMobile />
               </div>
             )}
 
@@ -467,7 +700,10 @@ export function Header({
                 className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--surface)]"
                 style={{ color: 'var(--foreground)' }}
               >
-                <Settings className="w-5 h-5" style={{ color: 'var(--muted)' }} />
+                <Settings
+                  className="w-5 h-5"
+                  style={{ color: 'var(--muted)' }}
+                />
                 Settings
               </Link>
               <button
@@ -495,6 +731,16 @@ export function Header({
           </div>
         </div>
       )}
+
+      {/* Checkout Modal */}
+      <CheckoutModal
+        isOpen={showCheckoutModal}
+        onClose={() => {
+          setShowCheckoutModal(false);
+          setCheckoutPlan(null);
+        }}
+        plan={checkoutPlan}
+      />
     </>
   );
 }
