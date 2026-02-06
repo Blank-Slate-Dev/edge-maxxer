@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import dbConnect from '@/lib/mongodb';
+import User from '@/lib/models/User';
 import GlobalScanCache from '@/lib/models/GlobalScanCache';
 import type { ArbOpportunity, SpreadArb, TotalsArb, MiddleOpportunity } from '@/lib/types';
 import type { UserRegion } from '@/lib/config';
@@ -22,20 +23,44 @@ export async function GET(request: NextRequest) {
     }
 
     // =========================================================================
-    // PERFORMANCE FIX: Use the session's cached hasAccess flag instead of
-    // doing a separate User.findById() on every request.
+    // ACCESS CHECK — with DB fallback for stale JWT sessions
     //
-    // The JWT callback in auth.ts already fetches subscription data from the
-    // DB and caches it in the token (refreshed every 15 minutes or on manual
-    // trigger after checkout). The session callback then computes hasAccess
-    // from that cached data. This eliminates a redundant DB round-trip on
-    // every 5-second poll from the dashboard.
-    //
-    // Previously: getServerSession (JWT callback) + User.findById (2nd DB call)
-    // Now:        getServerSession (JWT callback, usually cached) + no extra call
+    // The JWT token caches subscription data and refreshes every 15 minutes.
+    // After a user subscribes via Stripe, there's a window where the JWT still
+    // thinks hasAccess=false even though the DB has been updated by the webhook.
+    // To handle this, if the session says no access, we do a quick DB check
+    // as a fallback before blocking the user.
     // =========================================================================
-    const hasAccess = (session.user as { hasAccess?: boolean }).hasAccess ?? false;
-    
+    let hasAccess = (session.user as { hasAccess?: boolean }).hasAccess ?? false;
+    let dbFallbackUsed = false;
+
+    if (!hasAccess) {
+      // Session says no access — but the JWT might be stale.
+      // Quick DB check to see if the user actually has an active subscription.
+      try {
+        await dbConnect();
+        const dbUser = await User.findOne({ email: session.user.email })
+          .select('subscriptionStatus subscriptionEndsAt freeTrialStartedAt')
+          .lean();
+
+        if (dbUser) {
+          const hasActiveSubscription =
+            dbUser.subscriptionStatus === 'active' &&
+            dbUser.subscriptionEndsAt &&
+            new Date(dbUser.subscriptionEndsAt) > new Date();
+
+          if (hasActiveSubscription) {
+            hasAccess = true;
+            dbFallbackUsed = true;
+            console.log(`[API /global-arbs] DB fallback granted access for ${session.user.email} (stale JWT)`);
+          }
+        }
+      } catch (dbError) {
+        console.error('[API /global-arbs] DB fallback check failed:', dbError);
+        // If DB check fails, we still deny based on session — better safe than broken
+      }
+    }
+
     if (!hasAccess) {
       // Determine if the user had a free trial that expired (vs never had one)
       const freeTrialStartedAt = (session.user as { freeTrialStartedAt?: string }).freeTrialStartedAt;
@@ -70,7 +95,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    await dbConnect();
+    // Only connect to DB if we haven't already (fallback may have connected)
+    if (!dbFallbackUsed) {
+      await dbConnect();
+    }
 
     // Get cached scan for the specific region
     const cachedScan = await GlobalScanCache.getScanForRegion(region);
@@ -110,7 +138,7 @@ export async function GET(request: NextRequest) {
     // Include free trial end time so dashboard can show countdown
     const freeTrialEndsAt = (session.user as { freeTrialEndsAt?: string }).freeTrialEndsAt;
 
-    console.log(`[API /global-arbs] ${region}: ${validOpportunities.length} H2H, ${validSpreadArbs.length} spreads, ${validTotalsArbs.length} totals, ${validMiddles.length} middles (${ageSeconds}s old)`);
+    console.log(`[API /global-arbs] ${region}: ${validOpportunities.length} H2H, ${validSpreadArbs.length} spreads, ${validTotalsArbs.length} totals, ${validMiddles.length} middles (${ageSeconds}s old)${dbFallbackUsed ? ' [DB-fallback]' : ''}`);
 
     return NextResponse.json({
       hasCachedResults: true,

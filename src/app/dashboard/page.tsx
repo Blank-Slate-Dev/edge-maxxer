@@ -328,8 +328,8 @@ function DashboardContent() {
       const remaining = freeTrialEndsAt.getTime() - Date.now();
       setFreeTrialRemainingMs(Math.max(0, remaining));
       
-      // Trial just expired — show subscription modal
-      if (remaining <= 0) {
+      // Trial just expired — show subscription modal (but NOT if user has a paid subscription)
+      if (remaining <= 0 && !hasAccess) {
         setTrialExpiredFlag(true);
         setShowSubscriptionModal(true);
       }
@@ -338,7 +338,7 @@ function DashboardContent() {
     tick();
     const interval = setInterval(tick, 1000);
     return () => clearInterval(interval);
-  }, [freeTrialEndsAt]);
+  }, [freeTrialEndsAt, hasAccess]);
 
   useEffect(() => {
     selectedRegionRef.current = selectedRegion;
