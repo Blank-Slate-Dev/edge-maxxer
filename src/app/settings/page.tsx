@@ -33,7 +33,8 @@ import {
   MapPin,
   Puzzle,
   Copy,
-  RefreshCw
+  RefreshCw,
+  AlertTriangle
 } from 'lucide-react';
 
 type UserPlan = 'none' | 'trial' | 'monthly' | 'yearly';
@@ -77,7 +78,7 @@ interface SessionUser {
 }
 
 export default function SettingsPage() {
-  const { data: session, status } = useSession();
+  const { data: session, status, update: updateSession } = useSession();
   const router = useRouter();
   const { theme, toggleTheme } = useTheme();
   
@@ -92,6 +93,12 @@ export default function SettingsPage() {
   const [error, setError] = useState('');
   const [regionError, setRegionError] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+
+  // Subscription cancellation state
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [isCanceling, setIsCanceling] = useState(false);
+  const [cancelError, setCancelError] = useState('');
+  const [cancelSuccess, setCancelSuccess] = useState(false);
 
   // Auto-scan settings
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -244,6 +251,34 @@ export default function SettingsPage() {
     }
   };
 
+  const handleCancelSubscription = async () => {
+    setIsCanceling(true);
+    setCancelError('');
+
+    try {
+      const res = await fetch('/api/stripe/cancel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to cancel subscription');
+      }
+
+      setCancelSuccess(true);
+      setShowCancelConfirm(false);
+      
+      // Refresh session to pick up the updated subscription status
+      await updateSession();
+    } catch (err) {
+      setCancelError(err instanceof Error ? err.message : 'Failed to cancel subscription');
+    } finally {
+      setIsCanceling(false);
+    }
+  };
+
   const handleSaveAutoScan = async (updates: Partial<AutoScanSettings & { phoneNumber?: string }>, sendTest = false) => {
     setIsSavingAutoScan(true);
     setAutoScanError('');
@@ -372,7 +407,7 @@ export default function SettingsPage() {
       } else {
         description = `Renews ${endsAt.toLocaleDateString()}`;
       }
-    } else if (subStatus === 'canceled' && endsAt && endsAt > new Date()) {
+    } else if ((subStatus === 'canceled' || cancelSuccess) && endsAt && endsAt > new Date()) {
       statusColor = 'var(--warning)';
       statusBg = 'color-mix(in srgb, var(--warning) 15%, transparent)';
       label = `${PLAN_LABELS[plan]} (Canceled)`;
@@ -393,6 +428,13 @@ export default function SettingsPage() {
   };
 
   const subscriptionInfo = getSubscriptionInfo();
+
+  // Check if subscription is cancelable (active monthly/yearly, not already canceled)
+  const isCancelable = 
+    subscriptionInfo.hasAccess && 
+    (user?.plan === 'monthly' || user?.plan === 'yearly') && 
+    user?.subscriptionStatus === 'active' &&
+    !cancelSuccess;
 
   // Toggle region for auto-scan
   const toggleAutoScanRegion = (regionToToggle: UserRegion) => {
@@ -585,8 +627,29 @@ export default function SettingsPage() {
                 </div>
               </div>
 
+              {/* Cancellation success message */}
+              {cancelSuccess && (
+                <div 
+                  className="flex items-start gap-3 p-3 rounded-lg"
+                  style={{ 
+                    backgroundColor: 'color-mix(in srgb, var(--warning) 10%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--warning) 30%, transparent)'
+                  }}
+                >
+                  <Check className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'var(--warning)' }} />
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: 'var(--warning)' }}>
+                      Subscription canceled
+                    </p>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                      You&apos;ll retain access until the end of your current billing period.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* No active plan - show View Plans */}
-              {!subscriptionInfo.hasAccess && (
+              {!subscriptionInfo.hasAccess && !cancelSuccess && (
                 <Link
                   href="/#pricing"
                   className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
@@ -620,11 +683,90 @@ export default function SettingsPage() {
                 </div>
               )}
 
-              {/* Active monthly/yearly subscriber - show manage option */}
-              {subscriptionInfo.hasAccess && (user?.plan === 'monthly' || user?.plan === 'yearly') && (
-                <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                  To manage your subscription or update payment details, contact support.
-                </p>
+              {/* Active monthly/yearly subscriber - show cancel option */}
+              {subscriptionInfo.hasAccess && (user?.plan === 'monthly' || user?.plan === 'yearly') && !cancelSuccess && (
+                <div className="space-y-3">
+                  {!showCancelConfirm ? (
+                    <button
+                      onClick={() => setShowCancelConfirm(true)}
+                      className="text-sm transition-colors hover:underline"
+                      style={{ color: 'var(--muted)' }}
+                    >
+                      Cancel subscription
+                    </button>
+                  ) : (
+                    <div 
+                      className="p-4 rounded-lg border"
+                      style={{ 
+                        backgroundColor: 'var(--background)',
+                        borderColor: 'color-mix(in srgb, var(--danger) 40%, var(--border))'
+                      }}
+                    >
+                      <div className="flex items-start gap-3 mb-3">
+                        <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" style={{ color: 'var(--danger)' }} />
+                        <div>
+                          <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
+                            Are you sure?
+                          </p>
+                          <p className="text-xs mt-1" style={{ color: 'var(--muted)' }}>
+                            Your subscription will remain active until the end of your current billing period
+                            {user?.subscriptionEndsAt && (
+                              <> ({new Date(user.subscriptionEndsAt).toLocaleDateString()})</>
+                            )}. After that, you&apos;ll lose access to the arbitrage scanner.
+                          </p>
+                        </div>
+                      </div>
+
+                      {cancelError && (
+                        <div 
+                          className="flex items-center gap-2 text-xs mb-3 p-2 rounded"
+                          style={{ 
+                            color: 'var(--danger)',
+                            backgroundColor: 'color-mix(in srgb, var(--danger) 10%, transparent)'
+                          }}
+                        >
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                          {cancelError}
+                        </div>
+                      )}
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={handleCancelSubscription}
+                          disabled={isCanceling}
+                          className="flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg transition-all hover:opacity-90 disabled:opacity-50"
+                          style={{
+                            backgroundColor: 'var(--danger)',
+                            color: 'white'
+                          }}
+                        >
+                          {isCanceling ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              Canceling...
+                            </>
+                          ) : (
+                            'Yes, cancel subscription'
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowCancelConfirm(false);
+                            setCancelError('');
+                          }}
+                          disabled={isCanceling}
+                          className="px-3 py-2 text-xs font-medium rounded-lg transition-colors hover:bg-[var(--surface)]"
+                          style={{
+                            color: 'var(--muted)',
+                            border: '1px solid var(--border)'
+                          }}
+                        >
+                          Keep subscription
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </section>
