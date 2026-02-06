@@ -37,10 +37,17 @@ export async function GET(request: NextRequest) {
     const hasAccess = (session.user as { hasAccess?: boolean }).hasAccess ?? false;
     
     if (!hasAccess) {
+      // Determine if the user had a free trial that expired (vs never had one)
+      const freeTrialStartedAt = (session.user as { freeTrialStartedAt?: string }).freeTrialStartedAt;
+      const trialExpired = !!freeTrialStartedAt;
+      
       return NextResponse.json({
         hasCachedResults: false,
         subscriptionRequired: true,
-        message: 'Active subscription required to access arbitrage data',
+        trialExpired,
+        message: trialExpired 
+          ? 'Your free trial has ended. Subscribe to continue accessing arbitrage data.'
+          : 'Active subscription required to access arbitrage data',
         region: 'AU',
         opportunities: [],
         valueBets: [],
@@ -100,6 +107,9 @@ export async function GET(request: NextRequest) {
     // Calculate age
     const ageSeconds = Math.round((now.getTime() - new Date(cachedScan.scannedAt).getTime()) / 1000);
 
+    // Include free trial end time so dashboard can show countdown
+    const freeTrialEndsAt = (session.user as { freeTrialEndsAt?: string }).freeTrialEndsAt;
+
     console.log(`[API /global-arbs] ${region}: ${validOpportunities.length} H2H, ${validSpreadArbs.length} spreads, ${validTotalsArbs.length} totals, ${validMiddles.length} middles (${ageSeconds}s old)`);
 
     return NextResponse.json({
@@ -115,6 +125,7 @@ export async function GET(request: NextRequest) {
       scannedAt: cachedScan.scannedAt,
       ageSeconds,
       remainingCredits: cachedScan.remainingCredits,
+      ...(freeTrialEndsAt ? { freeTrialEndsAt } : {}),
     });
 
   } catch (error) {

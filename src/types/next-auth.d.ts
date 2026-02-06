@@ -14,6 +14,10 @@ declare module 'next-auth' {
       subscriptionEndsAt?: Date;
       region: UserRegion;
       hasAccess: boolean;
+      // Free trial (10 min)
+      freeTrialStartedAt?: string;
+      freeTrialEndsAt?: string;
+      freeTrialActive: boolean;
     };
   }
 
@@ -28,5 +32,6 @@ declare module 'next-auth' {
 declare module 'next-auth/jwt' {
   interface JWT {
     id: string;
+    freeTrialStartedAt?: string;
   }
 }

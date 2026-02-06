@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
 
-    // Create user with no subscription (they need to purchase a plan)
+    // Create user with free trial (10 min) — no payment required
     const user = await User.create({
       name: name.trim(),
       email: email.toLowerCase().trim(),
@@ -64,6 +64,7 @@ export async function POST(request: NextRequest) {
       region: validatedRegion,
       plan: 'none',
       subscriptionStatus: 'inactive',
+      freeTrialStartedAt: new Date(),
       referredBy: referralCode || undefined,
     });
 
@@ -76,6 +77,7 @@ export async function POST(request: NextRequest) {
       plan: user.plan,
       subscriptionStatus: user.subscriptionStatus,
       referralCode: user.referralCode,
+      freeTrialStartedAt: user.freeTrialStartedAt?.toISOString(),
     };
 
     return NextResponse.json(

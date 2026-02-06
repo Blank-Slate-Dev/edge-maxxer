@@ -8,6 +8,9 @@ export type SubscriptionStatus = 'inactive' | 'active' | 'past_due' | 'canceled'
 // Credit tiers based on The Odds API pricing
 export type CreditTier = '20k' | '100k' | '5m' | '15m';
 
+// Free trial duration: 10 minutes in milliseconds
+export const FREE_TRIAL_DURATION_MS = 10 * 60 * 1000;
+
 // Scan intervals in seconds for each tier (based on ~85 credits/scan)
 export const CREDIT_TIER_CONFIG: Record<CreditTier, { credits: number; scanIntervalSeconds: number; label: string }> = {
   '20k': { credits: 20000, scanIntervalSeconds: 10800, label: '20K ($30/mo)' },      // Every 3 hours
@@ -48,6 +51,9 @@ export interface IUser {
   subscriptionStatus: SubscriptionStatus;
   subscriptionEndsAt?: Date;
   
+  // Free trial (10 min)
+  freeTrialStartedAt?: Date;
+  
   // Stripe fields
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
@@ -78,6 +84,8 @@ export interface IUser {
 // Interface for instance methods
 export interface IUserMethods {
   hasAccess(): boolean;
+  hasFreeTrialAccess(): boolean;
+  getFreeTrialRemainingMs(): number;
   shouldAutoScan(): boolean;
   canSendAlert(): boolean;
 }
@@ -215,6 +223,11 @@ const UserSchema = new Schema<IUser, Model<IUser, object, IUserMethods>, IUserMe
       type: Date,
     },
     
+    // Free trial (10 min on signup)
+    freeTrialStartedAt: {
+      type: Date,
+    },
+    
     // Stripe fields
     stripeCustomerId: {
       type: String,
@@ -312,12 +325,32 @@ UserSchema.virtual('isSubscriptionActive').get(function () {
   return new Date(this.subscriptionEndsAt) > new Date();
 });
 
-// Method to check subscription access
-UserSchema.methods.hasAccess = function (): boolean {
-  // Active subscription that hasn't expired
-  if (this.subscriptionStatus === 'active' && this.subscriptionEndsAt) {
-    return new Date(this.subscriptionEndsAt) > new Date();
+// Method to check free trial access (10 min window)
+UserSchema.methods.hasFreeTrialAccess = function (): boolean {
+  if (!this.freeTrialStartedAt) return false;
+  // If user has a paid subscription, free trial is irrelevant
+  if (this.subscriptionStatus === 'active' && this.subscriptionEndsAt && new Date(this.subscriptionEndsAt) > new Date()) {
+    return false;
   }
+  const elapsed = Date.now() - new Date(this.freeTrialStartedAt).getTime();
+  return elapsed < FREE_TRIAL_DURATION_MS;
+};
+
+// Method to get remaining free trial time in milliseconds
+UserSchema.methods.getFreeTrialRemainingMs = function (): number {
+  if (!this.freeTrialStartedAt) return 0;
+  const elapsed = Date.now() - new Date(this.freeTrialStartedAt).getTime();
+  return Math.max(0, FREE_TRIAL_DURATION_MS - elapsed);
+};
+
+// Method to check subscription access (includes free trial)
+UserSchema.methods.hasAccess = function (): boolean {
+  // Active paid subscription that hasn't expired
+  if (this.subscriptionStatus === 'active' && this.subscriptionEndsAt) {
+    if (new Date(this.subscriptionEndsAt) > new Date()) return true;
+  }
+  // Free trial still active
+  if (this.hasFreeTrialAccess()) return true;
   return false;
 };
 

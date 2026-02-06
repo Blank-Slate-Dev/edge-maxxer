@@ -48,6 +48,8 @@ interface GlobalArbsResponse {
   message?: string;
   error?: string;
   subscriptionRequired?: boolean;
+  trialExpired?: boolean;
+  freeTrialEndsAt?: string;
 }
 
 interface ScanProgressBatch {
@@ -262,11 +264,16 @@ function DashboardContent() {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
   
   const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [trialExpiredFlag, setTrialExpiredFlag] = useState(false);
   
   const [checkoutSuccess, setCheckoutSuccess] = useState<string | null>(null);
   const [isRefreshingSession, setIsRefreshingSession] = useState(false);
   const [scanAgeSeconds, setScanAgeSeconds] = useState<number | null>(null);
   const [showNewResultsFlash, setShowNewResultsFlash] = useState(false);
+  
+  // Free trial countdown state
+  const [freeTrialEndsAt, setFreeTrialEndsAt] = useState<Date | null>(null);
+  const [freeTrialRemainingMs, setFreeTrialRemainingMs] = useState<number>(0);
   
   const [scanProgress, setScanProgress] = useState<{
     isActive: boolean;
@@ -303,6 +310,35 @@ function DashboardContent() {
   } = useAccounts();
 
   const hasAccess = (session?.user as { hasAccess?: boolean } | undefined)?.hasAccess ?? false;
+  const freeTrialActive = (session?.user as { freeTrialActive?: boolean } | undefined)?.freeTrialActive ?? false;
+
+  // Initialize free trial countdown from session
+  useEffect(() => {
+    const sessionTrialEndsAt = (session?.user as { freeTrialEndsAt?: string } | undefined)?.freeTrialEndsAt;
+    if (sessionTrialEndsAt) {
+      setFreeTrialEndsAt(new Date(sessionTrialEndsAt));
+    }
+  }, [session]);
+
+  // Free trial countdown ticker (updates every second)
+  useEffect(() => {
+    if (!freeTrialEndsAt) return;
+    
+    const tick = () => {
+      const remaining = freeTrialEndsAt.getTime() - Date.now();
+      setFreeTrialRemainingMs(Math.max(0, remaining));
+      
+      // Trial just expired — show subscription modal
+      if (remaining <= 0) {
+        setTrialExpiredFlag(true);
+        setShowSubscriptionModal(true);
+      }
+    };
+    
+    tick();
+    const interval = setInterval(tick, 1000);
+    return () => clearInterval(interval);
+  }, [freeTrialEndsAt]);
 
   useEffect(() => {
     selectedRegionRef.current = selectedRegion;
@@ -519,8 +555,14 @@ function DashboardContent() {
       const data: GlobalArbsResponse = await res.json();
 
       if (data.subscriptionRequired) {
+        setTrialExpiredFlag(!!data.trialExpired);
         setShowSubscriptionModal(true);
         return;
+      }
+
+      // Update free trial end time from API response
+      if (data.freeTrialEndsAt) {
+        setFreeTrialEndsAt(new Date(data.freeTrialEndsAt));
       }
 
       if (!res.ok) {
@@ -737,6 +779,8 @@ function DashboardContent() {
         remainingRequests={remainingCredits}
         onRefresh={handleRefresh}
         onQuickScan={handleRefresh}
+        freeTrialRemainingMs={freeTrialRemainingMs}
+        freeTrialActive={freeTrialActive}
       />
 
       {/* Session Refresh Overlay (after checkout) */}
@@ -1183,6 +1227,7 @@ function DashboardContent() {
       <SubscriptionRequiredModal
         isOpen={showSubscriptionModal}
         onClose={() => setShowSubscriptionModal(false)}
+        trialExpired={trialExpiredFlag}
       />
     </div>
   );

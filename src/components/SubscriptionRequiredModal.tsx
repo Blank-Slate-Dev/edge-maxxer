@@ -2,14 +2,15 @@
 'use client';
 
 import { useEffect } from 'react';
-import { X, Lock, Zap, TrendingUp, Shield } from 'lucide-react';
+import { X, Lock, Zap, TrendingUp, Shield, Clock } from 'lucide-react';
 
 interface SubscriptionRequiredModalProps {
   isOpen: boolean;
   onClose: () => void;
+  trialExpired?: boolean;
 }
 
-export function SubscriptionRequiredModal({ isOpen, onClose }: SubscriptionRequiredModalProps) {
+export function SubscriptionRequiredModal({ isOpen, onClose, trialExpired }: SubscriptionRequiredModalProps) {
   // Prevent body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
@@ -74,10 +75,16 @@ export function SubscriptionRequiredModal({ isOpen, onClose }: SubscriptionRequi
           <div 
             className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-5"
             style={{ 
-              backgroundColor: 'color-mix(in srgb, var(--primary) 15%, transparent)',
+              backgroundColor: trialExpired 
+                ? 'color-mix(in srgb, var(--warning) 15%, transparent)'
+                : 'color-mix(in srgb, var(--primary) 15%, transparent)',
             }}
           >
-            <Lock className="w-8 h-8" style={{ color: 'var(--primary)' }} />
+            {trialExpired ? (
+              <Clock className="w-8 h-8" style={{ color: 'var(--warning)' }} />
+            ) : (
+              <Lock className="w-8 h-8" style={{ color: 'var(--primary)' }} />
+            )}
           </div>
 
           {/* Title */}
@@ -85,7 +92,7 @@ export function SubscriptionRequiredModal({ isOpen, onClose }: SubscriptionRequi
             className="text-xl sm:text-2xl font-semibold mb-2"
             style={{ color: 'var(--foreground)' }}
           >
-            Subscription Required
+            {trialExpired ? 'Free Trial Ended' : 'Subscription Required'}
           </h2>
 
           {/* Description */}
@@ -93,7 +100,9 @@ export function SubscriptionRequiredModal({ isOpen, onClose }: SubscriptionRequi
             className="text-sm sm:text-base mb-6"
             style={{ color: 'var(--muted)' }}
           >
-            Unlock the full power of Edge Maxxer&apos;s arbitrage scanner with an active subscription.
+            {trialExpired 
+              ? 'Your 10-minute free trial has ended. Subscribe now to keep finding profitable arbitrage opportunities.'
+              : 'Unlock the full power of Edge Maxxer\u0027s arbitrage scanner with an active subscription.'}
           </p>
 
           {/* Features list */}
@@ -147,7 +156,7 @@ export function SubscriptionRequiredModal({ isOpen, onClose }: SubscriptionRequi
               color: 'white',
             }}
           >
-            View Pricing Plans
+            {trialExpired ? 'Subscribe Now' : 'View Pricing Plans'}
           </button>
 
           {/* Secondary text */}

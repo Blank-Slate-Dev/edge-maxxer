@@ -271,6 +271,32 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
             </p>
           </div>
 
+          {/* Free trial banner (signup only) */}
+          {isOpen === 'signup' && (
+            <div 
+              className="mb-4 p-3 rounded-lg flex items-center gap-3"
+              style={{
+                backgroundColor: 'color-mix(in srgb, var(--success) 10%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--success) 30%, transparent)',
+              }}
+            >
+              <div 
+                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                style={{ backgroundColor: 'color-mix(in srgb, var(--success) 20%, transparent)' }}
+              >
+                <span className="text-base">🎉</span>
+              </div>
+              <div>
+                <div className="text-sm font-medium" style={{ color: 'var(--success)' }}>
+                  10 minutes free — no card required
+                </div>
+                <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                  Try the full scanner instantly after signing up
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Error message */}
           {apiError && (
             <div 
@@ -486,7 +512,7 @@ export function AuthModals({ isOpen, onClose, onSwitch, onAuthSuccess }: AuthMod
                   <span className="text-sm">{isOpen === 'login' ? 'Logging in...' : 'Creating...'}</span>
                 </>
               ) : (
-                isOpen === 'login' ? 'Log in' : 'Create account'
+                isOpen === 'login' ? 'Log in' : 'Create account & start free trial'
               )}
             </button>
           </form>

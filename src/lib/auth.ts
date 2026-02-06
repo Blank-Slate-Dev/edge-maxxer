@@ -5,6 +5,7 @@ import GoogleProvider from 'next-auth/providers/google';
 import bcrypt from 'bcryptjs';
 import dbConnect from '@/lib/mongodb';
 import User from '@/lib/models/User';
+import { FREE_TRIAL_DURATION_MS } from '@/lib/models/User';
 
 // Session duration constants (in seconds)
 const SESSION_MAX_AGE_REMEMBER = 63072000; // 24 months
@@ -15,6 +16,23 @@ const BCRYPT_TARGET_ROUNDS = 10;
 
 // How often to refresh user data from DB (in seconds)
 const USER_DATA_REFRESH_INTERVAL = 900; // 15 minutes
+
+/**
+ * Check if a free trial is still active given its start time.
+ */
+function isFreeTrialActive(freeTrialStartedAt: string | Date | null | undefined): boolean {
+  if (!freeTrialStartedAt) return false;
+  const elapsed = Date.now() - new Date(freeTrialStartedAt).getTime();
+  return elapsed < FREE_TRIAL_DURATION_MS;
+}
+
+/**
+ * Compute the ISO string for when the free trial ends, or undefined.
+ */
+function getFreeTrialEndsAt(freeTrialStartedAt: string | Date | null | undefined): string | undefined {
+  if (!freeTrialStartedAt) return undefined;
+  return new Date(new Date(freeTrialStartedAt).getTime() + FREE_TRIAL_DURATION_MS).toISOString();
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -79,6 +97,7 @@ export const authOptions: NextAuthOptions = {
           subscriptionStatus: user.subscriptionStatus,
           subscriptionEndsAt: user.subscriptionEndsAt?.toISOString() ?? null,
           region: user.region,
+          freeTrialStartedAt: user.freeTrialStartedAt?.toISOString() ?? null,
         };
       },
     }),
@@ -102,6 +121,7 @@ export const authOptions: NextAuthOptions = {
             region: 'AU',
             plan: 'none',
             subscriptionStatus: 'inactive',
+            freeTrialStartedAt: new Date(),
           });
         }
       }
@@ -123,6 +143,7 @@ export const authOptions: NextAuthOptions = {
           subscriptionStatus?: string;
           subscriptionEndsAt?: string | null;
           region?: string;
+          freeTrialStartedAt?: string | null;
         };
 
         if (extUser.plan !== undefined) {
@@ -130,18 +151,20 @@ export const authOptions: NextAuthOptions = {
           token.subscriptionStatus = extUser.subscriptionStatus;
           token.subscriptionEndsAt = extUser.subscriptionEndsAt ?? undefined;
           token.region = extUser.region;
+          token.freeTrialStartedAt = extUser.freeTrialStartedAt ?? undefined;
           token.userDataFetchedAt = Date.now();
         } else if (account?.provider === 'google') {
           try {
             await dbConnect();
             const dbUser = await User.findOne({ email: user.email?.toLowerCase() })
-              .select('plan subscriptionStatus subscriptionEndsAt region')
+              .select('plan subscriptionStatus subscriptionEndsAt region freeTrialStartedAt')
               .lean();
             if (dbUser) {
               token.plan = dbUser.plan;
               token.subscriptionStatus = dbUser.subscriptionStatus;
               token.subscriptionEndsAt = dbUser.subscriptionEndsAt?.toISOString();
               token.region = dbUser.region;
+              token.freeTrialStartedAt = dbUser.freeTrialStartedAt?.toISOString();
             }
           } catch (error) {
             console.error('Failed to fetch user data on Google sign in:', error);
@@ -161,13 +184,14 @@ export const authOptions: NextAuthOptions = {
         try {
           await dbConnect();
           const dbUser = await User.findById(token.id)
-            .select('plan subscriptionStatus subscriptionEndsAt region')
+            .select('plan subscriptionStatus subscriptionEndsAt region freeTrialStartedAt')
             .lean();
           if (dbUser) {
             token.plan = dbUser.plan;
             token.subscriptionStatus = dbUser.subscriptionStatus;
             token.subscriptionEndsAt = dbUser.subscriptionEndsAt?.toISOString();
             token.region = dbUser.region;
+            token.freeTrialStartedAt = dbUser.freeTrialStartedAt?.toISOString();
             token.userDataFetchedAt = Date.now();
           }
         } catch (error) {
@@ -185,13 +209,14 @@ export const authOptions: NextAuthOptions = {
           try {
             await dbConnect();
             const dbUser = await User.findById(token.id)
-              .select('plan subscriptionStatus subscriptionEndsAt region')
+              .select('plan subscriptionStatus subscriptionEndsAt region freeTrialStartedAt')
               .lean();
             if (dbUser) {
               token.plan = dbUser.plan;
               token.subscriptionStatus = dbUser.subscriptionStatus;
               token.subscriptionEndsAt = dbUser.subscriptionEndsAt?.toISOString();
               token.region = dbUser.region;
+              token.freeTrialStartedAt = dbUser.freeTrialStartedAt?.toISOString();
               token.userDataFetchedAt = Date.now();
             }
           } catch (error) {
@@ -202,13 +227,14 @@ export const authOptions: NextAuthOptions = {
         try {
           await dbConnect();
           const dbUser = await User.findById(token.id)
-            .select('plan subscriptionStatus subscriptionEndsAt region')
+            .select('plan subscriptionStatus subscriptionEndsAt region freeTrialStartedAt')
             .lean();
           if (dbUser) {
             token.plan = dbUser.plan;
             token.subscriptionStatus = dbUser.subscriptionStatus;
             token.subscriptionEndsAt = dbUser.subscriptionEndsAt?.toISOString();
             token.region = dbUser.region;
+            token.freeTrialStartedAt = dbUser.freeTrialStartedAt?.toISOString();
           }
         } catch (error) {
           console.error('Failed to backfill user data:', error);
@@ -228,11 +254,21 @@ export const authOptions: NextAuthOptions = {
           token.subscriptionEndsAt as string | undefined;
         (session.user as { region: string }).region = (token.region as string) || 'AU';
         
+        // Free trial fields
+        const freeTrialStartedAt = token.freeTrialStartedAt as string | undefined;
+        (session.user as { freeTrialStartedAt?: string }).freeTrialStartedAt = freeTrialStartedAt;
+        (session.user as { freeTrialEndsAt?: string }).freeTrialEndsAt = getFreeTrialEndsAt(freeTrialStartedAt);
+        
+        const freeTrialActive = isFreeTrialActive(freeTrialStartedAt);
+        (session.user as { freeTrialActive: boolean }).freeTrialActive = freeTrialActive;
+        
+        // hasAccess = paid subscription OR active free trial
         const hasActiveSubscription: boolean = 
           token.subscriptionStatus === 'active' && 
           typeof token.subscriptionEndsAt === 'string' &&
           new Date(token.subscriptionEndsAt) > new Date();
-        (session.user as { hasAccess: boolean }).hasAccess = hasActiveSubscription;
+        
+        (session.user as { hasAccess: boolean }).hasAccess = hasActiveSubscription || freeTrialActive;
       }
       return session;
     },

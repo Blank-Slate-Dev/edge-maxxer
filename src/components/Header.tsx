@@ -7,15 +7,14 @@ import {
   Moon,
   LogOut,
   Settings,
-  Key,
   Eye,
   EyeOff,
-  Check,
   Loader2,
   ExternalLink,
   Zap,
   Menu,
   X,
+  Clock,
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -31,6 +30,8 @@ interface HeaderProps {
   remainingRequests?: number;
   onRefresh: () => void;
   onQuickScan?: () => void;
+  freeTrialRemainingMs?: number;
+  freeTrialActive?: boolean;
 }
 
 export function Header({
@@ -40,41 +41,14 @@ export function Header({
   remainingRequests,
   onRefresh,
   onQuickScan,
+  freeTrialRemainingMs = 0,
+  freeTrialActive = false,
 }: HeaderProps) {
   const { theme, toggleTheme } = useTheme();
   const { data: session } = useSession();
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-
-  // API Key state
-  const [apiKey, setApiKey] = useState('');
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [isSavingKey, setIsSavingKey] = useState(false);
-  const [keySaveSuccess, setKeySaveSuccess] = useState(false);
-  const [keyError, setKeyError] = useState('');
-  const [hasLoadedKey, setHasLoadedKey] = useState(false);
-
-  // Load API key on mount
-  useEffect(() => {
-    const fetchApiKey = async () => {
-      try {
-        const res = await fetch('/api/settings');
-        if (res.ok) {
-          const data = await res.json();
-          setApiKey(data.oddsApiKey || '');
-        }
-      } catch (err) {
-        console.error('Failed to fetch API key:', err);
-      } finally {
-        setHasLoadedKey(true);
-      }
-    };
-
-    if (session) {
-      fetchApiKey();
-    }
-  }, [session]);
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -116,35 +90,24 @@ export function Header({
     await signOut({ callbackUrl: '/' });
   };
 
-  const handleSaveApiKey = async () => {
-    setIsSavingKey(true);
-    setKeyError('');
-    setKeySaveSuccess(false);
+  const subscription = (session?.user as { subscription?: string })?.subscription;
 
-    try {
-      const res = await fetch('/api/settings', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ oddsApiKey: apiKey }),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Failed to save');
-      }
-
-      setKeySaveSuccess(true);
-      setTimeout(() => setKeySaveSuccess(false), 2000);
-    } catch (err) {
-      setKeyError(err instanceof Error ? err.message : 'Failed to save');
-      setTimeout(() => setKeyError(''), 3000);
-    } finally {
-      setIsSavingKey(false);
-    }
+  // Format free trial remaining time as M:SS
+  const formatTrialRemaining = (ms: number) => {
+    const totalSeconds = Math.ceil(ms / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
-  const subscription = (session?.user as { subscription?: string })?.subscription;
-  const isKeyEmpty = !apiKey || apiKey.trim() === '';
+  // Determine trial countdown color
+  const getTrialColor = (ms: number) => {
+    if (ms <= 30000) return '#ef4444'; // red at 30s
+    if (ms <= 60000) return '#f97316'; // orange at 1m
+    return '#22c55e'; // green otherwise
+  };
+
+  const trialColor = getTrialColor(freeTrialRemainingMs);
 
   return (
     <>
@@ -185,93 +148,61 @@ export function Header({
               )}
             </div>
 
-            {/* Center: API Key Input (desktop only) */}
-            {hasLoadedKey && (
-              <div className="hidden lg:flex items-center gap-2 flex-1 max-w-md">
-                <div className="flex items-center gap-2 flex-1">
-                  <div
-                    className="flex items-center gap-2 px-3 py-1.5 rounded-lg flex-1"
-                    style={{
-                      backgroundColor: 'var(--surface)',
-                      border: `1px solid ${
-                        keyError ? 'var(--danger)' : keySaveSuccess ? '#22c55e' : 'var(--border)'
-                      }`,
-                    }}
+            {/* Center: Free Trial Countdown (when active) */}
+            {freeTrialActive && freeTrialRemainingMs > 0 && (
+              <div className="hidden lg:flex items-center gap-2">
+                <div
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+                  style={{
+                    backgroundColor: `color-mix(in srgb, ${trialColor} 10%, transparent)`,
+                    border: `1px solid color-mix(in srgb, ${trialColor} 40%, transparent)`,
+                  }}
+                >
+                  <Clock className="w-3.5 h-3.5 shrink-0" style={{ color: trialColor }} />
+                  <span className="text-xs font-medium" style={{ color: trialColor }}>
+                    Free Trial
+                  </span>
+                  <span
+                    className="font-mono text-sm font-semibold tabular-nums"
+                    style={{ color: trialColor }}
                   >
-                    <Key className="w-3.5 h-3.5 shrink-0" style={{ color: 'var(--muted)' }} />
-                    <input
-                      id="odds-api-key"
-                      name="odds-api-key"
-                      type={showApiKey ? 'text' : 'password'}
-                      value={apiKey}
-                      onChange={(e) => setApiKey(e.target.value)}
-                      placeholder="Enter Odds API key"
-                      autoComplete="off"
-                      className="flex-1 bg-transparent text-xs font-mono outline-none min-w-0"
-                      style={{ color: 'var(--foreground)' }}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                      className="shrink-0 transition-opacity hover:opacity-60"
-                      style={{ color: 'var(--muted)' }}
-                    >
-                      {showApiKey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
-
-                  <button
-                    onClick={handleSaveApiKey}
-                    disabled={isSavingKey}
-                    className="shrink-0 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all hover:opacity-90 disabled:opacity-50"
-                    style={{
-                      backgroundColor: keySaveSuccess ? '#22c55e' : 'var(--foreground)',
-                      color: 'var(--background)',
-                    }}
-                  >
-                    {isSavingKey ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : keySaveSuccess ? (
-                      <Check className="w-3.5 h-3.5" />
-                    ) : (
-                      'Save'
-                    )}
-                  </button>
+                    {formatTrialRemaining(freeTrialRemainingMs)}
+                  </span>
                 </div>
-
-                {/* API Calls Remaining / Get Key Link */}
-                <div className="shrink-0 flex items-center gap-2">
-                  {remainingRequests !== undefined && !isKeyEmpty ? (
-                    <span
-                      className="text-xs font-mono px-2 py-1 rounded whitespace-nowrap"
-                      style={{
-                        backgroundColor: remainingRequests < 100 ? 'var(--warning-muted)' : 'var(--surface)',
-                        color: remainingRequests < 100 ? 'var(--warning)' : 'var(--muted)',
-                      }}
-                    >
-                      {remainingRequests} left
-                    </span>
-                  ) : isKeyEmpty ? (
-                    <a
-                      href="https://the-odds-api.com/#get-access"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-xs font-medium px-2 py-1 rounded whitespace-nowrap transition-opacity hover:opacity-70"
-                      style={{
-                        backgroundColor: 'color-mix(in srgb, #22c55e 15%, transparent)',
-                        color: '#22c55e',
-                      }}
-                    >
-                      Get free key
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  ) : null}
-                </div>
+                <a
+                  href="https://www.edgemaxxer.com/#pricing"
+                  className="text-xs font-medium px-2.5 py-1.5 rounded-lg transition-all hover:opacity-90"
+                  style={{
+                    backgroundColor: trialColor,
+                    color: 'white',
+                  }}
+                >
+                  Subscribe
+                </a>
               </div>
             )}
 
             {/* Right Side Actions */}
             <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+              {/* Free Trial Countdown - Mobile/Tablet (compact) */}
+              {freeTrialActive && freeTrialRemainingMs > 0 && (
+                <div
+                  className="flex items-center gap-1.5 px-2 py-1 rounded-lg lg:hidden"
+                  style={{
+                    backgroundColor: `color-mix(in srgb, ${trialColor} 10%, transparent)`,
+                    border: `1px solid color-mix(in srgb, ${trialColor} 40%, transparent)`,
+                  }}
+                >
+                  <Clock className="w-3 h-3" style={{ color: trialColor }} />
+                  <span
+                    className="font-mono text-xs font-semibold tabular-nums"
+                    style={{ color: trialColor }}
+                  >
+                    {formatTrialRemaining(freeTrialRemainingMs)}
+                  </span>
+                </div>
+              )}
+
               {/* Mock Data Indicator - hide on mobile */}
               {isUsingMockData && (
                 <span
@@ -282,19 +213,6 @@ export function Header({
                   }}
                 >
                   Demo
-                </span>
-              )}
-
-              {/* API Remaining - Mobile only (compact) */}
-              {remainingRequests !== undefined && !isKeyEmpty && (
-                <span
-                  className="text-[10px] sm:text-xs font-mono px-1.5 sm:px-2 py-1 rounded lg:hidden"
-                  style={{
-                    backgroundColor: remainingRequests < 100 ? 'var(--warning-muted)' : 'var(--surface)',
-                    color: remainingRequests < 100 ? 'var(--warning)' : 'var(--muted)',
-                  }}
-                >
-                  {remainingRequests}
                 </span>
               )}
 
@@ -502,81 +420,33 @@ export function Header({
               </div>
             )}
 
-            {/* API Key Section */}
-            {hasLoadedKey && (
-              <div className="px-4 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
-                <label
-                  htmlFor="odds-api-key-mobile"
-                  className="block text-xs font-medium mb-2"
-                  style={{ color: 'var(--muted)' }}
-                >
-                  Odds API Key
-                </label>
-                <div
-                  className="flex items-center gap-2 px-3 py-2 rounded-lg mb-2"
-                  style={{
-                    backgroundColor: 'var(--surface)',
-                    border: `1px solid ${
-                      keyError ? 'var(--danger)' : keySaveSuccess ? '#22c55e' : 'var(--border)'
-                    }`,
-                  }}
-                >
-                  <Key className="w-4 h-4 shrink-0" style={{ color: 'var(--muted)' }} />
-                  <input
-                    id="odds-api-key-mobile"
-                    name="odds-api-key-mobile"
-                    type={showApiKey ? 'text' : 'password'}
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    placeholder="Enter API key"
-                    autoComplete="off"
-                    className="flex-1 bg-transparent text-sm font-mono outline-none min-w-0"
-                    style={{ color: 'var(--foreground)' }}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowApiKey(!showApiKey)}
-                    className="shrink-0 p-1"
-                    style={{ color: 'var(--muted)' }}
-                  >
-                    {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={handleSaveApiKey}
-                    disabled={isSavingKey}
-                    className="flex-1 py-2 text-sm font-medium rounded-lg transition-all hover:opacity-90 disabled:opacity-50"
+            {/* Free Trial Notice (mobile drawer) */}
+            {freeTrialActive && freeTrialRemainingMs > 0 && (
+              <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4" style={{ color: trialColor }} />
+                    <span className="text-sm font-medium" style={{ color: trialColor }}>
+                      Free Trial
+                    </span>
+                    <span
+                      className="font-mono text-sm font-semibold tabular-nums"
+                      style={{ color: trialColor }}
+                    >
+                      {formatTrialRemaining(freeTrialRemainingMs)}
+                    </span>
+                  </div>
+                  <a
+                    href="https://www.edgemaxxer.com/#pricing"
+                    className="text-xs font-medium px-2.5 py-1.5 rounded-lg"
                     style={{
-                      backgroundColor: keySaveSuccess ? '#22c55e' : 'var(--foreground)',
-                      color: 'var(--background)',
+                      backgroundColor: trialColor,
+                      color: 'white',
                     }}
                   >
-                    {isSavingKey ? 'Saving...' : keySaveSuccess ? 'Saved!' : 'Save Key'}
-                  </button>
-
-                  {isKeyEmpty && (
-                    <a
-                      href="https://the-odds-api.com/#get-access"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-1 text-xs font-medium px-3 py-2 rounded-lg"
-                      style={{
-                        backgroundColor: 'color-mix(in srgb, #22c55e 15%, transparent)',
-                        color: '#22c55e',
-                      }}
-                    >
-                      Get key
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  )}
+                    Subscribe
+                  </a>
                 </div>
-
-                {remainingRequests !== undefined && !isKeyEmpty && (
-                  <p className="text-xs mt-2" style={{ color: 'var(--muted)' }}>
-                    {remainingRequests} API calls remaining
-                  </p>
-                )}
               </div>
             )}
 
