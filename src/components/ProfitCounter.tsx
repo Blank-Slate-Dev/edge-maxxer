@@ -1,7 +1,7 @@
 // src/components/ProfitCounter.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 
 // =========================================================================
 // PERFORMANCE FIX: Reduced default polling from 5s to 15s.
@@ -25,13 +25,44 @@ export function ProfitCounter({
   initialValue = 0, 
   refreshInterval = 15000
 }: ProfitCounterProps) {
-  const [displayValue, setDisplayValue] = useState<number | null>(null);
+  const [displayValue, setDisplayValue] = useState(0);
   const [floatingAmount, setFloatingAmount] = useState<number | null>(null);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const [hasInitialAnimated, setHasInitialAnimated] = useState(false);
   const previousValue = useRef<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+
+  // Smooth count-up animation helper
+  const animateToValue = useCallback((from: number, to: number, duration: number, onComplete?: () => void) => {
+    // Cancel any in-progress animation
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
+
+    const startTime = performance.now();
+    
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      // Cubic ease-out for smooth deceleration
+      const easeOut = 1 - Math.pow(1 - progress, 3);
+      const value = from + (to - from) * easeOut;
+      setDisplayValue(value);
+      
+      if (progress < 1) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+      } else {
+        setDisplayValue(to);
+        animationFrameRef.current = null;
+        onComplete?.();
+      }
+    };
+    
+    animationFrameRef.current = requestAnimationFrame(animate);
+  }, []);
 
   // Only start polling when visible in viewport
   useEffect(() => {
@@ -67,36 +98,41 @@ export function ProfitCounter({
           const data = await res.json();
           const newValue = data.totalProfit;
           
-          // Check if value increased
+          // First load: count up from 0 to the fetched value
+          if (!hasInitialAnimated && previousValue.current === null) {
+            previousValue.current = newValue;
+            setHasInitialAnimated(true);
+            
+            if (newValue > 0) {
+              // Longer animation for the initial dramatic count-up
+              animateToValue(0, newValue, 2500);
+            } else {
+              setDisplayValue(newValue);
+            }
+            return;
+          }
+          
+          // Subsequent updates: animate if value increased
           if (previousValue.current !== null && newValue > previousValue.current) {
             const difference = newValue - previousValue.current;
             
             // Show floating amount
             setFloatingAmount(difference);
             setIsAnimating(true);
-            // Animate counter
-            const startValue = previousValue.current;
-            const duration = 1500;
-            const startTime = performance.now();
-            const animate = (currentTime: number) => {
-              const elapsed = currentTime - startTime;
-              const progress = Math.min(elapsed / duration, 1);
-              const easeOut = 1 - Math.pow(1 - progress, 3);
-              const value = startValue + (newValue - startValue) * easeOut;
-              setDisplayValue(value);
-              if (progress < 1) {
-                requestAnimationFrame(animate);
-              }
-            };
-            requestAnimationFrame(animate);
+            
+            // Animate counter from old to new
+            animateToValue(previousValue.current, newValue, 1500);
+            
             // Hide floating amount after 4 seconds
             setTimeout(() => {
               setFloatingAmount(null);
               setIsAnimating(false);
             }, 4000);
-          } else {
+          } else if (previousValue.current !== null && newValue !== previousValue.current) {
+            // Value changed but didn't increase (e.g. correction) — just set it
             setDisplayValue(newValue);
           }
+          
           previousValue.current = newValue;
         }
       } catch (err) {
@@ -114,15 +150,22 @@ export function ProfitCounter({
         intervalRef.current = null;
       }
     };
-  }, [refreshInterval, isVisible]);
+  }, [refreshInterval, isVisible, hasInitialAnimated, animateToValue]);
+
+  // Cleanup animation frame on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, []);
 
   // Format the display value
-  const formattedValue = displayValue !== null 
-    ? displayValue.toLocaleString('en-US', { 
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2 
-      })
-    : '0.00';
+  const formattedValue = displayValue.toLocaleString('en-US', { 
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2 
+  });
 
   return (
     <div ref={containerRef} className="relative inline-flex flex-col items-center">

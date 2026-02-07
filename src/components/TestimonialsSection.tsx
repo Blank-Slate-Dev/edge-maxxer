@@ -231,25 +231,21 @@ function TestimonialCard({ testimonial, delay, className = '' }: { testimonial: 
 }
 
 // =========================================================================
-// PERFORMANCE FIX: Reduced polling from every 5 seconds to every 30 seconds.
+// PERFORMANCE FIX: Stats now fetch immediately on component mount so the
+// header ("Trusted by 22+ Bettors") and stats row render without waiting
+// for the stats box to scroll into view.
 //
-// Previously this component AND ProfitCounter both polled /api/global-stats
-// every 5 seconds — meaning every visitor on the landing page was making
-// 24 API requests per minute just for cosmetic counters. This adds latency,
-// increases Vercel function invocations (cost), and the stats barely change
-// at that frequency anyway.
-//
-// Changed to:
-// - Initial fetch on mount (still instant)
-// - Refresh every 30 seconds (was 5s) — stats don't change that fast
-// - Only start polling when the section is visible (IntersectionObserver)
+// Polling still only starts when the stats box is visible (30s interval).
+// The IntersectionObserver on the stats box now just controls polling,
+// not the initial data fetch.
 // =========================================================================
 
 export function TestimonialsSection() {
   const [stats, setStats] = useState<GlobalStats | null>(null);
-  const [isVisible, setIsVisible] = useState(false);
-  const sectionRef = useRef<HTMLDivElement>(null);
+  const [isStatsBoxVisible, setIsStatsBoxVisible] = useState(false);
+  const statsBoxRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const hasFetchedRef = useRef(false);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -266,23 +262,41 @@ export function TestimonialsSection() {
     }
   }, []);
 
-  // Intersection observer — only fetch and start polling when visible
+  // Fetch stats immediately on mount so header text loads fast
+  useEffect(() => {
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      fetchStats();
+    }
+  }, [fetchStats]);
+
+  // Start polling only when the stats box is visible in the viewport
   useEffect(() => {
     const observer = new IntersectionObserver(
       ([entry]) => {
-        if (entry.isIntersecting && !isVisible) {
-          setIsVisible(true);
-          // Fetch immediately when section becomes visible
+        const nowVisible = entry.isIntersecting;
+        setIsStatsBoxVisible(nowVisible);
+
+        if (nowVisible) {
+          // Refresh immediately when scrolled into view
           fetchStats();
-          // Start polling at a reasonable interval (30s instead of 5s)
-          intervalRef.current = setInterval(fetchStats, 30000);
+          // Start polling
+          if (!intervalRef.current) {
+            intervalRef.current = setInterval(fetchStats, 30000);
+          }
+        } else {
+          // Stop polling when scrolled away
+          if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+          }
         }
       },
       { threshold: 0.1 }
     );
 
-    if (sectionRef.current) {
-      observer.observe(sectionRef.current);
+    if (statsBoxRef.current) {
+      observer.observe(statsBoxRef.current);
     }
 
     return () => {
@@ -291,22 +305,22 @@ export function TestimonialsSection() {
         clearInterval(intervalRef.current);
       }
     };
-  }, [fetchStats, isVisible]);
+  }, [fetchStats]);
 
-  // Animated values
+  // Animated values — animate once stats are loaded
   const animatedUsers = useAnimatedCount(
     stats?.totalUsers || 0, 
     1500, 
-    isVisible && stats !== null
+    isStatsBoxVisible && stats !== null
   );
   
   const animatedProfit = useAnimatedCount(
     stats?.totalProfit || 0, 
     1500, 
-    isVisible && stats !== null
+    isStatsBoxVisible && stats !== null
   );
 
-  // Dynamic header text
+  // Dynamic header text — available immediately after first fetch
   const headerText = stats && stats.totalUsers > 0 
     ? `Trusted by ${formatUserCount(stats.totalUsers)} Bettors`
     : 'Trusted by Bettors Worldwide';
@@ -344,7 +358,7 @@ export function TestimonialsSection() {
 
         {/* Social proof stats */}
         <div 
-          ref={sectionRef}
+          ref={statsBoxRef}
           className="mt-12 sm:mt-20 p-4 sm:p-8 rounded-2xl border"
           style={{ 
             backgroundColor: 'var(--surface)',
