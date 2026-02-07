@@ -233,12 +233,14 @@ function ArbCard({
               name={opp.outcome1.name}
               odds={opp.outcome1.odds}
               bookmaker={opp.outcome1.bookmaker}
+              bookmakerKey={opp.outcome1.bookmakerKey}
               showRegion={globalMode}
             />
             <BetLineMobile
               name={opp.outcome2.name}
               odds={opp.outcome2.odds}
               bookmaker={opp.outcome2.bookmaker}
+              bookmakerKey={opp.outcome2.bookmakerKey}
               showRegion={globalMode}
             />
             {opp.outcome3 && (
@@ -246,6 +248,7 @@ function ArbCard({
                 name={opp.outcome3.name}
                 odds={opp.outcome3.odds}
                 bookmaker={opp.outcome3.bookmaker}
+                bookmakerKey={opp.outcome3.bookmakerKey}
                 showRegion={globalMode}
               />
             )}
@@ -256,6 +259,7 @@ function ArbCard({
               name={`Back ${opp.backOutcome.name}`}
               odds={opp.backOutcome.odds}
               bookmaker={opp.backOutcome.bookmaker}
+              bookmakerKey={opp.backOutcome.bookmakerKey}
               showRegion={globalMode}
             />
             <div className="flex items-center justify-between">
@@ -298,19 +302,21 @@ function BetLineMobile({
   name,
   odds,
   bookmaker,
+  bookmakerKey,
   showRegion,
 }: {
   name: string;
   odds: number;
   bookmaker: string;
+  bookmakerKey: string;
   showRegion?: boolean;
 }) {
-  const href = buildBookmakerSearchUrl(bookmaker, {}) || undefined;
+  const href = buildBookmakerSearchUrl(bookmakerKey, {}) || buildBookmakerSearchUrl(bookmaker, {}) || undefined;
 
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0">
-        <BookLogo bookKey={bookmaker} size={24} />
+        <BookLogo bookKey={bookmakerKey} size={24} />
         <div className="min-w-0">
           <div className="font-medium text-sm truncate" style={{ color: 'var(--foreground)' }}>
             {name}
@@ -318,12 +324,12 @@ function BetLineMobile({
           <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
             {href ? (
               <a href={href} target="_blank" rel="noreferrer" className="hover:underline truncate">
-                {getBookmakerName(bookmaker)}
+                {getBookmakerName(bookmakerKey)}
               </a>
             ) : (
-              <span className="truncate">{getBookmakerName(bookmaker)}</span>
+              <span className="truncate">{getBookmakerName(bookmakerKey)}</span>
             )}
-            {showRegion && <RegionBadge bookmaker={bookmaker} />}
+            {showRegion && <RegionBadge bookmaker={bookmakerKey} />}
           </div>
         </div>
       </div>
@@ -383,12 +389,14 @@ function ArbRow({
               name={opp.outcome1.name}
               odds={opp.outcome1.odds}
               bookmaker={opp.outcome1.bookmaker}
+              bookmakerKey={opp.outcome1.bookmakerKey}
               showRegion={globalMode}
             />
             <BetLine
               name={opp.outcome2.name}
               odds={opp.outcome2.odds}
               bookmaker={opp.outcome2.bookmaker}
+              bookmakerKey={opp.outcome2.bookmakerKey}
               showRegion={globalMode}
             />
             {opp.outcome3 && (
@@ -396,6 +404,7 @@ function ArbRow({
                 name={opp.outcome3.name}
                 odds={opp.outcome3.odds}
                 bookmaker={opp.outcome3.bookmaker}
+                bookmakerKey={opp.outcome3.bookmakerKey}
                 showRegion={globalMode}
               />
             )}
@@ -406,6 +415,7 @@ function ArbRow({
               name={`Back ${opp.backOutcome.name}`}
               odds={opp.backOutcome.odds}
               bookmaker={opp.backOutcome.bookmaker}
+              bookmakerKey={opp.backOutcome.bookmakerKey}
               showRegion={globalMode}
             />
             <div className="flex items-center gap-2">
@@ -457,18 +467,20 @@ function BetLine({
   name,
   odds,
   bookmaker,
+  bookmakerKey,
   showRegion,
 }: {
   name: string;
   odds: number;
   bookmaker: string;
+  bookmakerKey: string;
   showRegion?: boolean;
 }) {
-  const href = buildBookmakerSearchUrl(bookmaker, {}) || undefined;
+  const href = buildBookmakerSearchUrl(bookmakerKey, {}) || buildBookmakerSearchUrl(bookmaker, {}) || undefined;
 
   return (
     <div className="flex items-center gap-2">
-      <BookLogo bookKey={bookmaker} size={28} />
+      <BookLogo bookKey={bookmakerKey} size={28} />
       <div>
         <div className="flex items-center gap-2">
           <span className="font-medium" style={{ color: 'var(--foreground)' }}>
@@ -482,12 +494,12 @@ function BetLine({
         <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
           {href ? (
             <a href={href} target="_blank" rel="noreferrer" className="hover:underline">
-              {getBookmakerName(bookmaker)}
+              {getBookmakerName(bookmakerKey)}
             </a>
           ) : (
-            <span>{getBookmakerName(bookmaker)}</span>
+            <span>{getBookmakerName(bookmakerKey)}</span>
           )}
-          {showRegion && <RegionBadge bookmaker={bookmaker} />}
+          {showRegion && <RegionBadge bookmaker={bookmakerKey} />}
         </div>
       </div>
     </div>
