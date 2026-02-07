@@ -1,7 +1,7 @@
 // src/components/BookLogo.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getBookmakerByKeyOrName, getBookmakerAbbr, getLogoPath } from '@/lib/bookmakers';
 import { getBookmakerUrl } from '@/lib/bookmakerLinks';
 
@@ -43,6 +43,7 @@ export function BookLogo({ bookKey, size = 24, className = '', linkEnabled = tru
 
   // Track the previous key to detect actual changes
   const prevKeyRef = useRef<string>(actualKey);
+  const imgRef = useRef<HTMLImageElement | null>(null);
 
   const bgColor = bookmaker?.color || '#333';
   const textColor = bookmaker?.textColor || '#fff';
@@ -68,17 +69,28 @@ export function BookLogo({ bookKey, size = 24, className = '', linkEnabled = tru
     }
   }, [actualKey]);
 
-  const handleLoad = () => {
+  // Check if the image is already loaded from browser cache after mount
+  // This handles the case where onLoad fires before React attaches the handler
+  useEffect(() => {
+    const img = imgRef.current;
+    if (img && img.complete && img.naturalWidth > 0 && !imgLoaded && !imgError) {
+      loadedLogosCache.add(actualKey);
+      failedLogosCache.delete(actualKey);
+      setImgLoaded(true);
+    }
+  }, [actualKey, imgLoaded, imgError]);
+
+  const handleLoad = useCallback(() => {
     loadedLogosCache.add(actualKey);
     failedLogosCache.delete(actualKey);
     setImgLoaded(true);
-  };
+  }, [actualKey]);
 
-  const handleError = () => {
+  const handleError = useCallback(() => {
     failedLogosCache.add(actualKey);
     loadedLogosCache.delete(actualKey);
     setImgError(true);
-  };
+  }, [actualKey]);
 
   const showFallback = !bookmaker || imgError || !imgLoaded;
 
@@ -91,6 +103,7 @@ export function BookLogo({ bookKey, size = 24, className = '', linkEnabled = tru
       {bookmaker && !imgError && (
         // eslint-disable-next-line @next/next/no-img-element
         <img
+          ref={imgRef}
           src={logoPath}
           alt={bookmaker.name}
           width={size}
@@ -104,7 +117,7 @@ export function BookLogo({ bookKey, size = 24, className = '', linkEnabled = tru
           onLoad={handleLoad}
           onError={handleError}
           loading="eager"
-          decoding="async"
+          decoding="sync"
           title={bookmaker.name}
         />
       )}
