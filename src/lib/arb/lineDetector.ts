@@ -86,6 +86,104 @@ interface SpreadResult {
 }
 
 /**
+ * Build a human-readable description of the spread middle zone.
+ * 
+ * Given the favorite's line (e.g., -7.5) and the underdog's line (e.g., +8.5),
+ * the middle hits when the favorite wins by a margin strictly between the two
+ * absolute values. For half-point lines this means whole numbers; for whole-number
+ * lines it includes half-point possibilities (pushes on one side).
+ * 
+ * Examples:
+ *   -7.5 / +8.5  →  "wins by exactly 8"
+ *   -3.5 / +6.5  →  "wins by 4, 5, or 6"
+ *   -5   / +8    →  "wins by 6 or 7"  (5 and 8 push one side)
+ *   -2.5 / +3.5  →  "wins by exactly 3"
+ */
+function buildSpreadMiddleDescription(
+  favTeam: string,
+  favLine: number,   // e.g., -7.5 (negative)
+  underdogLine: number // e.g., +8.5 (positive)
+): string {
+  const low = Math.abs(favLine);   // 7.5
+  const high = underdogLine;        // 8.5
+
+  // The winning margins that hit the middle are whole numbers
+  // strictly greater than low and strictly less than high
+  const firstMiddle = Math.ceil(low + 0.001);  // First integer above low (handles exact integers: ceil(7.5) = 8, ceil(7.001) = 8)
+  const lastMiddle = Math.floor(high - 0.001); // Last integer below high (handles exact integers: floor(8.5) = 8, floor(8.0 - 0.001) = 7)
+
+  if (firstMiddle > lastMiddle) {
+    // Shouldn't happen if middleSize > 0, but safety fallback
+    return `${favTeam} wins by ${low} to ${high}`;
+  }
+
+  const middleValues: number[] = [];
+  for (let v = firstMiddle; v <= lastMiddle; v++) {
+    middleValues.push(v);
+  }
+
+  if (middleValues.length === 0) {
+    return `${favTeam} wins by ${low} to ${high}`;
+  }
+
+  if (middleValues.length === 1) {
+    return `${favTeam} wins by exactly ${middleValues[0]}`;
+  }
+
+  if (middleValues.length === 2) {
+    return `${favTeam} wins by ${middleValues[0]} or ${middleValues[1]}`;
+  }
+
+  // 3+ values: "wins by 4, 5, 6, or 7"
+  const last = middleValues.pop()!;
+  return `${favTeam} wins by ${middleValues.join(', ')}, or ${last}`;
+}
+
+/**
+ * Build a human-readable description of the totals middle zone.
+ * 
+ * Given Over lowLine and Under highLine, the middle hits when the total
+ * score lands strictly between the two lines.
+ * 
+ * Examples:
+ *   Over 198.5 / Under 201.5  →  "Total score of 199, 200, or 201"
+ *   Over 42.5  / Under 44.5   →  "Total score of 43 or 44"
+ *   Over 42.5  / Under 43.5   →  "Total score of exactly 43"
+ */
+function buildTotalsMiddleDescription(
+  lowLine: number,
+  highLine: number
+): string {
+  const firstMiddle = Math.ceil(lowLine + 0.001);
+  const lastMiddle = Math.floor(highLine - 0.001);
+
+  if (firstMiddle > lastMiddle) {
+    return `Total lands between ${lowLine} and ${highLine}`;
+  }
+
+  const middleValues: number[] = [];
+  for (let v = firstMiddle; v <= lastMiddle; v++) {
+    middleValues.push(v);
+  }
+
+  if (middleValues.length === 0) {
+    return `Total lands between ${lowLine} and ${highLine}`;
+  }
+
+  if (middleValues.length === 1) {
+    return `Total score of exactly ${middleValues[0]}`;
+  }
+
+  if (middleValues.length === 2) {
+    return `Total score of ${middleValues[0]} or ${middleValues[1]}`;
+  }
+
+  // 3+ values
+  const last = middleValues.pop()!;
+  return `Total score of ${middleValues.join(', ')}, or ${last}`;
+}
+
+/**
  * Find spread/line arbs within a single event
  */
 function findSpreadArbs(
@@ -256,6 +354,11 @@ function findSpreadArbs(
 
         const underdogTeam = teams.find(t => t !== favTeam) || teams[1];
 
+        // Calculate the actual whole-number middle values for display
+        const middleFirst = Math.ceil(middleLow + 0.001);
+        const middleLast = Math.floor(middleHigh - 0.001);
+        const middleCount = Math.max(0, middleLast - middleFirst + 1);
+
         middles.push({
           mode: 'middle',
           type: 'middle',
@@ -278,7 +381,11 @@ function findSpreadArbs(
           middleRange: {
             low: middleLow,
             high: middleHigh,
-            description: `${favTeam} wins by ${middleLow + 1} to ${middleHigh}`,
+            description: buildSpreadMiddleDescription(
+              favTeam,
+              favoriteAtLowLine.point,
+              underdogAtHighLine.point
+            ),
           },
           guaranteedLoss: lossIfMiss,
           potentialProfit: profitIfMiddle,
@@ -451,7 +558,7 @@ function findTotalsArbs(
           middleRange: {
             low: lowLine,
             high: highLine,
-            description: `Total lands between ${lowLine} and ${highLine}`,
+            description: buildTotalsMiddleDescription(lowLine, highLine),
           },
           guaranteedLoss: lossIfMiss,
           potentialProfit: profitIfMiddle,
