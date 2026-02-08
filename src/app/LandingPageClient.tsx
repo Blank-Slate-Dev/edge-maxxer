@@ -847,8 +847,8 @@ export function LandingPageClient() {
                 a: 'All profitable bettors face limiting eventually. Our stealth mode helps you stay under the radar longer by randomizing stakes and suggesting distribution strategies.',
               },
               {
-                q: 'What is the BYOK model?',
-                a: 'Bring Your Own Key. You get a free API key from The Odds API, which lets us keep prices 10x lower than competitors who charge for API costs.',
+                q: 'Do I need my own API key?',
+                a: 'No. Unlike other platforms, everything is included — we handle all the data feeds so you can focus on placing bets. No setup, no extra costs.',
               },
               {
                 q: 'Which bookmakers do you support?',
