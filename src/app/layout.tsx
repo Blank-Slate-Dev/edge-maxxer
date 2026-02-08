@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import { ThemeProvider } from '@/contexts/ThemeContext';
 import AuthProvider from '@/components/AuthProvider';
+import { Analytics } from '@vercel/analytics/next';
 import './globals.css';
 
 // Optimized font loading with display swap to prevent layout shift
@@ -16,16 +17,16 @@ const inter = Inter({
 // Comprehensive metadata for SEO
 export const metadata: Metadata = {
   metadataBase: new URL('https://www.edgemaxxer.com'),
-  
+
   // Title configuration with template
   title: {
     template: '%s | Edge Maxxer - Sports Arbitrage Australia',
     default: 'Edge Maxxer - Find Arbitrage Betting Opportunities Across 80+ Sportsbooks',
   },
-  
+
   // Primary description targeting key search terms
   description: 'Discover guaranteed profit opportunities with Australia\'s most affordable arbitrage betting scanner. Real-time odds comparison across 80+ sportsbooks including Sportsbet, TAB, Bet365 & Ladbrokes. Find sure bets in seconds.',
-  
+
   // Keywords for search engines (while less important now, still useful)
   keywords: [
     'arbitrage betting Australia',
@@ -42,17 +43,17 @@ export const metadata: Metadata = {
     'AFL arbitrage betting',
     'NRL arbitrage betting',
   ],
-  
+
   // Author and creator information
   authors: [{ name: 'Edge Maxxer' }],
   creator: 'Edge Maxxer',
   publisher: 'Edge Maxxer',
-  
+
   // Canonical URL handling
   alternates: {
     canonical: '/',
   },
-  
+
   // Open Graph metadata for social sharing
   openGraph: {
     type: 'website',
@@ -71,7 +72,7 @@ export const metadata: Metadata = {
       },
     ],
   },
-  
+
   // Twitter Card metadata
   twitter: {
     card: 'summary_large_image',
@@ -80,7 +81,7 @@ export const metadata: Metadata = {
     images: ['/twitter-image.png'],
     creator: '@edgemaxxer',
   },
-  
+
   // Robot directives
   robots: {
     index: true,
@@ -95,16 +96,16 @@ export const metadata: Metadata = {
       'max-snippet': -1,
     },
   },
-  
+
   // Verification codes (add your actual codes)
   verification: {
     google: 'your-google-site-verification-code', // Replace with actual code from Google Search Console
   },
-  
+
   // App-specific metadata
   applicationName: 'Edge Maxxer',
   category: 'Sports Betting Tools',
-  
+
   // Additional metadata
   other: {
     'mobile-web-app-capable': 'yes',
@@ -284,26 +285,6 @@ const faqSchema = {
   ],
 };
 
-// =========================================================================
-// PERFORMANCE FIX: Removed `getServerSession(authOptions)` from this layout.
-//
-// Why this was slow:
-// - getServerSession() calls the `jwt` callback in auth.ts on every request
-// - That callback hits MongoDB (via dbConnect + User.findById) to refresh
-//   user data every 5 minutes, but the CONNECTION itself still takes ~100-300ms
-//   per cold start on Vercel serverless
-// - This blocked ALL HTML delivery for EVERY page (landing page included)
-// - Visitors who aren't even logged in were waiting for a MongoDB round-trip
-//
-// The fix:
-// - SessionProvider works fine without a server-prefetched session — it will
-//   fetch the session client-side via /api/auth/session on first load
-// - For logged-in users, the JWT is in a cookie so the session fetch is fast
-// - For visitors (landing page), no session fetch happens at all because
-//   useSession() returns { status: 'unauthenticated' } from the cookie check
-// - Net effect: HTML arrives ~200-500ms faster for every single page load
-// =========================================================================
-
 export default function RootLayout({
   children,
 }: {
@@ -315,23 +296,15 @@ export default function RootLayout({
         {/* Preconnect to critical third-party origins */}
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        
-        {/* 
-          PERFORMANCE FIX: Flag icons CSS is now loaded locally via npm package
-          imported in globals.css (@import "flag-icons/css/flag-icons.min.css").
-          No external CDN link needed — eliminates Edge tracking prevention errors.
-        */}
-        
+
         {/* Favicon and app icons */}
         <link rel="icon" href="/favicon.ico" sizes="any" />
         <link rel="icon" href="/icon.png" type="image/png" />
         <link rel="apple-touch-icon" href="/icon.png" />
-        
+
         {/* Theme script to prevent flash */}
-        <script
-          dangerouslySetInnerHTML={{ __html: themeScript }}
-        />
-        
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+
         {/* JSON-LD Structured Data */}
         <script
           type="application/ld+json"
@@ -351,6 +324,9 @@ export default function RootLayout({
             {children}
           </ThemeProvider>
         </AuthProvider>
+
+        {/* Vercel Web Analytics */}
+        <Analytics />
       </body>
     </html>
   );
