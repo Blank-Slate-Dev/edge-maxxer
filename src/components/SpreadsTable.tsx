@@ -3,7 +3,9 @@
 
 import type { SpreadArb, MiddleOpportunity } from '@/lib/types';
 import { getBookmakerName, getBookmakerRegion } from '@/lib/config';
+import type { UserRegion } from '@/lib/config';
 import { buildBookmakerSearchUrl } from '@/lib/bookmakerLinks';
+import { formatDecimalOddsForRegion } from '@/lib/oddsFormat';
 import { BookLogo } from './BookLogo';
 
 interface SpreadsTableProps {
@@ -13,6 +15,7 @@ interface SpreadsTableProps {
   onSelectMiddle: (middle: MiddleOpportunity) => void;
   showMiddles: boolean;
   globalMode?: boolean;
+  userRegion?: UserRegion;
 }
 
 function RegionBadge({ bookmaker }: { bookmaker: string }) {
@@ -77,7 +80,7 @@ function getTimeUntil(date: Date): string {
   return `${minutes}m`;
 }
 
-export function SpreadsTable({ spreads, middles, onSelectSpread, onSelectMiddle, showMiddles, globalMode = false }: SpreadsTableProps) {
+export function SpreadsTable({ spreads, middles, onSelectSpread, onSelectMiddle, showMiddles, globalMode = false, userRegion = 'AU' }: SpreadsTableProps) {
   const hasContent = spreads.length > 0 || (showMiddles && middles.length > 0);
   const spreadMiddles = middles.filter(m => m.marketType === 'spreads');
 
@@ -119,7 +122,7 @@ export function SpreadsTable({ spreads, middles, onSelectSpread, onSelectMiddle,
           {/* Mobile Card View */}
           <div className="md:hidden space-y-3 border border-t-0 rounded-b-lg p-3" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}>
             {spreads.map((spread, idx) => (
-              <SpreadCard key={`${spread.event.id}-${idx}`} spread={spread} onSelect={onSelectSpread} globalMode={globalMode} />
+              <SpreadCard key={`${spread.event.id}-${idx}`} spread={spread} onSelect={onSelectSpread} globalMode={globalMode} userRegion={userRegion} />
             ))}
           </div>
 
@@ -145,7 +148,7 @@ export function SpreadsTable({ spreads, middles, onSelectSpread, onSelectMiddle,
               </thead>
               <tbody>
                 {spreads.map((spread, idx) => (
-                  <SpreadRow key={`${spread.event.id}-${idx}`} spread={spread} onSelect={onSelectSpread} globalMode={globalMode} />
+                  <SpreadRow key={`${spread.event.id}-${idx}`} spread={spread} onSelect={onSelectSpread} globalMode={globalMode} userRegion={userRegion} />
                 ))}
               </tbody>
             </table>
@@ -171,7 +174,7 @@ export function SpreadsTable({ spreads, middles, onSelectSpread, onSelectMiddle,
           {/* Mobile Card View */}
           <div className="md:hidden space-y-3 border border-t-0 rounded-b-lg p-3" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}>
             {spreadMiddles.map((middle, idx) => (
-              <MiddleCard key={`${middle.event.id}-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} globalMode={globalMode} />
+              <MiddleCard key={`${middle.event.id}-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} globalMode={globalMode} userRegion={userRegion} />
             ))}
           </div>
 
@@ -197,7 +200,7 @@ export function SpreadsTable({ spreads, middles, onSelectSpread, onSelectMiddle,
               </thead>
               <tbody>
                 {spreadMiddles.map((middle, idx) => (
-                  <MiddleRow key={`${middle.event.id}-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} globalMode={globalMode} />
+                  <MiddleRow key={`${middle.event.id}-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} globalMode={globalMode} userRegion={userRegion} />
                 ))}
               </tbody>
             </table>
@@ -209,7 +212,7 @@ export function SpreadsTable({ spreads, middles, onSelectSpread, onSelectMiddle,
 }
 
 // Mobile Spread Card
-function SpreadCard({ spread, onSelect, globalMode }: { spread: SpreadArb; onSelect: (s: SpreadArb) => void; globalMode: boolean }) {
+function SpreadCard({ spread, onSelect, globalMode, userRegion }: { spread: SpreadArb; onSelect: (s: SpreadArb) => void; globalMode: boolean; userRegion: UserRegion }) {
   const eventDate = new Date(spread.event.commenceTime);
   const soon = isEventSoon(eventDate);
   const timeUntil = getTimeUntil(eventDate);
@@ -263,6 +266,7 @@ function SpreadCard({ spread, onSelect, globalMode }: { spread: SpreadArb; onSel
           point={spread.favorite.point}
           showRegion={globalMode}
           event={spread.event}
+          userRegion={userRegion}
         />
         <BetLineMobile 
           name={spread.underdog.name} 
@@ -271,6 +275,7 @@ function SpreadCard({ spread, onSelect, globalMode }: { spread: SpreadArb; onSel
           point={spread.underdog.point}
           showRegion={globalMode}
           event={spread.event}
+          userRegion={userRegion}
         />
       </div>
 
@@ -292,7 +297,7 @@ function SpreadCard({ spread, onSelect, globalMode }: { spread: SpreadArb; onSel
 }
 
 // Mobile Middle Card
-function MiddleCard({ middle, onSelect, globalMode }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void; globalMode: boolean }) {
+function MiddleCard({ middle, onSelect, globalMode, userRegion }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void; globalMode: boolean; userRegion: UserRegion }) {
   const eventDate = new Date(middle.event.commenceTime);
   const soon = isEventSoon(eventDate);
 
@@ -345,7 +350,7 @@ function MiddleCard({ middle, onSelect, globalMode }: { middle: MiddleOpportunit
             <BookLogo bookKey={middle.side1.bookmaker} size={20} />
             <div className="flex items-center gap-1">
               <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side1.point > 0 ? '+' : ''}{middle.side1.point}</span>
-              <span style={{ color: 'var(--muted)' }}>@ {middle.side1.odds.toFixed(2)}</span>
+              <span style={{ color: 'var(--muted)' }}>@ {formatDecimalOddsForRegion(middle.side1.odds, userRegion)}</span>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -358,7 +363,7 @@ function MiddleCard({ middle, onSelect, globalMode }: { middle: MiddleOpportunit
             <BookLogo bookKey={middle.side2.bookmaker} size={20} />
             <div className="flex items-center gap-1">
               <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side2.point > 0 ? '+' : ''}{middle.side2.point}</span>
-              <span style={{ color: 'var(--muted)' }}>@ {middle.side2.odds.toFixed(2)}</span>
+              <span style={{ color: 'var(--muted)' }}>@ {formatDecimalOddsForRegion(middle.side2.odds, userRegion)}</span>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -404,6 +409,7 @@ function BetLineMobile({
   point,
   showRegion,
   event,
+  userRegion = 'AU',
 }: {
   name: string;
   odds: number;
@@ -411,6 +417,7 @@ function BetLineMobile({
   point: number;
   showRegion?: boolean;
   event: { homeTeam: string; awayTeam: string; sportTitle?: string; sportKey?: string; commenceTime?: any };
+  userRegion?: UserRegion;
 }) {
   const href = buildBookmakerSearchUrl(bookmaker, {
     home_team: event.homeTeam,
@@ -441,13 +448,13 @@ function BetLineMobile({
           </div>
         </div>
       </div>
-      <span className="font-mono text-sm shrink-0" style={{ color: 'var(--muted)' }}>@ {odds.toFixed(2)}</span>
+      <span className="font-mono text-sm shrink-0" style={{ color: 'var(--muted)' }}>@ {formatDecimalOddsForRegion(odds, userRegion)}</span>
     </div>
   );
 }
 
 // Desktop Table Row for Spreads
-function SpreadRow({ spread, onSelect, globalMode }: { spread: SpreadArb; onSelect: (s: SpreadArb) => void; globalMode: boolean }) {
+function SpreadRow({ spread, onSelect, globalMode, userRegion }: { spread: SpreadArb; onSelect: (s: SpreadArb) => void; globalMode: boolean; userRegion: UserRegion }) {
   const eventDate = new Date(spread.event.commenceTime);
   const soon = isEventSoon(eventDate);
   const timeUntil = getTimeUntil(eventDate);
@@ -485,6 +492,7 @@ function SpreadRow({ spread, onSelect, globalMode }: { spread: SpreadArb; onSele
             point={spread.favorite.point}
             showRegion={globalMode}
             event={spread.event}
+            userRegion={userRegion}
           />
           <BetLine 
             name={spread.underdog.name} 
@@ -493,6 +501,7 @@ function SpreadRow({ spread, onSelect, globalMode }: { spread: SpreadArb; onSele
             point={spread.underdog.point}
             showRegion={globalMode}
             event={spread.event}
+            userRegion={userRegion}
           />
         </div>
       </td>
@@ -521,7 +530,7 @@ function SpreadRow({ spread, onSelect, globalMode }: { spread: SpreadArb; onSele
 }
 
 // Desktop Middle Row
-function MiddleRow({ middle, onSelect, globalMode }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void; globalMode: boolean }) {
+function MiddleRow({ middle, onSelect, globalMode, userRegion }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void; globalMode: boolean; userRegion: UserRegion }) {
   const eventDate = new Date(middle.event.commenceTime);
   const soon = isEventSoon(eventDate);
 
@@ -554,7 +563,7 @@ function MiddleRow({ middle, onSelect, globalMode }: { middle: MiddleOpportunity
             <BookLogo bookKey={middle.side1.bookmaker} size={24} />
             <div className="flex items-center gap-1 flex-wrap">
               <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side1.point > 0 ? '+' : ''}{middle.side1.point}</span>
-              <span style={{ color: 'var(--muted)' }}>@ {middle.side1.odds.toFixed(2)}</span>
+              <span style={{ color: 'var(--muted)' }}>@ {formatDecimalOddsForRegion(middle.side1.odds, userRegion)}</span>
               <span style={{ color: 'var(--muted-foreground)' }}>({getBookmakerName(middle.side1.bookmaker)})</span>
               {globalMode && <RegionBadge bookmaker={middle.side1.bookmaker} />}
             </div>
@@ -563,7 +572,7 @@ function MiddleRow({ middle, onSelect, globalMode }: { middle: MiddleOpportunity
             <BookLogo bookKey={middle.side2.bookmaker} size={24} />
             <div className="flex items-center gap-1 flex-wrap">
               <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side2.point > 0 ? '+' : ''}{middle.side2.point}</span>
-              <span style={{ color: 'var(--muted)' }}>@ {middle.side2.odds.toFixed(2)}</span>
+              <span style={{ color: 'var(--muted)' }}>@ {formatDecimalOddsForRegion(middle.side2.odds, userRegion)}</span>
               <span style={{ color: 'var(--muted-foreground)' }}>({getBookmakerName(middle.side2.bookmaker)})</span>
               {globalMode && <RegionBadge bookmaker={middle.side2.bookmaker} />}
             </div>
@@ -603,6 +612,7 @@ function BetLine({
   point,
   showRegion,
   event,
+  userRegion = 'AU',
 }: {
   name: string;
   odds: number;
@@ -610,6 +620,7 @@ function BetLine({
   point: number;
   showRegion?: boolean;
   event: { homeTeam: string; awayTeam: string; sportTitle?: string; sportKey?: string; commenceTime?: any };
+  userRegion?: UserRegion;
 }) {
   const href = buildBookmakerSearchUrl(bookmaker, {
     home_team: event.homeTeam,
@@ -624,7 +635,7 @@ function BetLine({
       <div>
         <div className="flex items-center gap-2">
           <span className="font-mono" style={{ color: 'var(--foreground)' }}>{point > 0 ? '+' : ''}{point}</span>
-          <span style={{ color: 'var(--muted)' }}>@ {odds.toFixed(2)}</span>
+          <span style={{ color: 'var(--muted)' }}>@ {formatDecimalOddsForRegion(odds, userRegion)}</span>
         </div>
         <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
           <span>{name}</span>

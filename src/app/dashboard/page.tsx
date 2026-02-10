@@ -23,6 +23,7 @@ import { useAccounts } from '@/hooks/useAccounts';
 import type { ArbOpportunity, ValueBet, ArbFilters as FilterType, ScanStats, SpreadArb, TotalsArb, MiddleOpportunity, LineStats } from '@/lib/types';
 import type { PlacedBet } from '@/lib/bets';
 import { config, countBookmakersForRegions, type UserRegion } from '@/lib/config';
+import { formatDecimalOddsForRegion } from '@/lib/oddsFormat';
 
 interface Sport {
   key: string;
@@ -1155,6 +1156,7 @@ function DashboardContent() {
               opportunities={filteredOpportunities}
               onSelectArb={setSelectedArb}
               globalMode={false}
+              userRegion={selectedRegion}
             />
           )}
 
@@ -1166,6 +1168,7 @@ function DashboardContent() {
               onSelectMiddle={(m) => setSelectedLineOpp(m)}
               showMiddles={showMiddles}
               globalMode={false}
+              userRegion={selectedRegion}
             />
           )}
 
@@ -1177,11 +1180,12 @@ function DashboardContent() {
               onSelectMiddle={(m) => setSelectedLineOpp(m)}
               showMiddles={showMiddles}
               globalMode={false}
+              userRegion={selectedRegion}
             />
           )}
 
           {hasFetchedArbs && !isRegionSwitching && activeTab === 'value-bets' && (
-            <ValueBetsTable valueBets={filteredValueBets} onSelectValueBet={setSelectedValueBet} />
+            <ValueBetsTable valueBets={filteredValueBets} onSelectValueBet={setSelectedValueBet} userRegion={selectedRegion} />
           )}
         </div>
 
@@ -1211,16 +1215,19 @@ function DashboardContent() {
         arb={selectedArb}
         onClose={() => setSelectedArb(null)}
         onLogBet={handleLogBet}
+        userRegion={selectedRegion}
       />
       <ValueBetCalculatorModal
         valueBet={selectedValueBet}
         onClose={() => setSelectedValueBet(null)}
         onLogBet={handleLogBet}
+        userRegion={selectedRegion}
       />
       <LineCalculatorModal
         opportunity={selectedLineOpp}
         onClose={() => setSelectedLineOpp(null)}
         onLogBet={handleLogBet}
+        userRegion={selectedRegion}
       />
 
       {/* Subscription Required Modal */}
@@ -1303,7 +1310,7 @@ function TabButton({
   );
 }
 
-function ValueBetsTable({ valueBets, onSelectValueBet }: { valueBets: ValueBet[]; onSelectValueBet: (vb: ValueBet) => void }) {
+function ValueBetsTable({ valueBets, onSelectValueBet, userRegion }: { valueBets: ValueBet[]; onSelectValueBet: (vb: ValueBet) => void; userRegion: UserRegion }) {
   if (valueBets.length === 0) {
     return (
       <div 
@@ -1354,7 +1361,7 @@ function ValueBetsTable({ valueBets, onSelectValueBet }: { valueBets: ValueBet[]
               </td>
               <td className="px-2 sm:px-4 py-2 sm:py-3 hidden sm:table-cell" style={{ color: 'var(--foreground)' }}>{vb.outcome.bookmaker}</td>
               <td className="px-2 sm:px-4 py-2 sm:py-3" style={{ color: 'var(--foreground)' }}>{vb.outcome.name}</td>
-              <td className="px-2 sm:px-4 py-2 sm:py-3 text-right font-mono" style={{ color: 'var(--foreground)' }}>{vb.outcome.odds.toFixed(2)}</td>
+              <td className="px-2 sm:px-4 py-2 sm:py-3 text-right font-mono" style={{ color: 'var(--foreground)' }}>{formatDecimalOddsForRegion(vb.outcome.odds, userRegion)}</td>
               <td className="px-2 sm:px-4 py-2 sm:py-3 text-right font-mono" style={{ color: '#22c55e' }}>+{vb.valuePercentage.toFixed(1)}%</td>
               <td className="px-2 sm:px-4 py-2 sm:py-3 text-right">
                 <button

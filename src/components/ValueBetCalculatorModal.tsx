@@ -6,11 +6,14 @@ import { X, TrendingUp } from 'lucide-react';
 import type { ValueBet } from '@/lib/types';
 import type { PlacedBet } from '@/lib/bets';
 import { getBookmakerProfile, getRiskColor } from '@/lib/stealth/bookmakerProfiles';
+import { formatDecimalOddsForRegion } from '@/lib/oddsFormat';
+import type { UserRegion } from '@/lib/config';
 
 interface ValueBetCalculatorModalProps {
   valueBet: ValueBet | null;
   onClose: () => void;
   onLogBet?: (bet: Omit<PlacedBet, 'id' | 'createdAt'>) => void;
+  userRegion?: UserRegion;
 }
 
 function RiskBadge({ bookmaker }: { bookmaker: string }) {
@@ -59,7 +62,7 @@ function naturalizeStake(stake: number): number {
   }
 }
 
-export function ValueBetCalculatorModal({ valueBet, onClose, onLogBet }: ValueBetCalculatorModalProps) {
+export function ValueBetCalculatorModal({ valueBet, onClose, onLogBet, userRegion = 'AU' }: ValueBetCalculatorModalProps) {
   const [stakeInput, setStakeInput] = useState<string>('100');
   const [stealthMode, setStealthMode] = useState<boolean>(false);
 
@@ -303,7 +306,7 @@ export function ValueBetCalculatorModal({ valueBet, onClose, onLogBet }: ValueBe
                 </div>
                 <div className="text-right shrink-0">
                   <div className="text-base sm:text-lg font-bold" style={{ color: 'var(--info)' }}>
-                    @ {odds.toFixed(2)}
+                    @ {formatDecimalOddsForRegion(odds, userRegion)}
                   </div>
                   <div className="text-[10px] sm:text-xs" style={{ color: 'var(--muted-foreground)' }}>
                     {impliedProb.toFixed(1)}% implied
@@ -321,7 +324,7 @@ export function ValueBetCalculatorModal({ valueBet, onClose, onLogBet }: ValueBe
                 <div className="text-right">
                   <div className="text-[10px] sm:text-xs" style={{ color: 'var(--muted-foreground)' }}>Market Avg</div>
                   <div className="font-mono text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
-                    {marketAvg.toFixed(2)} ({fairProb.toFixed(1)}%)
+                    {formatDecimalOddsForRegion(marketAvg, userRegion)} ({fairProb.toFixed(1)}%)
                   </div>
                 </div>
               </div>

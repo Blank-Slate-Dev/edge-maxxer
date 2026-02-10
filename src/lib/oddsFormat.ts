@@ -212,3 +212,59 @@ export function getOddsFormatExample(region: UserRegion): string {
       return '2.50 / 1.91';
   }
 }
+
+/**
+ * Parse a regional odds string back to decimal odds.
+ * Used for editable odds inputs in calculator modals.
+ * 
+ * US users type "+150" or "-110" → converted to decimal internally
+ * UK users type "3/2" or "10/11" → converted to decimal internally
+ * AU/EU users type "2.50" → used as-is
+ */
+export function parseRegionalOddsToDecimal(input: string, region: UserRegion): number | null {
+  const trimmed = input.trim();
+  if (!trimmed) return null;
+
+  const format = REGION_ODDS_FORMAT[region];
+
+  switch (format) {
+    case 'american': {
+      // Handle +150, -110, etc.
+      const num = parseFloat(trimmed.replace(/^\+/, ''));
+      if (isNaN(num) || num === 0) return null;
+      return americanToDecimal(num);
+    }
+
+    case 'fractional': {
+      // Handle "3/2", "10/11", etc.
+      const parts = trimmed.split('/');
+      if (parts.length === 2) {
+        const num = parseFloat(parts[0]);
+        const den = parseFloat(parts[1]);
+        if (!isNaN(num) && !isNaN(den) && den > 0) {
+          return (num / den) + 1;
+        }
+      }
+      // Also allow decimal input as fallback
+      const asNum = parseFloat(trimmed);
+      if (!isNaN(asNum) && asNum > 1) return asNum;
+      return null;
+    }
+
+    case 'decimal':
+    default: {
+      const num = parseFloat(trimmed);
+      if (isNaN(num) || num <= 1) return null;
+      return num;
+    }
+  }
+}
+
+/**
+ * Format decimal odds for display in a regional input field.
+ * Unlike formatDecimalOddsForRegion, this is specifically named for
+ * use with editable input fields to make the intent clear.
+ */
+export function formatOddsForInput(decimalOdds: number, region: UserRegion): string {
+  return formatDecimalOddsForRegion(decimalOdds, region);
+}

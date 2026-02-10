@@ -3,13 +3,16 @@
 
 import type { ArbOpportunity } from '@/lib/types';
 import { getBookmakerName, getBookmakerRegion } from '@/lib/config';
+import type { UserRegion } from '@/lib/config';
 import { buildBookmakerSearchUrl } from '@/lib/bookmakerLinks';
+import { formatDecimalOddsForRegion } from '@/lib/oddsFormat';
 import { BookLogo } from './BookLogo';
 
 interface ArbTableProps {
   opportunities: ArbOpportunity[];
   onSelectArb: (arb: ArbOpportunity) => void;
   globalMode?: boolean;
+  userRegion?: UserRegion;
 }
 
 function RegionBadge({ bookmaker }: { bookmaker: string }) {
@@ -74,7 +77,7 @@ function getTimeUntil(date: Date): string {
   return `${minutes}m`;
 }
 
-export function ArbTable({ opportunities, onSelectArb, globalMode = false }: ArbTableProps) {
+export function ArbTable({ opportunities, onSelectArb, globalMode = false, userRegion = 'AU' }: ArbTableProps) {
   if (opportunities.length === 0) {
     return (
       <div
@@ -99,7 +102,7 @@ export function ArbTable({ opportunities, onSelectArb, globalMode = false }: Arb
       {/* Mobile Card View */}
       <div className="md:hidden space-y-3">
         {opportunities.map((opp, idx) => (
-          <ArbCard key={`${opp.event.id}-${idx}`} opp={opp} onSelect={onSelectArb} globalMode={globalMode} />
+          <ArbCard key={`${opp.event.id}-${idx}`} opp={opp} onSelect={onSelectArb} globalMode={globalMode} userRegion={userRegion} />
         ))}
       </div>
 
@@ -154,7 +157,7 @@ export function ArbTable({ opportunities, onSelectArb, globalMode = false }: Arb
           </thead>
           <tbody>
             {opportunities.map((opp, idx) => (
-              <ArbRow key={`${opp.event.id}-${idx}`} opp={opp} onSelect={onSelectArb} globalMode={globalMode} />
+              <ArbRow key={`${opp.event.id}-${idx}`} opp={opp} onSelect={onSelectArb} globalMode={globalMode} userRegion={userRegion} />
             ))}
           </tbody>
         </table>
@@ -168,10 +171,12 @@ function ArbCard({
   opp,
   onSelect,
   globalMode,
+  userRegion,
 }: {
   opp: ArbOpportunity;
   onSelect: (arb: ArbOpportunity) => void;
   globalMode: boolean;
+  userRegion: UserRegion;
 }) {
   const eventDate = new Date(opp.event.commenceTime);
   const soon = isEventSoon(eventDate);
@@ -235,6 +240,7 @@ function ArbCard({
               bookmaker={opp.outcome1.bookmaker}
               bookmakerKey={opp.outcome1.bookmakerKey}
               showRegion={globalMode}
+              userRegion={userRegion}
             />
             <BetLineMobile
               name={opp.outcome2.name}
@@ -242,6 +248,7 @@ function ArbCard({
               bookmaker={opp.outcome2.bookmaker}
               bookmakerKey={opp.outcome2.bookmakerKey}
               showRegion={globalMode}
+              userRegion={userRegion}
             />
             {opp.outcome3 && (
               <BetLineMobile
@@ -250,6 +257,7 @@ function ArbCard({
                 bookmaker={opp.outcome3.bookmaker}
                 bookmakerKey={opp.outcome3.bookmakerKey}
                 showRegion={globalMode}
+                userRegion={userRegion}
               />
             )}
           </div>
@@ -261,6 +269,7 @@ function ArbCard({
               bookmaker={opp.backOutcome.bookmaker}
               bookmakerKey={opp.backOutcome.bookmakerKey}
               showRegion={globalMode}
+              userRegion={userRegion}
             />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -273,7 +282,7 @@ function ArbCard({
                 </div>
               </div>
               <span className="font-mono text-sm" style={{ color: 'var(--foreground)' }}>
-                {opp.layOutcome.odds.toFixed(2)}
+                {formatDecimalOddsForRegion(opp.layOutcome.odds, userRegion)}
               </span>
             </div>
           </div>
@@ -304,12 +313,14 @@ function BetLineMobile({
   bookmaker,
   bookmakerKey,
   showRegion,
+  userRegion = 'AU',
 }: {
   name: string;
   odds: number;
   bookmaker: string;
   bookmakerKey: string;
   showRegion?: boolean;
+  userRegion?: UserRegion;
 }) {
   const href = buildBookmakerSearchUrl(bookmakerKey, {}) || buildBookmakerSearchUrl(bookmaker, {}) || undefined;
 
@@ -334,7 +345,7 @@ function BetLineMobile({
         </div>
       </div>
       <span className="font-mono text-sm font-medium shrink-0" style={{ color: 'var(--foreground)' }}>
-        {odds.toFixed(2)}
+        {formatDecimalOddsForRegion(odds, userRegion)}
       </span>
     </div>
   );
@@ -345,10 +356,12 @@ function ArbRow({
   opp,
   onSelect,
   globalMode,
+  userRegion,
 }: {
   opp: ArbOpportunity;
   onSelect: (arb: ArbOpportunity) => void;
   globalMode: boolean;
+  userRegion: UserRegion;
 }) {
   const eventDate = new Date(opp.event.commenceTime);
   const soon = isEventSoon(eventDate);
@@ -391,6 +404,7 @@ function ArbRow({
               bookmaker={opp.outcome1.bookmaker}
               bookmakerKey={opp.outcome1.bookmakerKey}
               showRegion={globalMode}
+              userRegion={userRegion}
             />
             <BetLine
               name={opp.outcome2.name}
@@ -398,6 +412,7 @@ function ArbRow({
               bookmaker={opp.outcome2.bookmaker}
               bookmakerKey={opp.outcome2.bookmakerKey}
               showRegion={globalMode}
+              userRegion={userRegion}
             />
             {opp.outcome3 && (
               <BetLine
@@ -406,6 +421,7 @@ function ArbRow({
                 bookmaker={opp.outcome3.bookmaker}
                 bookmakerKey={opp.outcome3.bookmakerKey}
                 showRegion={globalMode}
+                userRegion={userRegion}
               />
             )}
           </div>
@@ -417,6 +433,7 @@ function ArbRow({
               bookmaker={opp.backOutcome.bookmaker}
               bookmakerKey={opp.backOutcome.bookmakerKey}
               showRegion={globalMode}
+              userRegion={userRegion}
             />
             <div className="flex items-center gap-2">
               <BookLogo bookKey="betfair_ex_au" size={24} />
@@ -424,7 +441,7 @@ function ArbRow({
                 <div className="flex items-center gap-2">
                   <span className="text-purple-400">Lay</span>
                   <span className="font-mono" style={{ color: 'var(--foreground)' }}>
-                    {opp.layOutcome.odds.toFixed(2)}
+                    {formatDecimalOddsForRegion(opp.layOutcome.odds, userRegion)}
                   </span>
                 </div>
                 <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
@@ -469,12 +486,14 @@ function BetLine({
   bookmaker,
   bookmakerKey,
   showRegion,
+  userRegion = 'AU',
 }: {
   name: string;
   odds: number;
   bookmaker: string;
   bookmakerKey: string;
   showRegion?: boolean;
+  userRegion?: UserRegion;
 }) {
   const href = buildBookmakerSearchUrl(bookmakerKey, {}) || buildBookmakerSearchUrl(bookmaker, {}) || undefined;
 
@@ -487,7 +506,7 @@ function BetLine({
             {name}
           </span>
           <span className="font-mono" style={{ color: 'var(--foreground)' }}>
-            {odds.toFixed(2)}
+            {formatDecimalOddsForRegion(odds, userRegion)}
           </span>
         </div>
 

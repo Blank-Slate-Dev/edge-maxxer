@@ -3,7 +3,9 @@
 
 import type { TotalsArb, MiddleOpportunity } from '@/lib/types';
 import { getBookmakerName, getBookmakerRegion } from '@/lib/config';
+import type { UserRegion } from '@/lib/config';
 import { buildBookmakerSearchUrl } from '@/lib/bookmakerLinks';
+import { formatDecimalOddsForRegion } from '@/lib/oddsFormat';
 import { BookLogo } from './BookLogo';
 
 interface TotalsTableProps {
@@ -13,6 +15,7 @@ interface TotalsTableProps {
   onSelectMiddle: (middle: MiddleOpportunity) => void;
   showMiddles: boolean;
   globalMode?: boolean;
+  userRegion?: UserRegion;
 }
 
 function RegionBadge({ bookmaker }: { bookmaker: string }) {
@@ -77,7 +80,7 @@ function getTimeUntil(date: Date): string {
   return `${minutes}m`;
 }
 
-export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, showMiddles, globalMode = false }: TotalsTableProps) {
+export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, showMiddles, globalMode = false, userRegion = 'AU' }: TotalsTableProps) {
   const hasContent = totals.length > 0 || (showMiddles && middles.length > 0);
   const totalsMiddles = middles.filter(m => m.marketType === 'totals');
 
@@ -119,7 +122,7 @@ export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, s
           {/* Mobile Card View */}
           <div className="md:hidden space-y-3 border border-t-0 rounded-b-lg p-3" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}>
             {totals.map((total, idx) => (
-              <TotalsCard key={`${total.event.id}-${idx}`} total={total} onSelect={onSelectTotals} globalMode={globalMode} />
+              <TotalsCard key={`${total.event.id}-${idx}`} total={total} onSelect={onSelectTotals} globalMode={globalMode} userRegion={userRegion} />
             ))}
           </div>
 
@@ -145,7 +148,7 @@ export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, s
               </thead>
               <tbody>
                 {totals.map((total, idx) => (
-                  <TotalsRow key={`${total.event.id}-${idx}`} total={total} onSelect={onSelectTotals} globalMode={globalMode} />
+                  <TotalsRow key={`${total.event.id}-${idx}`} total={total} onSelect={onSelectTotals} globalMode={globalMode} userRegion={userRegion} />
                 ))}
               </tbody>
             </table>
@@ -171,7 +174,7 @@ export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, s
           {/* Mobile Card View */}
           <div className="md:hidden space-y-3 border border-t-0 rounded-b-lg p-3" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}>
             {totalsMiddles.map((middle, idx) => (
-              <MiddleCard key={`${middle.event.id}-totals-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} globalMode={globalMode} />
+              <MiddleCard key={`${middle.event.id}-totals-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} globalMode={globalMode} userRegion={userRegion} />
             ))}
           </div>
 
@@ -197,7 +200,7 @@ export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, s
               </thead>
               <tbody>
                 {totalsMiddles.map((middle, idx) => (
-                  <MiddleRow key={`${middle.event.id}-totals-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} globalMode={globalMode} />
+                  <MiddleRow key={`${middle.event.id}-totals-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} globalMode={globalMode} userRegion={userRegion} />
                 ))}
               </tbody>
             </table>
@@ -209,7 +212,7 @@ export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, s
 }
 
 // Mobile Totals Card
-function TotalsCard({ total, onSelect, globalMode }: { total: TotalsArb; onSelect: (t: TotalsArb) => void; globalMode: boolean }) {
+function TotalsCard({ total, onSelect, globalMode, userRegion }: { total: TotalsArb; onSelect: (t: TotalsArb) => void; globalMode: boolean; userRegion: UserRegion }) {
   const eventDate = new Date(total.event.commenceTime);
   const soon = isEventSoon(eventDate);
   const timeUntil = getTimeUntil(eventDate);
@@ -263,6 +266,7 @@ function TotalsCard({ total, onSelect, globalMode }: { total: TotalsArb; onSelec
           bookmaker={total.over.bookmaker}
           showRegion={globalMode}
           event={total.event}
+          userRegion={userRegion}
         />
         <TotalsBetLineMobile 
           type="under"
@@ -271,6 +275,7 @@ function TotalsCard({ total, onSelect, globalMode }: { total: TotalsArb; onSelec
           bookmaker={total.under.bookmaker}
           showRegion={globalMode}
           event={total.event}
+          userRegion={userRegion}
         />
       </div>
 
@@ -292,7 +297,7 @@ function TotalsCard({ total, onSelect, globalMode }: { total: TotalsArb; onSelec
 }
 
 // Mobile Middle Card
-function MiddleCard({ middle, onSelect, globalMode }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void; globalMode: boolean }) {
+function MiddleCard({ middle, onSelect, globalMode, userRegion }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void; globalMode: boolean; userRegion: UserRegion }) {
   const eventDate = new Date(middle.event.commenceTime);
   const soon = isEventSoon(eventDate);
 
@@ -346,7 +351,7 @@ function MiddleCard({ middle, onSelect, globalMode }: { middle: MiddleOpportunit
             <div className="flex items-center gap-1">
               <span className="text-green-400 font-medium">Over</span>
               <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side1.point}</span>
-              <span style={{ color: 'var(--muted)' }}>@ {middle.side1.odds.toFixed(2)}</span>
+              <span style={{ color: 'var(--muted)' }}>@ {formatDecimalOddsForRegion(middle.side1.odds, userRegion)}</span>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -360,7 +365,7 @@ function MiddleCard({ middle, onSelect, globalMode }: { middle: MiddleOpportunit
             <div className="flex items-center gap-1">
               <span className="text-red-400 font-medium">Under</span>
               <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side2.point}</span>
-              <span style={{ color: 'var(--muted)' }}>@ {middle.side2.odds.toFixed(2)}</span>
+              <span style={{ color: 'var(--muted)' }}>@ {formatDecimalOddsForRegion(middle.side2.odds, userRegion)}</span>
             </div>
           </div>
           <div className="flex items-center gap-1">
@@ -406,6 +411,7 @@ function TotalsBetLineMobile({
   bookmaker,
   showRegion,
   event,
+  userRegion = 'AU',
 }: {
   type: 'over' | 'under';
   line: number;
@@ -413,6 +419,7 @@ function TotalsBetLineMobile({
   bookmaker: string;
   showRegion?: boolean;
   event: { homeTeam: string; awayTeam: string; sportTitle?: string; sportKey?: string; commenceTime?: any };
+  userRegion?: UserRegion;
 }) {
   const href = buildBookmakerSearchUrl(bookmaker, {
     home_team: event.homeTeam,
@@ -445,13 +452,13 @@ function TotalsBetLineMobile({
           </div>
         </div>
       </div>
-      <span className="font-mono text-sm shrink-0" style={{ color: 'var(--muted)' }}>@ {odds.toFixed(2)}</span>
+      <span className="font-mono text-sm shrink-0" style={{ color: 'var(--muted)' }}>@ {formatDecimalOddsForRegion(odds, userRegion)}</span>
     </div>
   );
 }
 
 // Desktop Totals Row
-function TotalsRow({ total, onSelect, globalMode }: { total: TotalsArb; onSelect: (t: TotalsArb) => void; globalMode: boolean }) {
+function TotalsRow({ total, onSelect, globalMode, userRegion }: { total: TotalsArb; onSelect: (t: TotalsArb) => void; globalMode: boolean; userRegion: UserRegion }) {
   const eventDate = new Date(total.event.commenceTime);
   const soon = isEventSoon(eventDate);
   const timeUntil = getTimeUntil(eventDate);
@@ -503,7 +510,7 @@ function TotalsRow({ total, onSelect, globalMode }: { total: TotalsArb; onSelect
               <div className="flex items-center gap-2">
                 <span className="text-green-400 font-medium">Over</span>
                 <span className="font-mono" style={{ color: 'var(--foreground)' }}>{total.line}</span>
-                <span style={{ color: 'var(--muted)' }}>@ {total.over.odds.toFixed(2)}</span>
+                <span style={{ color: 'var(--muted)' }}>@ {formatDecimalOddsForRegion(total.over.odds, userRegion)}</span>
               </div>
               <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
                 <a
@@ -526,7 +533,7 @@ function TotalsRow({ total, onSelect, globalMode }: { total: TotalsArb; onSelect
               <div className="flex items-center gap-2">
                 <span className="text-red-400 font-medium">Under</span>
                 <span className="font-mono" style={{ color: 'var(--foreground)' }}>{total.line}</span>
-                <span style={{ color: 'var(--muted)' }}>@ {total.under.odds.toFixed(2)}</span>
+                <span style={{ color: 'var(--muted)' }}>@ {formatDecimalOddsForRegion(total.under.odds, userRegion)}</span>
               </div>
               <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
                 <a
@@ -570,7 +577,7 @@ function TotalsRow({ total, onSelect, globalMode }: { total: TotalsArb; onSelect
 }
 
 // Desktop Middle Row
-function MiddleRow({ middle, onSelect, globalMode }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void; globalMode: boolean }) {
+function MiddleRow({ middle, onSelect, globalMode, userRegion }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void; globalMode: boolean; userRegion: UserRegion }) {
   const eventDate = new Date(middle.event.commenceTime);
   const soon = isEventSoon(eventDate);
 
@@ -604,7 +611,7 @@ function MiddleRow({ middle, onSelect, globalMode }: { middle: MiddleOpportunity
             <div className="flex items-center gap-1 flex-wrap">
               <span className="text-green-400 font-medium">Over</span>
               <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side1.point}</span>
-              <span style={{ color: 'var(--muted)' }}>@ {middle.side1.odds.toFixed(2)}</span>
+              <span style={{ color: 'var(--muted)' }}>@ {formatDecimalOddsForRegion(middle.side1.odds, userRegion)}</span>
               <span style={{ color: 'var(--muted-foreground)' }}>({getBookmakerName(middle.side1.bookmaker)})</span>
               {globalMode && <RegionBadge bookmaker={middle.side1.bookmaker} />}
             </div>
@@ -614,7 +621,7 @@ function MiddleRow({ middle, onSelect, globalMode }: { middle: MiddleOpportunity
             <div className="flex items-center gap-1 flex-wrap">
               <span className="text-red-400 font-medium">Under</span>
               <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side2.point}</span>
-              <span style={{ color: 'var(--muted)' }}>@ {middle.side2.odds.toFixed(2)}</span>
+              <span style={{ color: 'var(--muted)' }}>@ {formatDecimalOddsForRegion(middle.side2.odds, userRegion)}</span>
               <span style={{ color: 'var(--muted-foreground)' }}>({getBookmakerName(middle.side2.bookmaker)})</span>
               {globalMode && <RegionBadge bookmaker={middle.side2.bookmaker} />}
             </div>

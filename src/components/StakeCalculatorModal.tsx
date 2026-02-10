@@ -16,12 +16,15 @@ import {
 import { ArbOpportunity, AlternativeOdds } from '@/lib/types';
 import { PlacedBet } from '@/lib/bets';
 import { getBookmakerName } from '@/lib/config';
+import type { UserRegion } from '@/lib/config';
+import { formatDecimalOddsForRegion, parseRegionalOddsToDecimal, formatOddsForInput } from '@/lib/oddsFormat';
 import { BookLogo } from './BookLogo';
 
 interface StakeCalculatorModalProps {
   arb: ArbOpportunity | null;
   onClose: () => void;
   onLogBet: (bet: Omit<PlacedBet, 'id' | 'createdAt'>) => void;
+  userRegion?: UserRegion;
 }
 
 function RiskBadge({ bookmaker }: { bookmaker: string }) {
@@ -85,11 +88,13 @@ function BookmakerSwapDropdown({
   currentBookmaker,
   currentOdds,
   onSwap,
+  userRegion = 'AU',
 }: {
   alternatives: AlternativeOdds[];
   currentBookmaker: string;
   currentOdds: number;
   onSwap: (bookmaker: string, bookmakerKey: string, odds: number) => void;
+  userRegion?: UserRegion;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -192,7 +197,7 @@ function BookmakerSwapDropdown({
                 </div>
                 <div className="text-right shrink-0">
                   <div className="font-mono text-sm font-bold" style={{ color: 'var(--foreground)' }}>
-                    {alt.odds.toFixed(2)}
+                    {formatDecimalOddsForRegion(alt.odds, userRegion)}
                   </div>
                   {!isCurrent && (
                     <div 
@@ -212,7 +217,7 @@ function BookmakerSwapDropdown({
   );
 }
 
-export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculatorModalProps) {
+export function StakeCalculatorModal({ arb, onClose, onLogBet, userRegion = 'AU' }: StakeCalculatorModalProps) {
   const [totalStake, setTotalStake] = useState<string>('100');
   const [stealthMode, setStealthMode] = useState<boolean>(false);
   const [favourMode, setFavourMode] = useState<boolean>(false);
@@ -229,7 +234,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
   useEffect(() => {
     if (arb) {
       const outcomes = getOutcomesFromArb(arb);
-      setCustomOddsStrings(outcomes.map(o => o.odds.toFixed(2)));
+      setCustomOddsStrings(outcomes.map(o => formatOddsForInput(o.odds, userRegion)));
       setCustomStakeStrings([]);
       setOddsModified(false);
       setStakesModified(false);
@@ -240,7 +245,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
         bookmakerKey: o.bookmakerKey || '',
       })));
     }
-  }, [arb]);
+  }, [arb, userRegion]);
 
   // Calculate optimal stakes for given odds and total stake
   const calculateOptimalStakes = useCallback((oddsArray: number[], total: number, outcomes: { bookmaker: string }[]) => {
@@ -333,8 +338,8 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
     }));
     
     const oddsToUse = customOddsStrings.map((s, i) => {
-      const parsed = parseFloat(s);
-      return !isNaN(parsed) && parsed > 1 ? parsed : outcomes[i].odds;
+      const parsed = parseRegionalOddsToDecimal(s, userRegion);
+      return parsed !== null && parsed > 1 ? parsed : outcomes[i].odds;
     });
     
     const { stakes, naturalized } = calculateOptimalStakes(oddsToUse, stake, outcomesForCalc);
@@ -346,7 +351,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
     } else {
       setCustomStakeStrings(stakes.map(s => s.toFixed(2)));
     }
-  }, [arb, totalStake, customOddsStrings, calculateOptimalStakes, stealthMode, selectedBookmakers]);
+  }, [arb, totalStake, customOddsStrings, calculateOptimalStakes, stealthMode, selectedBookmakers, userRegion]);
 
   // Auto-recalculate when inputs change and stakes aren't manually modified
   useEffect(() => {
@@ -362,8 +367,8 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
   
   // Parse values for calculations
   const oddsToUse = customOddsStrings.map((s, i) => {
-    const parsed = parseFloat(s);
-    return !isNaN(parsed) && parsed > 1 ? parsed : outcomes[i].odds;
+    const parsed = parseRegionalOddsToDecimal(s, userRegion);
+    return parsed !== null && parsed > 1 ? parsed : outcomes[i].odds;
   });
   
   const stakesToUse = customStakeStrings.map((s) => {
@@ -411,9 +416,9 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
     updated[index] = value;
     setCustomOddsStrings(updated);
     
-    const parsed = parseFloat(value);
+    const parsed = parseRegionalOddsToDecimal(value, userRegion);
     const originalOdds = getOutcomesFromArb(arb)[index].odds;
-    if (!isNaN(parsed) && Math.abs(parsed - originalOdds) > 0.001) {
+    if (parsed !== null && Math.abs(parsed - originalOdds) > 0.001) {
       setOddsModified(true);
     }
   };
@@ -429,7 +434,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
   const handleBookmakerSwap = (index: number, bookmaker: string, bookmakerKey: string, odds: number) => {
     // Update odds
     const updatedOdds = [...customOddsStrings];
-    updatedOdds[index] = odds.toFixed(2);
+    updatedOdds[index] = formatOddsForInput(odds, userRegion);
     setCustomOddsStrings(updatedOdds);
     
     // Update selected bookmaker tracking
@@ -450,7 +455,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
 
   const resetAll = () => {
     const outcomes = getOutcomesFromArb(arb);
-    setCustomOddsStrings(outcomes.map(o => o.odds.toFixed(2)));
+    setCustomOddsStrings(outcomes.map(o => formatOddsForInput(o.odds, userRegion)));
     setSelectedBookmakers(outcomes.map(o => ({
       bookmaker: o.bookmaker,
       bookmakerKey: o.bookmakerKey || '',
@@ -945,6 +950,7 @@ export function StakeCalculatorModal({ arb, onClose, onLogBet }: StakeCalculator
                               currentBookmaker={displayBookmaker}
                               currentOdds={currentOdds}
                               onSwap={(bm, bmKey, odds) => handleBookmakerSwap(index, bm, bmKey, odds)}
+                              userRegion={userRegion}
                             />
                           )}
                           <input

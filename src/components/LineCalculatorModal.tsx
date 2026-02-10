@@ -8,11 +8,14 @@ import type { PlacedBet } from '@/lib/bets';
 import { generateBetId } from '@/lib/bets';
 import { getBookmakerProfile, getRiskColor } from '@/lib/stealth/bookmakerProfiles';
 import { naturalizeArbStakes, NaturalizedStake } from '@/lib/stealth/stakeNaturalizer';
+import { formatOddsForInput, parseRegionalOddsToDecimal } from '@/lib/oddsFormat';
+import type { UserRegion } from '@/lib/config';
 
 interface LineCalculatorModalProps {
   opportunity: SpreadArb | TotalsArb | MiddleOpportunity | null;
   onClose: () => void;
   onLogBet?: (bet: Omit<PlacedBet, 'id' | 'createdAt'>) => void;
+  userRegion?: UserRegion;
 }
 
 function RiskBadge({ bookmaker }: { bookmaker: string }) {
@@ -46,14 +49,14 @@ function RiskBadge({ bookmaker }: { bookmaker: string }) {
   );
 }
 
-export function LineCalculatorModal({ opportunity, onClose, onLogBet }: LineCalculatorModalProps) {
+export function LineCalculatorModal({ opportunity, onClose, onLogBet, userRegion = 'AU' }: LineCalculatorModalProps) {
   const [totalStake, setTotalStake] = useState<string>('100');
   const [stealthMode, setStealthMode] = useState<boolean>(false);
   const [favourMode, setFavourMode] = useState<boolean>(false);
   const [favouredOutcome, setFavouredOutcome] = useState<number | null>(null);
   const [naturalizedStakes, setNaturalizedStakes] = useState<NaturalizedStake[]>([]);
   
-  // Editable odds
+  // Editable odds (stored as regional display strings)
   const [odds1String, setOdds1String] = useState<string>('');
   const [odds2String, setOdds2String] = useState<string>('');
   
@@ -72,17 +75,17 @@ export function LineCalculatorModal({ opportunity, onClose, onLogBet }: LineCalc
       setFavouredOutcome(null);
       
       if (opportunity.mode === 'middle') {
-        setOdds1String(opportunity.side1.odds.toFixed(2));
-        setOdds2String(opportunity.side2.odds.toFixed(2));
+        setOdds1String(formatOddsForInput(opportunity.side1.odds, userRegion));
+        setOdds2String(formatOddsForInput(opportunity.side2.odds, userRegion));
       } else if (opportunity.mode === 'spread') {
-        setOdds1String(opportunity.favorite.odds.toFixed(2));
-        setOdds2String(opportunity.underdog.odds.toFixed(2));
+        setOdds1String(formatOddsForInput(opportunity.favorite.odds, userRegion));
+        setOdds2String(formatOddsForInput(opportunity.underdog.odds, userRegion));
       } else if (opportunity.mode === 'totals') {
-        setOdds1String(opportunity.over.odds.toFixed(2));
-        setOdds2String(opportunity.under.odds.toFixed(2));
+        setOdds1String(formatOddsForInput(opportunity.over.odds, userRegion));
+        setOdds2String(formatOddsForInput(opportunity.under.odds, userRegion));
       }
     }
-  }, [opportunity]);
+  }, [opportunity, userRegion]);
 
   // Get bookmaker names
   const getBookmakers = useCallback(() => {
@@ -178,8 +181,8 @@ export function LineCalculatorModal({ opportunity, onClose, onLogBet }: LineCalc
     if (!opportunity || stakesModified) return;
     
     const total = parseFloat(totalStake) || 0;
-    const o1 = parseFloat(odds1String) || 0;
-    const o2 = parseFloat(odds2String) || 0;
+    const o1 = parseRegionalOddsToDecimal(odds1String, userRegion) || 0;
+    const o2 = parseRegionalOddsToDecimal(odds2String, userRegion) || 0;
     const { bookmaker1, bookmaker2 } = getBookmakers();
     
     if (opportunity.mode === 'middle') {
@@ -200,7 +203,7 @@ export function LineCalculatorModal({ opportunity, onClose, onLogBet }: LineCalc
       setStake1String(stake1.toFixed(2));
       setStake2String(stake2.toFixed(2));
     }
-  }, [opportunity, totalStake, odds1String, odds2String, stakesModified, calculateOptimalStakes, getBookmakers, stealthMode]);
+  }, [opportunity, totalStake, odds1String, odds2String, stakesModified, calculateOptimalStakes, getBookmakers, stealthMode, userRegion]);
 
   if (!opportunity) return null;
 
@@ -208,14 +211,14 @@ export function LineCalculatorModal({ opportunity, onClose, onLogBet }: LineCalc
   const isSpread = opportunity.mode === 'spread';
   const isTotals = opportunity.mode === 'totals';
 
-  // Parse current values
-  const odds1 = parseFloat(odds1String) || 0;
-  const odds2 = parseFloat(odds2String) || 0;
+  // Parse current values (convert regional display strings back to decimal for math)
+  const odds1 = parseRegionalOddsToDecimal(odds1String, userRegion) || 0;
+  const odds2 = parseRegionalOddsToDecimal(odds2String, userRegion) || 0;
   const stake1 = parseFloat(stake1String) || 0;
   const stake2 = parseFloat(stake2String) || 0;
   const total = stake1 + stake2;
 
-  // Get original odds for comparison
+  // Get original odds for comparison (always decimal internally)
   const originalOdds1 = isMiddle 
     ? opportunity.side1.odds 
     : isSpread 
@@ -272,8 +275,8 @@ export function LineCalculatorModal({ opportunity, onClose, onLogBet }: LineCalc
 
   const handleOdds1Change = (value: string) => {
     setOdds1String(value);
-    const parsed = parseFloat(value);
-    if (!isNaN(parsed) && Math.abs(parsed - originalOdds1) > 0.001) {
+    const parsed = parseRegionalOddsToDecimal(value, userRegion);
+    if (parsed !== null && Math.abs(parsed - originalOdds1) > 0.001) {
       setOddsModified(true);
     }
     setStakesModified(false);
@@ -281,8 +284,8 @@ export function LineCalculatorModal({ opportunity, onClose, onLogBet }: LineCalc
 
   const handleOdds2Change = (value: string) => {
     setOdds2String(value);
-    const parsed = parseFloat(value);
-    if (!isNaN(parsed) && Math.abs(parsed - originalOdds2) > 0.001) {
+    const parsed = parseRegionalOddsToDecimal(value, userRegion);
+    if (parsed !== null && Math.abs(parsed - originalOdds2) > 0.001) {
       setOddsModified(true);
     }
     setStakesModified(false);
@@ -303,8 +306,8 @@ export function LineCalculatorModal({ opportunity, onClose, onLogBet }: LineCalc
   };
 
   const resetAll = () => {
-    setOdds1String(originalOdds1.toFixed(2));
-    setOdds2String(originalOdds2.toFixed(2));
+    setOdds1String(formatOddsForInput(originalOdds1, userRegion));
+    setOdds2String(formatOddsForInput(originalOdds2, userRegion));
     setOddsModified(false);
     setStakesModified(false);
     setFavourMode(false);
@@ -777,7 +780,7 @@ export function LineCalculatorModal({ opportunity, onClose, onLogBet }: LineCalc
                       />
                     </div>
                     <div className="text-[10px] sm:text-xs mt-0.5 sm:mt-1" style={{ color: 'var(--muted-foreground)' }}>
-                      {((1 / odds1) * 100).toFixed(1)}%
+                      {odds1 > 0 ? ((1 / odds1) * 100).toFixed(1) : '0.0'}%
                     </div>
                   </div>
                 </div>
@@ -869,7 +872,7 @@ export function LineCalculatorModal({ opportunity, onClose, onLogBet }: LineCalc
                       />
                     </div>
                     <div className="text-[10px] sm:text-xs mt-0.5 sm:mt-1" style={{ color: 'var(--muted-foreground)' }}>
-                      {((1 / odds2) * 100).toFixed(1)}%
+                      {odds2 > 0 ? ((1 / odds2) * 100).toFixed(1) : '0.0'}%
                     </div>
                   </div>
                 </div>
