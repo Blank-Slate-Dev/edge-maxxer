@@ -2,9 +2,21 @@
 'use client';
 import { useState, useCallback, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Loader2, X, CheckCircle, RefreshCw, Zap, Lock, Sun, Moon, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  Loader2,
+  X,
+  CheckCircle,
+  RefreshCw,
+  Zap,
+  Lock,
+  Sun,
+  Moon,
+  ChevronDown,
+  ChevronUp,
+} from 'lucide-react';
 import { useSession } from 'next-auth/react';
 import { useTheme } from '@/contexts/ThemeContext';
+
 // PERFORMANCE FIX: Direct imports instead of barrel exports
 import { Header } from '@/components/Header';
 import { ArbFilters } from '@/components/ArbFilters';
@@ -20,8 +32,10 @@ import { Flag } from '@/components/Flag';
 import { SubscriptionRequiredModal } from '@/components/SubscriptionRequiredModal';
 import { AuthModals } from '@/components/AuthModals';
 import { FlagIconsLoader } from '@/components/FlagIconsLoader';
+
 import { useBets } from '@/hooks/useBets';
 import { useAccounts } from '@/hooks/useAccounts';
+
 import type {
   ArbOpportunity,
   ValueBet,
@@ -107,9 +121,6 @@ type Tab = 'opportunities' | 'spreads' | 'totals' | 'value-bets' | 'history' | '
 
 // =========================================================================
 // PERFORMANCE FIX: Reduced polling frequency to lower server/DB load.
-// - Arb poll: 5s → 15s (the auto-scanner updates every ~45-180s anyway,
-//   so polling faster than that just returns the same cached data)
-// - Progress poll: 2s → 4s (still responsive for live scan updates)
 // =========================================================================
 const POLL_INTERVAL_SECONDS = 15;
 const PROGRESS_POLL_INTERVAL_MS = 4000;
@@ -117,7 +128,6 @@ const PROGRESS_POLL_INTERVAL_MS = 4000;
 const SCAN_INTERVAL_AU = 44;
 const SCAN_INTERVAL_OTHER = 180;
 
-// Region tab component
 function RegionTab({
   region,
   isSelected,
@@ -165,9 +175,8 @@ function getBookmakersFromArb(opp: ArbOpportunity): string[] {
       bookmakers.push(opp.outcome3.bookmaker);
     }
     return bookmakers;
-  } else {
-    return [opp.backOutcome.bookmaker];
   }
+  return [opp.backOutcome.bookmaker];
 }
 
 function getBookmakersFromSpreadArb(arb: SpreadArb): string[] {
@@ -203,12 +212,8 @@ function getMiddleKey(m: MiddleOpportunity): string {
 
 function mergeByKey<T>(existing: T[], incoming: T[], keyFn: (item: T) => string): T[] {
   const map = new Map<string, T>();
-  for (const item of existing) {
-    map.set(keyFn(item), item);
-  }
-  for (const item of incoming) {
-    map.set(keyFn(item), item);
-  }
+  for (const item of existing) map.set(keyFn(item), item);
+  for (const item of incoming) map.set(keyFn(item), item);
   return Array.from(map.values());
 }
 
@@ -292,13 +297,11 @@ function DashboardContent() {
   const [freeTrialEndsAt, setFreeTrialEndsAt] = useState<Date | null>(null);
   const [freeTrialRemainingMs, setFreeTrialRemainingMs] = useState<number>(0);
 
-  // =========================================================================
-  // PREVIEW MODE: For unauthenticated visitors
-  // =========================================================================
+  // PREVIEW MODE
   const [isPreviewMode, setIsPreviewMode] = useState(false);
   const [authModal, setAuthModal] = useState<'login' | 'signup' | null>(null);
 
-  // Scanner details dropdown (default collapsed)
+  // Scanner accordion (best UX: collapsed by default)
   const [showScannerDetails, setShowScannerDetails] = useState(false);
 
   const [scanProgress, setScanProgress] = useState<{
@@ -332,22 +335,19 @@ function DashboardContent() {
   const freeTrialActive = (session?.user as { freeTrialActive?: boolean } | undefined)?.freeTrialActive ?? false;
   const isAuthenticated = sessionStatus === 'authenticated' && !!session;
 
-  // =========================================================================
   // PREVIEW MODE DETECTION
-  // Once session status resolves, determine if we're in preview mode
-  // =========================================================================
   useEffect(() => {
     if (sessionStatus === 'loading') return;
 
     if (!isAuthenticated) {
       setIsPreviewMode(true);
-      setSettingsLoaded(true); // Skip settings fetch for preview
+      setSettingsLoaded(true);
     } else {
       setIsPreviewMode(false);
     }
   }, [sessionStatus, isAuthenticated]);
 
-  // Collapse scanner details in preview mode
+  // Collapse scanner accordion in preview mode
   useEffect(() => {
     if (isPreviewMode) setShowScannerDetails(false);
   }, [isPreviewMode]);
@@ -355,20 +355,16 @@ function DashboardContent() {
   // Initialize free trial countdown from session
   useEffect(() => {
     const sessionTrialEndsAt = (session?.user as { freeTrialEndsAt?: string } | undefined)?.freeTrialEndsAt;
-    if (sessionTrialEndsAt) {
-      setFreeTrialEndsAt(new Date(sessionTrialEndsAt));
-    }
+    if (sessionTrialEndsAt) setFreeTrialEndsAt(new Date(sessionTrialEndsAt));
   }, [session]);
 
-  // Free trial countdown ticker (updates every second)
+  // Free trial countdown ticker
   useEffect(() => {
     if (!freeTrialEndsAt) return;
 
     const tick = () => {
       const remaining = freeTrialEndsAt.getTime() - Date.now();
       setFreeTrialRemainingMs(Math.max(0, remaining));
-
-      // Trial just expired — show subscription modal (but NOT if user has a paid subscription)
       if (remaining <= 0 && !hasAccess) {
         setTrialExpiredFlag(true);
         setShowSubscriptionModal(true);
@@ -414,9 +410,7 @@ function DashboardContent() {
           console.error('Failed to refresh session:', err);
         } finally {
           setIsRefreshingSession(false);
-          setTimeout(() => {
-            setCheckoutSuccess(null);
-          }, 5000);
+          setTimeout(() => setCheckoutSuccess(null), 5000);
         }
       };
 
@@ -426,7 +420,7 @@ function DashboardContent() {
 
   // Load user's default region (skip for preview mode)
   useEffect(() => {
-    if (isPreviewMode) return; // Already set settingsLoaded in preview detection
+    if (isPreviewMode) return;
 
     const fetchSettings = async () => {
       try {
@@ -444,12 +438,11 @@ function DashboardContent() {
         setSettingsLoaded(true);
       }
     };
-    if (isAuthenticated) {
-      fetchSettings();
-    }
+
+    if (isAuthenticated) fetchSettings();
   }, [isPreviewMode, isAuthenticated]);
 
-  // Scan progress polling (only for authenticated users)
+  // Scan progress polling (authenticated only)
   const pollScanProgress = useCallback(async () => {
     if (isRegionSwitchingRef.current) return;
 
@@ -457,11 +450,9 @@ function DashboardContent() {
 
     try {
       const res = await fetch(`/api/scan-progress?region=${region}&since=${encodeURIComponent(progressSinceRef.current)}`);
-
       if (!res.ok) return;
 
       const data: ScanProgressResponse = await res.json();
-
       if (data.count === 0) return;
 
       const latestBatch = data.batches[data.batches.length - 1];
@@ -539,10 +530,7 @@ function DashboardContent() {
         newSpreads.forEach((s) => getBookmakersFromSpreadArb(s).forEach((bm) => uniqueBookmakers.add(bm)));
         newTotals.forEach((t) => getBookmakersFromTotalsArb(t).forEach((bm) => uniqueBookmakers.add(bm)));
         if (uniqueBookmakers.size > 0) {
-          setBookmakers((prev) => {
-            const combined = new Set([...prev, ...uniqueBookmakers]);
-            return Array.from(combined);
-          });
+          setBookmakers((prev) => Array.from(new Set([...prev, ...uniqueBookmakers])));
         }
 
         if (newArbCount > 0) {
@@ -563,37 +551,25 @@ function DashboardContent() {
     }
   }, []);
 
-  // Start/stop progress polling (only for authenticated users with access)
   useEffect(() => {
     if (!settingsLoaded || !hasAccess || isPreviewMode) return;
     progressIntervalRef.current = setInterval(pollScanProgress, PROGRESS_POLL_INTERVAL_MS);
     return () => {
-      if (progressIntervalRef.current) {
-        clearInterval(progressIntervalRef.current);
-      }
+      if (progressIntervalRef.current) clearInterval(progressIntervalRef.current);
     };
   }, [settingsLoaded, hasAccess, pollScanProgress, isPreviewMode]);
 
-  // =========================================================================
-  // FETCH DATA: Uses /api/global-arbs for authenticated, /api/preview-arbs for preview
-  // =========================================================================
   const fetchGlobalArbs = useCallback(
     async (mode: 'initial' | 'background' | 'manual' = 'background', explicitRegion?: UserRegion) => {
       if (mode === 'background' && isRegionSwitchingRef.current) return;
       if (mode === 'background' && scanProgressActiveRef.current) return;
 
-      if (mode === 'initial') {
-        setIsInitialLoading(true);
-      } else if (mode === 'manual') {
-        setIsManualRefreshing(true);
-      } else {
-        setIsBackgroundRefreshing(true);
-      }
+      if (mode === 'initial') setIsInitialLoading(true);
+      else if (mode === 'manual') setIsManualRefreshing(true);
+      else setIsBackgroundRefreshing(true);
 
       try {
         const region = explicitRegion ?? selectedRegionRef.current;
-
-        // Use preview endpoint for unauthenticated users
         const endpoint = isPreviewMode ? `/api/preview-arbs?region=${region}` : `/api/global-arbs?region=${region}`;
 
         const res = await fetch(endpoint);
@@ -605,22 +581,15 @@ function DashboardContent() {
           return;
         }
 
-        // Update free trial end time from API response
-        if (data.freeTrialEndsAt) {
-          setFreeTrialEndsAt(new Date(data.freeTrialEndsAt));
-        }
+        if (data.freeTrialEndsAt) setFreeTrialEndsAt(new Date(data.freeTrialEndsAt));
 
-        if (!res.ok && !isPreviewMode) {
-          throw new Error(data.error || 'Failed to fetch opportunities');
-        }
+        if (!res.ok && !isPreviewMode) throw new Error(data.error || 'Failed to fetch opportunities');
 
-        if (data.region && data.region !== selectedRegionRef.current) {
-          console.log(`[Dashboard] Ignoring stale response for ${data.region}, now on ${selectedRegionRef.current}`);
-          return;
-        }
+        if (data.region && data.region !== selectedRegionRef.current) return;
 
         if (data.hasCachedResults) {
           const isNewData = data.scannedAt !== lastScannedAtRef.current;
+
           const parsedOpportunities = (data.opportunities || []).map(parseArbDates);
           const parsedValueBets = (data.valueBets || []).map(parseValueBetDates);
           const parsedSpreadArbs = (data.spreadArbs || []).map(parseSpreadDates);
@@ -637,15 +606,9 @@ function DashboardContent() {
             if (data.lineStats) setLineStats(data.lineStats);
 
             const uniqueBookmakers = new Set<string>();
-            parsedOpportunities.forEach((opp) => {
-              getBookmakersFromArb(opp).forEach((bm) => uniqueBookmakers.add(bm));
-            });
-            parsedSpreadArbs.forEach((s) => {
-              getBookmakersFromSpreadArb(s).forEach((bm) => uniqueBookmakers.add(bm));
-            });
-            parsedTotalsArbs.forEach((t) => {
-              getBookmakersFromTotalsArb(t).forEach((bm) => uniqueBookmakers.add(bm));
-            });
+            parsedOpportunities.forEach((opp) => getBookmakersFromArb(opp).forEach((bm) => uniqueBookmakers.add(bm)));
+            parsedSpreadArbs.forEach((s) => getBookmakersFromSpreadArb(s).forEach((bm) => uniqueBookmakers.add(bm)));
+            parsedTotalsArbs.forEach((t) => getBookmakersFromTotalsArb(t).forEach((bm) => uniqueBookmakers.add(bm)));
             setBookmakers(Array.from(uniqueBookmakers));
 
             if (isNewData && lastScannedAtRef.current !== null && mode !== 'initial') {
@@ -658,21 +621,16 @@ function DashboardContent() {
             setLastUpdated(new Date(data.scannedAt));
             lastScannedAtRef.current = data.scannedAt;
           }
+
           if (data.ageSeconds !== undefined) setScanAgeSeconds(data.ageSeconds);
           if (data.remainingCredits !== undefined) setRemainingCredits(data.remainingCredits);
+
           setHasFetchedArbs(true);
           setError(null);
-          console.log(
-            `[Dashboard] ${region}: ${parsedOpportunities.length} H2H, ${parsedSpreadArbs.length} spreads, ${parsedTotalsArbs.length} totals, ${parsedMiddles.length} middles (${data.ageSeconds}s old)${
-              isNewData ? ' [NEW]' : ''
-            }${isPreviewMode ? ' [PREVIEW]' : ''}`
-          );
         }
       } catch (err) {
         console.error('Failed to fetch global arbs:', err);
-        if (mode !== 'background') {
-          setError(err instanceof Error ? err.message : 'Failed to load opportunities');
-        }
+        if (mode !== 'background') setError(err instanceof Error ? err.message : 'Failed to load opportunities');
       } finally {
         setIsInitialLoading(false);
         setIsBackgroundRefreshing(false);
@@ -684,51 +642,39 @@ function DashboardContent() {
     [isPreviewMode]
   );
 
-  // Initial fetch and polling
   useEffect(() => {
     if (!settingsLoaded) return;
     fetchGlobalArbs('initial', selectedRegionRef.current);
 
-    // Poll less frequently in preview mode (30s vs 15s)
     const interval = isPreviewMode ? 30 : POLL_INTERVAL_SECONDS;
-    const pollInterval = setInterval(() => {
-      fetchGlobalArbs('background');
-    }, interval * 1000);
+    const pollInterval = setInterval(() => fetchGlobalArbs('background'), interval * 1000);
     return () => clearInterval(pollInterval);
   }, [fetchGlobalArbs, settingsLoaded, isPreviewMode]);
 
-  // Region selection
   const selectRegion = useCallback(
     (region: UserRegion) => {
-      if (region !== selectedRegion) {
-        isRegionSwitchingRef.current = true;
-        setIsRegionSwitching(true);
+      if (region === selectedRegion) return;
 
-        selectedRegionRef.current = region;
-        setSelectedRegion(region);
+      isRegionSwitchingRef.current = true;
+      setIsRegionSwitching(true);
 
-        setOpportunities([]);
-        setValueBets([]);
-        setSpreadArbs([]);
-        setTotalsArbs([]);
-        setMiddles([]);
-        setStats(null);
-        setLineStats(null);
-        setScanAgeSeconds(null);
-        lastScannedAtRef.current = null;
+      selectedRegionRef.current = region;
+      setSelectedRegion(region);
 
-        progressSinceRef.current = new Date().toISOString();
-        setScanProgress({
-          isActive: false,
-          phase: null,
-          sportsScanned: 0,
-          sportsTotal: 0,
-          arbsFoundSoFar: 0,
-          newArbsInLastBatch: 0,
-        });
+      setOpportunities([]);
+      setValueBets([]);
+      setSpreadArbs([]);
+      setTotalsArbs([]);
+      setMiddles([]);
+      setStats(null);
+      setLineStats(null);
+      setScanAgeSeconds(null);
+      lastScannedAtRef.current = null;
 
-        fetchGlobalArbs('initial', region);
-      }
+      progressSinceRef.current = new Date().toISOString();
+      setScanProgress({ isActive: false, phase: null, sportsScanned: 0, sportsTotal: 0, arbsFoundSoFar: 0, newArbsInLastBatch: 0 });
+
+      fetchGlobalArbs('initial', region);
     },
     [selectedRegion, fetchGlobalArbs]
   );
@@ -736,9 +682,7 @@ function DashboardContent() {
   // Increment age counter
   useEffect(() => {
     const ageInterval = setInterval(() => {
-      if (scanAgeSecondsRef.current !== null) {
-        setScanAgeSeconds((prev) => (prev !== null ? prev + 1 : null));
-      }
+      if (scanAgeSecondsRef.current !== null) setScanAgeSeconds((prev) => (prev !== null ? prev + 1 : null));
     }, 1000);
     return () => clearInterval(ageInterval);
   }, []);
@@ -747,9 +691,7 @@ function DashboardContent() {
     try {
       const res = await fetch('/api/sports');
       const data: SportsResponse = await res.json();
-      if (data.sports) {
-        setSports(data.sports);
-      }
+      if (data.sports) setSports(data.sports);
     } catch (err) {
       console.error('Failed to fetch sports:', err);
     }
@@ -768,9 +710,6 @@ function DashboardContent() {
     fetchGlobalArbs('manual', selectedRegion);
   }, [fetchGlobalArbs, selectedRegion, isPreviewMode]);
 
-  // =========================================================================
-  // PREVIEW MODE: Intercept calculator opens → show auth modal instead
-  // =========================================================================
   const handleSelectArb = useCallback(
     (arb: ArbOpportunity) => {
       if (isPreviewMode) {
@@ -811,7 +750,7 @@ function DashboardContent() {
     setSelectedLineOpp(null);
   };
 
-  // Apply local filters
+  // Filters
   const filteredOpportunities = opportunities.filter((opp) => {
     if (filters.profitableOnly && opp.profitPercentage < 0) return false;
     if (!filters.showNearArbs && opp.type === 'near-arb') return false;
@@ -877,19 +816,25 @@ function DashboardContent() {
   const isLoading = isInitialLoading || isManualRefreshing || isRegionSwitching;
   const currentScanInterval = getScanInterval();
 
-  const canShowScannerDropdown = !isPreviewMode && hasFetchedArbs && !isInitialLoading && !isRegionSwitching;
-  const hasScannerActivity = canShowScannerDropdown && (isBackgroundRefreshing || scanProgress.isActive);
-  const lastScanLabel =
-    scanAgeSeconds !== null && !scanProgress.isActive ? `Last scan: ${formatScanAge(scanAgeSeconds)}` : scanProgress.isActive ? 'Results streaming live' : '—';
+  // Best UX: only show scanner accordion when we actually have data and are authenticated
+  const canShowScannerAccordion = !isPreviewMode && hasFetchedArbs && !isInitialLoading && !isRegionSwitching;
+
+  // Mobile-first defaults:
+  // - Keep it collapsed to reduce cognitive load
+  // - Expand when user wants details
+  const headerSubtext =
+    scanProgress.isActive
+      ? `Scanning ${scanProgress.phase === 'h2h' ? 'H2H' : 'Lines'}${scanProgress.sportsTotal > 0 ? ` • ${scanProgress.sportsScanned}/${scanProgress.sportsTotal} sports` : ''}${
+          scanProgress.arbsFoundSoFar > 0 ? ` • ${scanProgress.arbsFoundSoFar} arbs` : ''
+        }`
+      : scanAgeSeconds !== null
+        ? `Last scan: ${formatScanAge(scanAgeSeconds)}`
+        : '—';
 
   return (
     <div className="min-h-screen transition-colors" style={{ backgroundColor: 'var(--background)' }}>
-      {/* PERFORMANCE FIX: Load flag-icons CSS only on dashboard */}
       <FlagIconsLoader />
 
-      {/* ================================================================= */}
-      {/* PREVIEW MODE: Show simplified header with sign-up CTA              */}
-      {/* ================================================================= */}
       {isPreviewMode ? (
         <PreviewHeader onSignUp={() => setAuthModal('signup')} onLogin={() => setAuthModal('login')} />
       ) : (
@@ -905,16 +850,9 @@ function DashboardContent() {
         />
       )}
 
-      {/* Session Refresh Overlay (after checkout) */}
       {isRefreshingSession && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}>
-          <div
-            className="flex flex-col items-center gap-4 p-8 rounded-xl border"
-            style={{
-              backgroundColor: 'var(--surface)',
-              borderColor: 'var(--border)',
-            }}
-          >
+          <div className="flex flex-col items-center gap-4 p-8 rounded-xl border" style={{ backgroundColor: 'var(--surface)', borderColor: 'var(--border)' }}>
             <Loader2 className="w-10 h-10 animate-spin" style={{ color: 'var(--success)' }} />
             <div className="text-center">
               <h3 className="text-lg font-medium mb-1" style={{ color: 'var(--foreground)' }}>
@@ -928,18 +866,10 @@ function DashboardContent() {
         </div>
       )}
 
-      <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6 lg:space-y-8">
-        {/* ================================================================= */}
-        {/* PREVIEW MODE BANNER                                                */}
-        {/* ================================================================= */}
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6">
+        {/* PREVIEW MODE BANNER */}
         {isPreviewMode && hasFetchedArbs && !isInitialLoading && (
-          <div
-            className="border px-4 py-4 rounded-lg"
-            style={{
-              borderColor: '#14b8a6',
-              backgroundColor: 'color-mix(in srgb, #14b8a6 10%, transparent)',
-            }}
-          >
+          <div className="border px-4 py-4 rounded-lg" style={{ borderColor: '#14b8a6', backgroundColor: 'color-mix(in srgb, #14b8a6 10%, transparent)' }}>
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
               <div className="flex items-center gap-2">
                 <Lock className="w-5 h-5 shrink-0" style={{ color: '#14b8a6' }} />
@@ -984,13 +914,7 @@ function DashboardContent() {
 
         {/* Checkout Success Banner */}
         {checkoutSuccess && !isRefreshingSession && (
-          <div
-            className="border px-4 py-3 rounded-lg animate-fade-in"
-            style={{
-              borderColor: 'var(--success)',
-              backgroundColor: 'color-mix(in srgb, var(--success) 10%, transparent)',
-            }}
-          >
+          <div className="border px-4 py-3 rounded-lg animate-fade-in" style={{ borderColor: 'var(--success)', backgroundColor: 'color-mix(in srgb, var(--success) 10%, transparent)' }}>
             <div className="flex items-center gap-3">
               <CheckCircle className="w-5 h-5 shrink-0" style={{ color: 'var(--success)' }} />
               <div className="flex-1">
@@ -1001,36 +925,34 @@ function DashboardContent() {
                   Your subscription is now active. Live arbitrage data is loading automatically!
                 </div>
               </div>
-              <button
-                onClick={() => setCheckoutSuccess(null)}
-                className="p-1 rounded hover:bg-[var(--background)] transition-colors"
-                style={{ color: 'var(--muted)' }}
-              >
+              <button onClick={() => setCheckoutSuccess(null)} className="p-1 rounded hover:bg-[var(--background)] transition-colors" style={{ color: 'var(--muted)' }}>
                 <X className="w-4 h-4" />
               </button>
             </div>
           </div>
         )}
 
-        {/* ================================================================= */}
-        {/* SCANNER + STATS DROPDOWN (default collapsed)                       */}
-        {/* ================================================================= */}
-        {canShowScannerDropdown && (
+        {/* ================================================================ */}
+        {/* BEST UX: Single, clean accordion — no nested/duplicated cards     */}
+        {/* ================================================================ */}
+        {canShowScannerAccordion && (
           <div
-            className={`border rounded-lg overflow-hidden transition-all duration-300 ${showNewResultsFlash ? 'ring-2 ring-green-500' : ''}`}
+            className={`border rounded-xl overflow-hidden transition-all ${showNewResultsFlash ? 'ring-2 ring-green-500' : ''}`}
             style={{
-              borderColor: 'color-mix(in srgb, #22c55e 40%, var(--border))',
+              borderColor: 'color-mix(in srgb, #22c55e 35%, var(--border))',
               backgroundColor: 'var(--surface)',
             }}
           >
+            {/* Header row */}
             <button
               type="button"
               onClick={() => setShowScannerDetails((v) => !v)}
-              className="w-full px-4 py-3 flex items-center gap-3 transition-colors hover:bg-[var(--background)]"
+              className="w-full px-4 sm:px-5 py-3.5 flex items-center gap-3 transition-colors hover:bg-[var(--background)]"
               aria-expanded={showScannerDetails}
             >
+              {/* Left: status dot */}
               <div className="relative w-5 h-5 shrink-0 flex items-center justify-center">
-                {hasScannerActivity ? (
+                {isBackgroundRefreshing || scanProgress.isActive ? (
                   <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#22c55e' }} />
                 ) : (
                   <>
@@ -1040,7 +962,8 @@ function DashboardContent() {
                 )}
               </div>
 
-              <div className="flex-1 min-w-0">
+              {/* Middle: title + subtext */}
+              <div className="flex-1 min-w-0 text-left">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="font-medium text-sm truncate" style={{ color: 'var(--foreground)' }}>
                     Live Scanner & Scan Stats
@@ -1050,23 +973,16 @@ function DashboardContent() {
                   </span>
                   {showNewResultsFlash && (
                     <span className="text-[10px] font-normal bg-green-500 text-black px-1.5 py-0.5 rounded animate-pulse shrink-0">
-                      {scanProgress.newArbsInLastBatch > 0 ? `+${scanProgress.newArbsInLastBatch} arbs!` : 'Updated!'}
+                      {scanProgress.newArbsInLastBatch > 0 ? `+${scanProgress.newArbsInLastBatch} arbs` : 'Updated'}
                     </span>
                   )}
                 </div>
                 <div className="text-xs mt-0.5 truncate" style={{ color: 'var(--muted)' }}>
-                  {scanProgress.isActive ? (
-                    <>
-                      Scanning {scanProgress.phase === 'h2h' ? 'H2H' : 'Lines'}
-                      {scanProgress.sportsTotal > 0 ? ` (${scanProgress.sportsScanned}/${scanProgress.sportsTotal})` : ''}
-                      {scanProgress.arbsFoundSoFar > 0 ? ` • ${scanProgress.arbsFoundSoFar} arbs` : ''}
-                    </>
-                  ) : (
-                    lastScanLabel
-                  )}
+                  {headerSubtext}
                 </div>
               </div>
 
+              {/* Right: refresh + chevron (tight, symmetric, centered) */}
               <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={(e) => {
@@ -1074,85 +990,39 @@ function DashboardContent() {
                     handleRefresh();
                   }}
                   disabled={isManualRefreshing}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors hover:bg-[var(--surface)] disabled:opacity-50"
-                  style={{
-                    color: 'var(--muted)',
-                    border: '1px solid var(--border)',
-                    backgroundColor: 'transparent',
-                  }}
+                  className="flex items-center justify-center gap-1.5 h-9 px-3 rounded-lg text-xs font-medium transition-colors hover:bg-[var(--surface)] disabled:opacity-50"
+                  style={{ color: 'var(--muted)', border: '1px solid var(--border)', backgroundColor: 'transparent' }}
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${isManualRefreshing ? 'animate-spin' : ''}`} />
                   <span className="hidden sm:inline">{isManualRefreshing ? 'Refreshing...' : 'Refresh'}</span>
                 </button>
 
-                {showScannerDetails ? (
-                  <ChevronUp className="w-4 h-4" style={{ color: 'var(--muted)' }} />
-                ) : (
-                  <ChevronDown className="w-4 h-4" style={{ color: 'var(--muted)' }} />
-                )}
+                <div
+                  className="h-9 w-9 flex items-center justify-center rounded-lg"
+                  style={{ border: '1px solid var(--border)', color: 'var(--muted)', backgroundColor: 'transparent' }}
+                >
+                  {showScannerDetails ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </div>
               </div>
             </button>
 
+            {/* Expanded content */}
             {showScannerDetails && (
-              <div
-                className="px-4 pb-4"
-                style={{
-                  borderTop: '1px solid var(--border)',
-                  backgroundColor: 'var(--surface)',
-                }}
-              >
-                {/* Live Scan Status (expanded) */}
-                <div
-                  className="mt-3 border px-4 py-3 rounded-lg"
-                  style={{
-                    borderColor: 'color-mix(in srgb, #22c55e 50%, transparent)',
-                    backgroundColor: 'color-mix(in srgb, #22c55e 10%, transparent)',
-                  }}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="relative w-5 h-5 shrink-0 flex items-center justify-center">
-                      {isBackgroundRefreshing || scanProgress.isActive ? (
-                        <Loader2 className="w-4 h-4 animate-spin" style={{ color: '#22c55e' }} />
-                      ) : (
-                        <>
-                          <div className="absolute inset-0 rounded-full animate-ping" style={{ backgroundColor: '#22c55e', opacity: 0.3 }} />
-                          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: '#22c55e' }} />
-                        </>
-                      )}
-                    </div>
-
-                    <div className="flex-1">
-                      <div className="font-medium text-sm flex items-center gap-2" style={{ color: '#22c55e' }}>
-                        <span>Live Scanner Active</span>
-                        <span className="text-xs font-normal opacity-75">({selectedRegion})</span>
-
-                        {scanProgress.isActive && (
-                          <span className="flex items-center gap-1 text-xs font-normal bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full">
-                            <Zap className="w-3 h-3" />
-                            Scanning {scanProgress.phase === 'h2h' ? 'H2H' : 'Lines'}
-                            {scanProgress.sportsTotal > 0 && (
-                              <span className="opacity-75">
-                                ({scanProgress.sportsScanned}/{scanProgress.sportsTotal})
-                              </span>
-                            )}
-                            {scanProgress.arbsFoundSoFar > 0 && (
-                              <span className="text-green-300 font-medium">• {scanProgress.arbsFoundSoFar} arbs</span>
-                            )}
-                          </span>
-                        )}
-
-                        {!scanProgress.isActive && isBackgroundRefreshing && <span className="text-xs font-normal opacity-75">Checking...</span>}
-                      </div>
-                      <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
-                        {scanAgeSeconds !== null && !scanProgress.isActive && <span>Last scan: {formatScanAge(scanAgeSeconds)}</span>}
-                        {scanProgress.isActive && <span>Results streaming live — arbs appear as they&apos;re found</span>}
-                      </div>
-                    </div>
-                  </div>
-
+              <div className="px-4 sm:px-5 pb-4" style={{ borderTop: '1px solid var(--border)', backgroundColor: 'var(--surface)' }}>
+                {/* Progress */}
+                <div className="pt-4">
                   {scanProgress.isActive && scanProgress.sportsTotal > 0 ? (
                     <>
-                      <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'color-mix(in srgb, #22c55e 20%, transparent)' }}>
+                      <div className="flex items-center justify-between text-[10px] sm:text-xs" style={{ color: 'var(--muted)' }}>
+                        <span className="flex items-center gap-2">
+                          <Zap className="w-3.5 h-3.5" style={{ color: '#22c55e' }} />
+                          Scanning {scanProgress.phase === 'h2h' ? 'H2H markets' : 'Lines markets'}
+                        </span>
+                        <span>
+                          {scanProgress.sportsScanned}/{scanProgress.sportsTotal}
+                        </span>
+                      </div>
+                      <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'color-mix(in srgb, #22c55e 18%, transparent)' }}>
                         <div
                           className="h-full rounded-full transition-all duration-500 ease-out"
                           style={{
@@ -1161,14 +1031,14 @@ function DashboardContent() {
                           }}
                         />
                       </div>
-                      <div className="mt-1 text-[10px] flex justify-between" style={{ color: 'var(--muted-foreground)' }}>
-                        <span>Scanning {scanProgress.phase === 'h2h' ? 'H2H markets' : 'Lines markets'}...</span>
-                        <span>{Math.round((scanProgress.sportsScanned / scanProgress.sportsTotal) * 100)}%</span>
-                      </div>
                     </>
                   ) : (
                     <>
-                      <div className="mt-2 h-1 rounded-full overflow-hidden" style={{ backgroundColor: 'color-mix(in srgb, #22c55e 20%, transparent)' }}>
+                      <div className="flex items-center justify-between text-[10px] sm:text-xs" style={{ color: 'var(--muted)' }}>
+                        <span>Updated</span>
+                        <span>Next scan</span>
+                      </div>
+                      <div className="mt-2 h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: 'color-mix(in srgb, #22c55e 18%, transparent)' }}>
                         <div
                           className="h-full rounded-full transition-all duration-1000 ease-linear"
                           style={{
@@ -1177,34 +1047,22 @@ function DashboardContent() {
                           }}
                         />
                       </div>
-                      <div className="mt-1 text-[10px] flex justify-between" style={{ color: 'var(--muted-foreground)' }}>
-                        <span>Updated</span>
-                        <span>Next scan</span>
-                      </div>
                     </>
                   )}
                 </div>
 
-                {/* Stats Grid (expanded) */}
+                {/* Divider */}
+                <div className="mt-4" style={{ borderTop: '1px solid var(--border-light)' }} />
+
+                {/* Stats grid */}
                 {stats && (
-                  <div
-                    className="mt-3 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-px rounded-lg overflow-hidden transition-opacity duration-300"
-                    style={{ backgroundColor: 'var(--border-light)', opacity: isBackgroundRefreshing ? 0.8 : 1 }}
-                  >
+                  <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-px rounded-lg overflow-hidden" style={{ backgroundColor: 'var(--border-light)' }}>
                     <StatBox label="Events" value={stats.totalEvents} />
                     <StatBox label="Sports" value={stats.sportsScanned} />
                     <StatBox label="Bookmakers" value={stats.totalBookmakers} />
                     <StatBox label="H2H Arbs" value={profitableCount} highlight={profitableCount > 0} />
-                    <StatBox
-                      label="Spread Arbs"
-                      value={filteredSpreads.filter((s) => s.type === 'arb').length}
-                      highlight={filteredSpreads.filter((s) => s.type === 'arb').length > 0}
-                    />
-                    <StatBox
-                      label="Totals Arbs"
-                      value={filteredTotals.filter((t) => t.type === 'arb').length}
-                      highlight={filteredTotals.filter((t) => t.type === 'arb').length > 0}
-                    />
+                    <StatBox label="Spread Arbs" value={filteredSpreads.filter((s) => s.type === 'arb').length} highlight={filteredSpreads.filter((s) => s.type === 'arb').length > 0} />
+                    <StatBox label="Totals Arbs" value={filteredTotals.filter((t) => t.type === 'arb').length} highlight={filteredTotals.filter((t) => t.type === 'arb').length > 0} />
                     <StatBox label="Middles" value={filteredMiddles.length} subtitle="EV plays" />
                     <StatBox label="Value Bets" value={filteredValueBets.length} subtitle="> 5% edge" />
                   </div>
@@ -1216,20 +1074,27 @@ function DashboardContent() {
 
         {/* Region Tabs */}
         {settingsLoaded && (
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <span className="text-xs sm:text-sm mr-1 sm:mr-2" style={{ color: 'var(--muted)' }}>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs sm:text-sm mr-1" style={{ color: 'var(--muted)' }}>
               Region:
             </span>
-            {config.regionOrder.map((region) => (
-              <RegionTab
-                key={region}
-                region={region}
-                isSelected={selectedRegion === region}
-                onClick={() => selectRegion(region)}
-                isLoading={isRegionSwitching && selectedRegion === region}
-              />
-            ))}
-            <span className="text-[10px] sm:text-xs ml-1 sm:ml-2 hidden sm:inline" style={{ color: 'var(--muted)' }}>
+
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              {config.regionOrder.map((region) => (
+                <RegionTab
+                  key={region}
+                  region={region}
+                  isSelected={selectedRegion === region}
+                  onClick={() => selectRegion(region)}
+                  isLoading={isRegionSwitching && selectedRegion === region}
+                />
+              ))}
+            </div>
+
+            <span
+              className="text-[10px] sm:text-xs ml-1 px-2 py-1 rounded-full border"
+              style={{ color: 'var(--muted)', borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}
+            >
               {selectedBookmakerCount} bookmakers
             </span>
           </div>
@@ -1237,13 +1102,7 @@ function DashboardContent() {
 
         {/* Loading State for Region Switch */}
         {isRegionSwitching && (
-          <div
-            className="border p-8 sm:p-12 text-center rounded-lg"
-            style={{
-              borderColor: 'var(--border)',
-              backgroundColor: 'var(--surface)',
-            }}
-          >
+          <div className="border p-8 sm:p-12 text-center rounded-lg" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}>
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: 'var(--muted)' }} />
             <h3 className="text-lg font-medium mb-2" style={{ color: 'var(--foreground)' }}>
               Loading {selectedRegion} Opportunities...
@@ -1256,13 +1115,7 @@ function DashboardContent() {
 
         {/* Initial Loading State */}
         {isInitialLoading && !hasFetchedArbs && !isRegionSwitching && (
-          <div
-            className="border p-8 sm:p-12 text-center rounded-lg"
-            style={{
-              borderColor: 'var(--border)',
-              backgroundColor: 'var(--surface)',
-            }}
-          >
+          <div className="border p-8 sm:p-12 text-center rounded-lg" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}>
             <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" style={{ color: 'var(--muted)' }} />
             <h3 className="text-lg font-medium mb-2" style={{ color: 'var(--foreground)' }}>
               Loading {selectedRegion} Opportunities...
@@ -1275,14 +1128,7 @@ function DashboardContent() {
 
         {/* Error */}
         {error && (
-          <div
-            className="border px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm rounded-lg"
-            style={{
-              borderColor: 'var(--danger)',
-              backgroundColor: 'var(--danger-muted)',
-              color: 'var(--danger)',
-            }}
-          >
+          <div className="border px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm rounded-lg" style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-muted)', color: 'var(--danger)' }}>
             {error}
           </div>
         )}
@@ -1322,7 +1168,7 @@ function DashboardContent() {
             {(activeTab === 'spreads' || activeTab === 'totals') && (
               <button
                 onClick={() => setShowMiddles(!showMiddles)}
-                className="flex items-center justify-center gap-2 px-3 py-1.5 text-xs sm:text-sm font-medium border transition-colors rounded-lg"
+                className="flex items-center justify-center gap-2 px-3 py-2 text-xs sm:text-sm font-medium border transition-colors rounded-lg"
                 style={{
                   backgroundColor: showMiddles ? 'var(--warning)' : 'transparent',
                   borderColor: showMiddles ? 'var(--warning)' : 'var(--border)',
@@ -1338,13 +1184,7 @@ function DashboardContent() {
         {/* Tab Content */}
         <div className={`transition-opacity duration-200 ${isBackgroundRefreshing && !scanProgress.isActive ? 'opacity-90' : 'opacity-100'}`}>
           {hasFetchedArbs && !isRegionSwitching && activeTab === 'opportunities' && (
-            <ArbTable
-              opportunities={filteredOpportunities}
-              onSelectArb={handleSelectArb}
-              globalMode={false}
-              userRegion={selectedRegion}
-              previewMode={isPreviewMode}
-            />
+            <ArbTable opportunities={filteredOpportunities} onSelectArb={handleSelectArb} globalMode={false} userRegion={selectedRegion} previewMode={isPreviewMode} />
           )}
 
           {hasFetchedArbs && !isRegionSwitching && activeTab === 'spreads' && (
@@ -1393,38 +1233,21 @@ function DashboardContent() {
           />
         )}
 
-        {/* ================================================================= */}
-        {/* PREVIEW MODE: Bottom CTA                                           */}
-        {/* ================================================================= */}
+        {/* PREVIEW MODE: Bottom CTA */}
         {isPreviewMode && hasFetchedArbs && (
-          <div
-            className="border rounded-lg p-6 sm:p-8 text-center"
-            style={{
-              borderColor: '#14b8a6',
-              backgroundColor: 'color-mix(in srgb, #14b8a6 5%, var(--surface))',
-            }}
-          >
+          <div className="border rounded-lg p-6 sm:p-8 text-center" style={{ borderColor: '#14b8a6', backgroundColor: 'color-mix(in srgb, #14b8a6 5%, var(--surface))' }}>
             <Lock className="w-8 h-8 mx-auto mb-3" style={{ color: '#14b8a6' }} />
             <h3 className="text-lg sm:text-xl font-semibold mb-2" style={{ color: 'var(--foreground)' }}>
               Ready to see the full picture?
             </h3>
             <p className="text-sm mb-4 max-w-md mx-auto" style={{ color: 'var(--muted)' }}>
-              Sign up to reveal all team names, sportsbooks, and access the stake calculator. Start with a free 10-minute trial — no
-              credit card required.
+              Sign up to reveal all team names, sportsbooks, and access the stake calculator. Start with a free 10-minute trial — no credit card required.
             </p>
             <div className="flex flex-wrap justify-center gap-3">
-              <button
-                onClick={() => setAuthModal('signup')}
-                className="px-6 py-3 text-sm font-medium rounded-lg transition-all hover:opacity-90"
-                style={{ backgroundColor: '#14b8a6', color: '#fff' }}
-              >
+              <button onClick={() => setAuthModal('signup')} className="px-6 py-3 text-sm font-medium rounded-lg transition-all hover:opacity-90" style={{ backgroundColor: '#14b8a6', color: '#fff' }}>
                 Sign Up Free
               </button>
-              <button
-                onClick={() => setAuthModal('login')}
-                className="px-6 py-3 text-sm font-medium rounded-lg transition-colors border hover:bg-[var(--surface)]"
-                style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
-              >
+              <button onClick={() => setAuthModal('login')} className="px-6 py-3 text-sm font-medium rounded-lg transition-colors border hover:bg-[var(--surface)]" style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}>
                 Already have an account? Login
               </button>
             </div>
@@ -1432,31 +1255,23 @@ function DashboardContent() {
         )}
       </main>
 
-      {/* Calculator Modals (only for authenticated users) */}
+      {/* Calculator Modals */}
       {!isPreviewMode && (
         <>
           <StakeCalculatorModal arb={selectedArb} onClose={() => setSelectedArb(null)} onLogBet={handleLogBet} userRegion={selectedRegion} />
-          <ValueBetCalculatorModal
-            valueBet={selectedValueBet}
-            onClose={() => setSelectedValueBet(null)}
-            onLogBet={handleLogBet}
-            userRegion={selectedRegion}
-          />
+          <ValueBetCalculatorModal valueBet={selectedValueBet} onClose={() => setSelectedValueBet(null)} onLogBet={handleLogBet} userRegion={selectedRegion} />
           <LineCalculatorModal opportunity={selectedLineOpp} onClose={() => setSelectedLineOpp(null)} onLogBet={handleLogBet} userRegion={selectedRegion} />
         </>
       )}
 
-      {/* Subscription Required Modal */}
       <SubscriptionRequiredModal isOpen={showSubscriptionModal} onClose={() => setShowSubscriptionModal(false)} trialExpired={trialExpiredFlag} />
 
-      {/* Auth Modals (for preview mode sign-up/login prompts) */}
       <AuthModals
         isOpen={authModal}
         onClose={() => setAuthModal(null)}
         onSwitch={setAuthModal}
         onAuthSuccess={() => {
           setAuthModal(null);
-          // Reload to switch from preview to full mode
           window.location.reload();
         }}
       />
@@ -1464,20 +1279,12 @@ function DashboardContent() {
   );
 }
 
-// =========================================================================
-// PREVIEW MODE HEADER — Simplified header for unauthenticated visitors
-// =========================================================================
+// PREVIEW MODE HEADER
 function PreviewHeader({ onSignUp, onLogin }: { onSignUp: () => void; onLogin: () => void }) {
   const { theme, toggleTheme } = useTheme();
 
   return (
-    <header
-      className="border-b sticky top-0 z-50 transition-colors"
-      style={{
-        borderColor: 'var(--border)',
-        backgroundColor: 'var(--background)',
-      }}
-    >
+    <header className="border-b sticky top-0 z-50 transition-colors" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--background)' }}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
         <div className="flex items-center justify-between gap-4">
           <div className="flex items-center shrink-0">
@@ -1496,18 +1303,10 @@ function PreviewHeader({ onSignUp, onLogin }: { onSignUp: () => void; onLogin: (
             >
               {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
             </button>
-            <button
-              onClick={onLogin}
-              className="px-3 sm:px-4 py-2 text-sm font-medium rounded-lg transition-colors hover:bg-[var(--surface)]"
-              style={{ color: 'var(--foreground)' }}
-            >
+            <button onClick={onLogin} className="px-3 sm:px-4 py-2 text-sm font-medium rounded-lg transition-colors hover:bg-[var(--surface)]" style={{ color: 'var(--foreground)' }}>
               Login
             </button>
-            <button
-              onClick={onSignUp}
-              className="px-4 sm:px-5 py-2 sm:py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
-              style={{ backgroundColor: '#14b8a6', color: '#fff' }}
-            >
+            <button onClick={onSignUp} className="px-4 sm:px-5 py-2 sm:py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90" style={{ backgroundColor: '#14b8a6', color: '#fff' }}>
               Sign Up Free
             </button>
           </div>
@@ -1529,18 +1328,15 @@ function StatBox({
   highlight?: boolean;
 }) {
   return (
-    <div className="px-2 sm:px-3 lg:px-4 py-2 sm:py-3 transition-opacity duration-200" style={{ backgroundColor: 'var(--background)' }}>
-      <div className="text-[10px] sm:text-xs uppercase tracking-wide mb-0.5 sm:mb-1 truncate" style={{ color: 'var(--muted)' }}>
+    <div className="px-2 sm:px-3 lg:px-4 py-2.5 sm:py-3" style={{ backgroundColor: 'var(--background)' }}>
+      <div className="text-[10px] sm:text-xs uppercase tracking-wide mb-1 truncate" style={{ color: 'var(--muted)' }}>
         {label}
       </div>
-      <div
-        className="text-lg sm:text-xl lg:text-2xl font-mono flex items-center gap-1 sm:gap-2 transition-all duration-200"
-        style={{ color: highlight ? 'var(--foreground)' : 'var(--muted)' }}
-      >
+      <div className="text-lg sm:text-xl lg:text-2xl font-mono leading-tight" style={{ color: highlight ? 'var(--foreground)' : 'var(--muted)' }}>
         {value}
       </div>
       {subtitle && (
-        <div className="text-[10px] sm:text-xs mt-0.5 truncate" style={{ color: 'var(--muted-foreground)' }}>
+        <div className="text-[10px] sm:text-xs mt-1 truncate" style={{ color: 'var(--muted-foreground)' }}>
           {subtitle}
         </div>
       )}
@@ -1571,7 +1367,7 @@ function TabButton({
       {children}
       {count !== undefined && count > 0 && (
         <span
-          className="ml-1 sm:ml-2 text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded transition-all duration-200"
+          className="ml-1.5 sm:ml-2 text-[10px] sm:text-xs px-1.5 py-0.5 rounded"
           style={{
             backgroundColor: active ? 'var(--accent)' : 'var(--surface)',
             color: active ? 'var(--accent-foreground)' : 'var(--muted)',
@@ -1597,13 +1393,7 @@ function ValueBetsTable({
 }) {
   if (valueBets.length === 0) {
     return (
-      <div
-        className="border p-8 sm:p-12 text-center rounded-lg"
-        style={{
-          borderColor: 'var(--border)',
-          backgroundColor: 'var(--surface)',
-        }}
-      >
+      <div className="border p-8 sm:p-12 text-center rounded-lg" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}>
         <p style={{ color: 'var(--muted)' }} className="mb-2 text-sm">
           No value bets found
         </p>
@@ -1617,23 +1407,14 @@ function ValueBetsTable({
   const blurClass = previewMode ? 'blur-sm select-none' : '';
 
   return (
-    <div
-      className="border overflow-x-auto rounded-lg"
-      style={{
-        borderColor: 'var(--border)',
-        backgroundColor: 'var(--surface)',
-      }}
-    >
+    <div className="border overflow-x-auto rounded-lg" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}>
       <table className="w-full text-xs sm:text-sm">
         <thead>
           <tr style={{ borderBottom: '1px solid var(--border)' }}>
             <th className="text-left px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
               Event
             </th>
-            <th
-              className="text-left px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-xs uppercase tracking-wide font-medium hidden sm:table-cell"
-              style={{ color: 'var(--muted)' }}
-            >
+            <th className="text-left px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-xs uppercase tracking-wide font-medium hidden sm:table-cell" style={{ color: 'var(--muted)' }}>
               Book
             </th>
             <th className="text-left px-2 sm:px-4 py-2 sm:py-3 text-[10px] sm:text-xs uppercase tracking-wide font-medium" style={{ color: 'var(--muted)' }}>
@@ -1652,11 +1433,7 @@ function ValueBetsTable({
         </thead>
         <tbody>
           {valueBets.map((vb, idx) => (
-            <tr
-              key={`${vb.event.id}-${idx}`}
-              className="hover:bg-[var(--background)] transition-colors"
-              style={{ borderBottom: '1px solid var(--border)' }}
-            >
+            <tr key={`${vb.event.id}-${idx}`} className="hover:bg-[var(--background)] transition-colors" style={{ borderBottom: '1px solid var(--border)' }}>
               <td className="px-2 sm:px-4 py-2 sm:py-3">
                 <div className={`font-medium text-xs sm:text-sm ${blurClass}`} style={{ color: 'var(--foreground)' }}>
                   {vb.event.homeTeam}
@@ -1684,10 +1461,7 @@ function ValueBetsTable({
                 <button
                   onClick={() => onSelectValueBet(vb)}
                   className="px-2 sm:px-3 py-1 text-[10px] sm:text-xs font-medium rounded transition-colors"
-                  style={{
-                    backgroundColor: 'var(--foreground)',
-                    color: 'var(--background)',
-                  }}
+                  style={{ backgroundColor: 'var(--foreground)', color: 'var(--background)' }}
                 >
                   {previewMode ? 'Sign Up' : 'Calc'}
                 </button>
