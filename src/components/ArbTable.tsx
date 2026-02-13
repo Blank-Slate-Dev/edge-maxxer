@@ -168,9 +168,14 @@ export function ArbTable({ opportunities, onSelectArb, globalMode = false, userR
 }
 
 // =========================================================================
-// PREVIEW MODE BLUR HELPER
+// PREVIEW MODE HELPERS
 // =========================================================================
 const BLUR = 'blur-sm select-none';
+
+/** Wraps BookLogo with blur in preview mode — shows actual logo, just obscured */
+function BlurLogo({ bookKey, size, previewMode }: { bookKey: string; size: number; previewMode: boolean }) {
+  return <BookLogo bookKey={bookKey} size={size} linkEnabled={!previewMode} />;
+}
 
 // Mobile Card Component
 function ArbCard({
@@ -221,10 +226,10 @@ function ArbCard({
 
       {/* Event Info */}
       <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
-        <div className={`font-medium text-sm ${b}`} style={{ color: 'var(--foreground)' }}>
+        <div className={`font-semibold text-sm ${b}`} style={{ color: 'var(--foreground)' }}>
           {opp.event.homeTeam}
         </div>
-        <div className={`text-sm ${b}`} style={{ color: 'var(--muted)' }}>
+        <div className={`text-xs ${b}`} style={{ color: 'var(--muted)' }}>
           vs {opp.event.awayTeam}
         </div>
         <div
@@ -286,11 +291,7 @@ function ArbCard({
             />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                {previewMode ? (
-                  <div className="w-5 h-5 rounded bg-gray-600" />
-                ) : (
-                  <BookLogo bookKey="betfair_ex_au" size={20} />
-                )}
+                <BlurLogo bookKey="betfair_ex_au" size={20} previewMode={previewMode} />
                 <div>
                   <span className="text-purple-400 text-xs">Lay</span>
                   <span className={`text-[10px] ml-1 ${b}`} style={{ color: 'var(--muted-foreground)' }}>
@@ -347,11 +348,7 @@ function BetLineMobile({
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0">
-        {previewMode ? (
-          <div className="w-6 h-6 rounded bg-gray-600 shrink-0" />
-        ) : (
-          <BookLogo bookKey={bookmakerKey} size={24} />
-        )}
+        <BlurLogo bookKey={bookmakerKey} size={24} previewMode={previewMode} />
         <div className="min-w-0">
           <div className={`font-medium text-sm truncate ${b}`} style={{ color: 'var(--foreground)' }}>
             {name}
@@ -362,7 +359,7 @@ function BetLineMobile({
                 {getBookmakerName(bookmakerKey)}
               </a>
             ) : (
-              <span className="truncate">{previewMode ? '••••••••' : getBookmakerName(bookmakerKey)}</span>
+              <span className="truncate">{getBookmakerName(bookmakerKey)}</span>
             )}
             {showRegion && !previewMode && <RegionBadge bookmaker={bookmakerKey} />}
           </div>
@@ -404,10 +401,10 @@ function ArbRow({
       </td>
 
       <td className="px-4 py-3">
-        <div className={`font-medium ${b}`} style={{ color: 'var(--foreground)' }}>
+        <div className={`font-semibold ${b}`} style={{ color: 'var(--foreground)' }}>
           {opp.event.homeTeam}
         </div>
-        <div className={b} style={{ color: 'var(--muted)' }}>vs {opp.event.awayTeam}</div>
+        <div className={`text-sm ${b}`} style={{ color: 'var(--muted)' }}>vs {opp.event.awayTeam}</div>
         <div className={`text-xs mt-1 ${b}`} style={{ color: 'var(--muted-foreground)' }}>
           {opp.event.sportTitle}
         </div>
@@ -467,11 +464,7 @@ function ArbRow({
               previewMode={previewMode}
             />
             <div className="flex items-center gap-2">
-              {previewMode ? (
-                <div className="w-6 h-6 rounded bg-gray-600" />
-              ) : (
-                <BookLogo bookKey="betfair_ex_au" size={24} />
-              )}
+              <BlurLogo bookKey="betfair_ex_au" size={24} previewMode={previewMode} />
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-purple-400">Lay</span>
@@ -537,11 +530,7 @@ function BetLine({
 
   return (
     <div className="flex items-center gap-2">
-      {previewMode ? (
-        <div className="w-7 h-7 rounded bg-gray-600 shrink-0" />
-      ) : (
-        <BookLogo bookKey={bookmakerKey} size={28} />
-      )}
+      <BlurLogo bookKey={bookmakerKey} size={28} previewMode={previewMode} />
       <div>
         <div className="flex items-center gap-2">
           <span className={`font-medium ${b}`} style={{ color: 'var(--foreground)' }}>
@@ -558,7 +547,7 @@ function BetLine({
               {getBookmakerName(bookmakerKey)}
             </a>
           ) : (
-            <span>{previewMode ? '••••••••' : getBookmakerName(bookmakerKey)}</span>
+            <span>{getBookmakerName(bookmakerKey)}</span>
           )}
           {showRegion && !previewMode && <RegionBadge bookmaker={bookmakerKey} />}
         </div>

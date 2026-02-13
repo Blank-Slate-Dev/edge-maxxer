@@ -151,6 +151,7 @@ export function LandingPageClient() {
   const [pendingPlan, setPendingPlan] = useState<PlanType | null>(null);
   const [checkoutPlan, setCheckoutPlan] = useState<PlanType | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [pricingModalOpen, setPricingModalOpen] = useState(false);
 
   const detectedRegion = useGeoRegion();
 
@@ -167,6 +168,9 @@ export function LandingPageClient() {
   }, [searchParams]);
 
   const handleSelectPlan = async (planId: PlanType) => {
+    // Close pricing modal if open
+    setPricingModalOpen(false);
+    
     if (!session) {
       setPendingPlan(planId);
       setAuthModal('signup');
@@ -465,28 +469,28 @@ export function LandingPageClient() {
 
               {/* CTA Buttons */}
               <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
-                <button
-                  onClick={() => handleSelectPlan('trial')}
-                  className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-lg text-sm font-medium transition-all hover:opacity-90"
+                <Link
+                  href="/dashboard"
+                  className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-lg text-sm font-medium transition-all hover:opacity-90 hover:gap-3"
                   style={{
                     backgroundColor: '#14b8a6',
                     color: '#fff',
                   }}
                 >
-                  Try for $2.99
-                </button>
+                  Preview Live Data
+                  <ArrowRight className="w-4 h-4" />
+                </Link>
 
-                <a
-                  href="#pricing"
+                <button
+                  onClick={() => setPricingModalOpen(true)}
                   className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-lg text-sm font-medium border transition-colors hover:bg-[var(--surface)]"
                   style={{
                     borderColor: 'var(--border)',
                     color: 'var(--foreground)',
                   }}
                 >
-                  View pricing
-                  <ArrowRight className="w-4 h-4" />
-                </a>
+                  View Pricing
+                </button>
               </div>
 
               {/* Profit Counter */}
@@ -898,16 +902,16 @@ export function LandingPageClient() {
             Ready to find your edge?
           </h2>
           <p className="mb-6 sm:mb-8 text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
-            Start scanning for arbitrage opportunities today.
+            See real arbitrage opportunities updated every minute.
           </p>
-          <button
-            onClick={() => handleSelectPlan('trial')}
+          <Link
+            href="/dashboard"
             className="inline-flex items-center gap-2 px-5 sm:px-6 py-3 sm:py-3.5 rounded-lg text-sm font-medium transition-all hover:opacity-90 hover:gap-3"
             style={{ backgroundColor: '#14b8a6', color: '#fff' }}
           >
-            Try for $2.99
+            Preview Live Data
             <ArrowRight className="w-4 h-4" />
-          </button>
+          </Link>
         </div>
       </section>
 
@@ -973,6 +977,190 @@ export function LandingPageClient() {
         onClose={handleCheckoutClose}
         plan={checkoutPlan}
       />
+
+      {/* Pricing Modal */}
+      <PricingModal
+        isOpen={pricingModalOpen}
+        onClose={() => setPricingModalOpen(false)}
+        onSelectPlan={handleSelectPlan}
+      />
+    </div>
+  );
+}
+
+// =========================================================================
+// PRICING MODAL — Quick-access pricing from hero CTA
+// =========================================================================
+function PricingModal({ 
+  isOpen, 
+  onClose, 
+  onSelectPlan 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  onSelectPlan: (plan: PlanType) => void;
+}) {
+  // Close on escape
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [isOpen, onClose]);
+
+  // Prevent body scroll
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div 
+      className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 animate-fade-in"
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
+      onClick={onClose}
+    >
+      <div 
+        className="relative w-full max-w-3xl rounded-xl sm:rounded-2xl border animate-scale-in overflow-hidden max-h-[90vh] overflow-y-auto"
+        style={{ 
+          backgroundColor: 'var(--surface)',
+          borderColor: 'var(--border)'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="absolute top-3 sm:top-4 right-3 sm:right-4 p-1.5 sm:p-2 rounded-lg transition-colors hover:bg-[var(--background)] z-10"
+          style={{ color: 'var(--muted)' }}
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <div className="p-5 sm:p-8">
+          {/* Header */}
+          <div className="text-center mb-6">
+            <h2 
+              className="text-xl sm:text-2xl font-bold mb-2"
+              style={{ color: 'var(--foreground)' }}
+            >
+              Choose your plan
+            </h2>
+            <p className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
+              All plans include every feature. No hidden fees.
+            </p>
+          </div>
+
+          {/* Pricing Cards */}
+          <div className="grid sm:grid-cols-3 gap-3 sm:gap-4 mb-6">
+            {PRICING_PLANS.map((plan) => (
+              <div
+                key={plan.id}
+                className={`relative rounded-xl border overflow-hidden transition-all flex flex-col ${
+                  plan.popular ? 'ring-2 ring-[#14b8a6]' : ''
+                }`}
+                style={{
+                  backgroundColor: 'var(--background)',
+                  borderColor: plan.popular ? '#14b8a6' : 'var(--border)',
+                }}
+              >
+                {plan.badge && (
+                  <div
+                    className="absolute top-2 sm:top-3 right-2 sm:right-3 px-1.5 py-0.5 rounded-full text-[9px] sm:text-[10px] font-semibold z-10"
+                    style={{
+                      backgroundColor: plan.badgeColor || '#14b8a6',
+                      color: '#fff',
+                    }}
+                  >
+                    {plan.badge}
+                  </div>
+                )}
+
+                {plan.popular && (
+                  <div
+                    className="text-center py-1 sm:py-1.5 text-[10px] sm:text-xs font-medium"
+                    style={{ backgroundColor: '#14b8a6', color: '#fff' }}
+                  >
+                    Most Popular
+                  </div>
+                )}
+
+                <div className="p-3 sm:p-4 flex flex-col flex-1">
+                  <h3
+                    className="text-sm sm:text-base font-semibold mb-2 sm:mb-3"
+                    style={{ color: 'var(--foreground)' }}
+                  >
+                    {plan.name}
+                  </h3>
+
+                  <div className="mb-2 sm:mb-3">
+                    <div className="flex items-baseline gap-1">
+                      {plan.originalPrice && (
+                        <span className="text-sm line-through" style={{ color: 'var(--muted)' }}>
+                          ${plan.originalPrice}
+                        </span>
+                      )}
+                      <span className="text-2xl sm:text-3xl font-bold" style={{ color: 'var(--foreground)' }}>
+                        ${plan.price}
+                      </span>
+                      <span className="text-xs" style={{ color: 'var(--muted)' }}>
+                        /{plan.period}
+                      </span>
+                    </div>
+                    {plan.periodNote && (
+                      <p className="text-[10px] sm:text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                        {plan.periodNote}
+                      </p>
+                    )}
+                  </div>
+
+                  <p className="text-[10px] sm:text-xs mb-3 sm:mb-4" style={{ color: 'var(--muted)' }}>
+                    {plan.description}
+                  </p>
+
+                  <div className="flex-1" />
+
+                  <button
+                    onClick={() => onSelectPlan(plan.id)}
+                    className="w-full py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all flex items-center justify-center gap-2 hover:opacity-90"
+                    style={{
+                      backgroundColor: plan.popular ? '#14b8a6' : 'var(--surface)',
+                      color: plan.popular ? '#fff' : 'var(--foreground)',
+                      border: plan.popular ? 'none' : '1px solid var(--border)',
+                    }}
+                  >
+                    Get {plan.name}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Features list — compact */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-4">
+            {FEATURES.map((feature, i) => (
+              <div key={i} className="flex items-center gap-1.5">
+                <Check className="w-3 h-3 shrink-0" style={{ color: '#22c55e' }} />
+                <span className="text-[10px] sm:text-xs" style={{ color: 'var(--foreground)' }}>
+                  {feature}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <p className="text-center text-[10px] sm:text-xs" style={{ color: 'var(--muted)' }}>
+            Cancel anytime • Instant access • Secure payment via Stripe
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

@@ -2,8 +2,9 @@
 'use client';
 import { useState, useCallback, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Loader2, X, CheckCircle, RefreshCw, Zap, Lock } from 'lucide-react';
+import { Loader2, X, CheckCircle, RefreshCw, Zap, Lock, Sun, Moon } from 'lucide-react';
 import { useSession } from 'next-auth/react';
+import { useTheme } from '@/contexts/ThemeContext';
 // PERFORMANCE FIX: Direct imports instead of barrel exports
 import { Header } from '@/components/Header';
 import { ArbFilters } from '@/components/ArbFilters';
@@ -232,7 +233,7 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
-  const { data: session, status: sessionStatus, update: updateSession } = useSession({ required: false });
+  const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const searchParams = useSearchParams();
   const router = useRouter();
   
@@ -906,15 +907,22 @@ function DashboardContent() {
               <div className="flex items-center gap-2">
                 <Lock className="w-5 h-5 shrink-0" style={{ color: '#14b8a6' }} />
                 <div>
-                  <div className="font-medium text-sm" style={{ color: '#14b8a6' }}>
-                    Preview Mode — Live Data, Blurred Details
+                  <div className="font-medium text-sm flex items-center gap-2" style={{ color: '#14b8a6' }}>
+                    <span>Preview Mode — Live Data, Blurred Details</span>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wider" style={{ backgroundColor: 'color-mix(in srgb, #22c55e 15%, transparent)', color: '#22c55e' }}>
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75" style={{ backgroundColor: '#22c55e' }} />
+                        <span className="relative inline-flex rounded-full h-2 w-2" style={{ backgroundColor: '#22c55e' }} />
+                      </span>
+                      Live
+                    </span>
                   </div>
                   <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
                     Sign up to reveal team names, sportsbooks, and unlock the stake calculator
                   </div>
                 </div>
               </div>
-              <div className="flex gap-2 shrink-0 sm:ml-auto">
+              <div className="flex gap-2 shrink-0 sm:ml-auto sm:hidden">
                 <button
                   onClick={() => setAuthModal('signup')}
                   className="px-4 py-2 text-sm font-medium rounded-lg transition-all hover:opacity-90"
@@ -1428,6 +1436,8 @@ function DashboardContent() {
 // PREVIEW MODE HEADER — Simplified header for unauthenticated visitors
 // =========================================================================
 function PreviewHeader({ onSignUp, onLogin }: { onSignUp: () => void; onLogin: () => void }) {
+  const { theme, toggleTheme } = useTheme();
+  
   return (
     <header
       className="border-b sticky top-0 z-50 transition-colors"
@@ -1454,6 +1464,14 @@ function PreviewHeader({ onSignUp, onLogin }: { onSignUp: () => void; onLogin: (
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg transition-colors hover:bg-[var(--surface)]"
+              style={{ color: 'var(--muted)' }}
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            >
+              {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
             <button
               onClick={onLogin}
               className="px-3 sm:px-4 py-2 text-sm font-medium rounded-lg transition-colors hover:bg-[var(--surface)]"

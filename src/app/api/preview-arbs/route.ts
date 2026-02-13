@@ -1,9 +1,11 @@
 // src/app/api/preview-arbs/route.ts
 //
 // PUBLIC endpoint — no auth required.
-// Returns real cached scan data with team names, bookmaker names, and sport titles
-// replaced with placeholder text. Profit %, odds, and structure remain intact
-// so visitors can see the VALUE of the tool without seeing actionable details.
+// Returns real cached scan data with team names, bookmaker display names,
+// and sport titles replaced with placeholder text.
+// bookmakerKey is KEPT so logos load correctly in preview mode.
+// Profit %, odds, and structure remain intact so visitors can see the
+// VALUE of the tool without seeing actionable details.
 
 import { NextRequest, NextResponse } from 'next/server';
 import dbConnect from '@/lib/mongodb';
@@ -45,21 +47,17 @@ function obfuscateOutcome(outcome: Record<string, unknown>): Record<string, unkn
   return {
     ...outcome,
     bookmaker: BOOK_PLACEHOLDER,
-    bookmakerKey: 'hidden',
-    // Keep: odds, point, name (outcome selection like "Home", "Away", "Over", "Under")
-    // But obfuscate name if it contains a team name
+    // bookmakerKey is intentionally KEPT — needed for logo loading in preview
     name: obfuscateOutcomeName(outcome.name as string),
-    alternativeOdds: undefined, // Strip swap data
+    alternativeOdds: undefined,
   };
 }
 
 function obfuscateOutcomeName(name: string): string {
-  // Keep generic names like "Over", "Under", "Draw"
   const genericNames = ['Over', 'Under', 'Draw', 'Home', 'Away'];
   for (const g of genericNames) {
     if (name.toLowerCase().includes(g.toLowerCase())) return name;
   }
-  // Otherwise it's likely a team name — obfuscate
   return obfuscateTeam(name);
 }
 
@@ -86,8 +84,9 @@ function obfuscateSpreadOrTotals(item: any): any {
 
   if (result.favorite) result.favorite = obfuscateOutcome(result.favorite);
   if (result.underdog) result.underdog = obfuscateOutcome(result.underdog);
-  if (result.over) result.over = { ...result.over, bookmaker: BOOK_PLACEHOLDER, bookmakerKey: 'hidden' };
-  if (result.under) result.under = { ...result.under, bookmaker: BOOK_PLACEHOLDER, bookmakerKey: 'hidden' };
+  // Keep bookmakerKey on over/under for logo loading
+  if (result.over) result.over = { ...result.over, bookmaker: BOOK_PLACEHOLDER };
+  if (result.under) result.under = { ...result.under, bookmaker: BOOK_PLACEHOLDER };
 
   return result;
 }
@@ -96,8 +95,9 @@ function obfuscateSpreadOrTotals(item: any): any {
 function obfuscateMiddle(m: any): any {
   const result = { ...m };
   result.event = obfuscateEvent(result.event);
-  if (result.side1) result.side1 = { ...result.side1, bookmaker: BOOK_PLACEHOLDER, bookmakerKey: 'hidden', name: obfuscateOutcomeName(result.side1.name || '') };
-  if (result.side2) result.side2 = { ...result.side2, bookmaker: BOOK_PLACEHOLDER, bookmakerKey: 'hidden', name: obfuscateOutcomeName(result.side2.name || '') };
+  // Keep bookmakerKey on sides for logo loading
+  if (result.side1) result.side1 = { ...result.side1, bookmaker: BOOK_PLACEHOLDER, name: obfuscateOutcomeName(result.side1.name || '') };
+  if (result.side2) result.side2 = { ...result.side2, bookmaker: BOOK_PLACEHOLDER, name: obfuscateOutcomeName(result.side2.name || '') };
   if (result.middleRange) {
     result.middleRange = { ...result.middleRange, description: 'Sign up to see details' };
   }
@@ -108,7 +108,8 @@ function obfuscateMiddle(m: any): any {
 function obfuscateValueBet(vb: any): any {
   const result = { ...vb };
   result.event = obfuscateEvent(result.event);
-  if (result.outcome) result.outcome = { ...result.outcome, bookmaker: BOOK_PLACEHOLDER, bookmakerKey: 'hidden', name: obfuscateOutcomeName(result.outcome.name || '') };
+  // Keep bookmakerKey on outcome for logo loading
+  if (result.outcome) result.outcome = { ...result.outcome, bookmaker: BOOK_PLACEHOLDER, name: obfuscateOutcomeName(result.outcome.name || '') };
   if (result.allOdds) result.allOdds = [];
   return result;
 }
