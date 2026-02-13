@@ -20,28 +20,48 @@ export const metadata: Metadata = {
 
   // Title configuration with template
   title: {
-    template: '%s | Edge Maxxer - Sports Arbitrage Australia',
-    default: 'Edge Maxxer - Find Arbitrage Betting Opportunities Across 80+ Sportsbooks',
+    template: '%s | Edge Maxxer - Sports Arbitrage Scanner',
+    default: 'Edge Maxxer - #1 Affordable Sports Arbitrage Scanner | OddsJam & RebelBetting Alternative',
   },
 
-  // Primary description targeting key search terms
-  description: 'Discover guaranteed profit opportunities with Australia\'s most affordable arbitrage betting scanner. Real-time odds comparison across 80+ sportsbooks including Sportsbet, TAB, Bet365 & Ladbrokes. Find sure bets in seconds.',
+  // Primary description targeting key search terms + competitor keywords
+  description: 'The most affordable sports betting arbitrage scanner. Find guaranteed profit sure bets across 80+ sportsbooks for just $9.99/mo — 33x cheaper than OddsJam or RebelBetting. Real-time arb scanning for AFL, NRL, NBA, NFL & more. Try free today.',
 
-  // Keywords for search engines (while less important now, still useful)
+  // Keywords targeting competitors and high-intent search terms
   keywords: [
-    'arbitrage betting Australia',
+    // Core product terms
+    'arbitrage betting',
+    'sports arbitrage',
     'sure bet finder',
-    'sports arbitrage software',
-    'arb scanner Australia',
+    'arb scanner',
     'surebet calculator',
+    'sports betting arbitrage',
+    'betting arbitrage software',
+    // Competitor alternatives
+    'oddsjam alternative',
+    'rebelbetting alternative',
+    'betburger alternative',
+    'oddsjam cheaper',
+    'cheap arb scanner',
+    'affordable arbitrage software',
+    'best arbitrage betting software',
+    // Regional terms
+    'arbitrage betting Australia',
     'matched betting Australia',
     'odds comparison Australia',
-    'guaranteed betting profits',
     'Sportsbet arbitrage',
     'TAB arbitrage',
-    'Bet365 arbitrage Australia',
+    'Bet365 arbitrage',
     'AFL arbitrage betting',
     'NRL arbitrage betting',
+    // Action terms
+    'guaranteed betting profits',
+    'risk free betting',
+    'how to arb bet',
+    'sports betting tools',
+    'positive EV betting',
+    'middle betting',
+    'spread arbitrage',
   ],
 
   // Author and creator information
@@ -60,14 +80,14 @@ export const metadata: Metadata = {
     locale: 'en_AU',
     url: 'https://www.edgemaxxer.com',
     siteName: 'Edge Maxxer',
-    title: 'Edge Maxxer - Sports Arbitrage Betting Scanner',
-    description: 'Find guaranteed profit arbitrage opportunities across 80+ Australian & international sportsbooks. The most affordable arb scanner on the market.',
+    title: 'Edge Maxxer - Cheapest Sports Arbitrage Scanner | $9.99/mo',
+    description: 'Find guaranteed profit arbitrage opportunities across 80+ sportsbooks. 33x cheaper than OddsJam. Real-time scanning for AFL, NRL, NBA, NFL, EPL & more.',
     images: [
       {
         url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'Edge Maxxer - Sports Arbitrage Betting Platform',
+        alt: 'Edge Maxxer - Sports Arbitrage Betting Platform showing live arb opportunities',
         type: 'image/png',
       },
     ],
@@ -76,8 +96,8 @@ export const metadata: Metadata = {
   // Twitter Card metadata
   twitter: {
     card: 'summary_large_image',
-    title: 'Edge Maxxer - Sports Arbitrage Australia',
-    description: 'Find sure bets across 80+ sportsbooks. Guaranteed profits, real-time scanning.',
+    title: 'Edge Maxxer - Sports Arbitrage Scanner | $9.99/mo',
+    description: 'Find sure bets across 80+ sportsbooks. 33x cheaper than competitors. Try free today.',
     images: ['/twitter-image.png'],
     creator: '@edgemaxxer',
   },
@@ -184,7 +204,7 @@ const softwareSchema = {
   name: 'Edge Maxxer Arbitrage Scanner',
   applicationCategory: 'BusinessApplication',
   operatingSystem: 'Web Browser',
-  description: 'Real-time sports arbitrage betting opportunity finder scanning 80+ Australian and international sportsbooks for guaranteed profit opportunities',
+  description: 'Real-time sports arbitrage betting opportunity finder scanning 80+ Australian and international sportsbooks. The most affordable OddsJam and RebelBetting alternative at just $9.99/month.',
   url: 'https://www.edgemaxxer.com',
   offers: {
     '@type': 'AggregateOffer',
@@ -205,7 +225,7 @@ const softwareSchema = {
         name: 'Monthly Subscription',
         price: '9.99',
         priceCurrency: 'AUD',
-        description: 'Full access with monthly billing',
+        description: 'Full access with monthly billing — 33x cheaper than OddsJam',
       },
       {
         '@type': 'Offer',
@@ -226,6 +246,8 @@ const softwareSchema = {
     'Stealth mode for account longevity',
     'Bet tracking and history',
     'Account health monitoring',
+    'Positive EV betting alerts',
+    'Free dashboard preview — no sign-up required',
   ],
 };
 
@@ -252,6 +274,14 @@ const faqSchema = {
     },
     {
       '@type': 'Question',
+      name: 'Is Edge Maxxer cheaper than OddsJam or RebelBetting?',
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: 'Yes. Edge Maxxer costs just $9.99/month compared to $150-350/month for OddsJam, RebelBetting, or BetBurger. That is up to 33x cheaper with the same core features: real-time arb scanning, stake calculators, and multi-region support across 80+ sportsbooks.',
+      },
+    },
+    {
+      '@type': 'Question',
       name: 'Is arbitrage betting legal in Australia?',
       acceptedAnswer: {
         '@type': 'Answer',
@@ -268,10 +298,10 @@ const faqSchema = {
     },
     {
       '@type': 'Question',
-      name: 'What is the BYOK model?',
+      name: 'Can I try Edge Maxxer for free?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'BYOK stands for Bring Your Own Key. You get a free API key from The Odds API, which lets Edge Maxxer keep prices 10x lower than competitors who charge for API costs. This makes professional arbitrage scanning accessible to everyone.',
+        text: 'Yes! You can preview live arbitrage data on our dashboard without signing up — team names and bookmakers are blurred but profit percentages are visible. You can also sign up for a free 10-minute trial with full access, or purchase a 3-day trial for $2.99.',
       },
     },
     {

@@ -13,6 +13,7 @@ interface ArbTableProps {
   onSelectArb: (arb: ArbOpportunity) => void;
   globalMode?: boolean;
   userRegion?: UserRegion;
+  previewMode?: boolean;
 }
 
 function RegionBadge({ bookmaker }: { bookmaker: string }) {
@@ -77,7 +78,7 @@ function getTimeUntil(date: Date): string {
   return `${minutes}m`;
 }
 
-export function ArbTable({ opportunities, onSelectArb, globalMode = false, userRegion = 'AU' }: ArbTableProps) {
+export function ArbTable({ opportunities, onSelectArb, globalMode = false, userRegion = 'AU', previewMode = false }: ArbTableProps) {
   if (opportunities.length === 0) {
     return (
       <div
@@ -102,7 +103,7 @@ export function ArbTable({ opportunities, onSelectArb, globalMode = false, userR
       {/* Mobile Card View */}
       <div className="md:hidden space-y-3">
         {opportunities.map((opp, idx) => (
-          <ArbCard key={`${opp.event.id}-${idx}`} opp={opp} onSelect={onSelectArb} globalMode={globalMode} userRegion={userRegion} />
+          <ArbCard key={`${opp.event.id}-${idx}`} opp={opp} onSelect={onSelectArb} globalMode={globalMode} userRegion={userRegion} previewMode={previewMode} />
         ))}
       </div>
 
@@ -157,7 +158,7 @@ export function ArbTable({ opportunities, onSelectArb, globalMode = false, userR
           </thead>
           <tbody>
             {opportunities.map((opp, idx) => (
-              <ArbRow key={`${opp.event.id}-${idx}`} opp={opp} onSelect={onSelectArb} globalMode={globalMode} userRegion={userRegion} />
+              <ArbRow key={`${opp.event.id}-${idx}`} opp={opp} onSelect={onSelectArb} globalMode={globalMode} userRegion={userRegion} previewMode={previewMode} />
             ))}
           </tbody>
         </table>
@@ -166,21 +167,29 @@ export function ArbTable({ opportunities, onSelectArb, globalMode = false, userR
   );
 }
 
+// =========================================================================
+// PREVIEW MODE BLUR HELPER
+// =========================================================================
+const BLUR = 'blur-sm select-none';
+
 // Mobile Card Component
 function ArbCard({
   opp,
   onSelect,
   globalMode,
   userRegion,
+  previewMode = false,
 }: {
   opp: ArbOpportunity;
   onSelect: (arb: ArbOpportunity) => void;
   globalMode: boolean;
   userRegion: UserRegion;
+  previewMode?: boolean;
 }) {
   const eventDate = new Date(opp.event.commenceTime);
   const soon = isEventSoon(eventDate);
   const timeUntil = getTimeUntil(eventDate);
+  const b = previewMode ? BLUR : '';
 
   return (
     <div
@@ -197,7 +206,7 @@ function ArbCard({
           {opp.mode === 'book-vs-betfair' && (
             <span className="text-[10px] px-1.5 py-0.5 bg-purple-900/50 text-purple-400 rounded">BF</span>
           )}
-          <span className="text-xs truncate" style={{ color: 'var(--muted-foreground)' }}>
+          <span className={`text-xs truncate ${b}`} style={{ color: 'var(--muted-foreground)' }}>
             {opp.event.sportTitle}
           </span>
         </div>
@@ -212,10 +221,10 @@ function ArbCard({
 
       {/* Event Info */}
       <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
-        <div className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
+        <div className={`font-medium text-sm ${b}`} style={{ color: 'var(--foreground)' }}>
           {opp.event.homeTeam}
         </div>
-        <div className="text-sm" style={{ color: 'var(--muted)' }}>
+        <div className={`text-sm ${b}`} style={{ color: 'var(--muted)' }}>
           vs {opp.event.awayTeam}
         </div>
         <div
@@ -241,6 +250,7 @@ function ArbCard({
               bookmakerKey={opp.outcome1.bookmakerKey}
               showRegion={globalMode}
               userRegion={userRegion}
+              previewMode={previewMode}
             />
             <BetLineMobile
               name={opp.outcome2.name}
@@ -249,6 +259,7 @@ function ArbCard({
               bookmakerKey={opp.outcome2.bookmakerKey}
               showRegion={globalMode}
               userRegion={userRegion}
+              previewMode={previewMode}
             />
             {opp.outcome3 && (
               <BetLineMobile
@@ -258,6 +269,7 @@ function ArbCard({
                 bookmakerKey={opp.outcome3.bookmakerKey}
                 showRegion={globalMode}
                 userRegion={userRegion}
+                previewMode={previewMode}
               />
             )}
           </div>
@@ -270,13 +282,18 @@ function ArbCard({
               bookmakerKey={opp.backOutcome.bookmakerKey}
               showRegion={globalMode}
               userRegion={userRegion}
+              previewMode={previewMode}
             />
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <BookLogo bookKey="betfair_ex_au" size={20} />
+                {previewMode ? (
+                  <div className="w-5 h-5 rounded bg-gray-600" />
+                ) : (
+                  <BookLogo bookKey="betfair_ex_au" size={20} />
+                )}
                 <div>
                   <span className="text-purple-400 text-xs">Lay</span>
-                  <span className="text-[10px] ml-1" style={{ color: 'var(--muted-foreground)' }}>
+                  <span className={`text-[10px] ml-1 ${b}`} style={{ color: 'var(--muted-foreground)' }}>
                     Betfair
                   </span>
                 </div>
@@ -295,18 +312,18 @@ function ArbCard({
           onClick={() => onSelect(opp)}
           className="w-full py-2 text-sm font-medium rounded transition-colors"
           style={{
-            backgroundColor: 'var(--foreground)',
-            color: 'var(--background)',
+            backgroundColor: previewMode ? '#14b8a6' : 'var(--foreground)',
+            color: previewMode ? '#fff' : 'var(--background)',
           }}
         >
-          Calculate Stakes
+          {previewMode ? 'Sign Up to Calculate' : 'Calculate Stakes'}
         </button>
       </div>
     </div>
   );
 }
 
-// Mobile-optimized bet line - links to bookmaker homepage
+// Mobile-optimized bet line
 function BetLineMobile({
   name,
   odds,
@@ -314,6 +331,7 @@ function BetLineMobile({
   bookmakerKey,
   showRegion,
   userRegion = 'AU',
+  previewMode = false,
 }: {
   name: string;
   odds: number;
@@ -321,26 +339,32 @@ function BetLineMobile({
   bookmakerKey: string;
   showRegion?: boolean;
   userRegion?: UserRegion;
+  previewMode?: boolean;
 }) {
-  const href = buildBookmakerSearchUrl(bookmakerKey, {}) || buildBookmakerSearchUrl(bookmaker, {}) || undefined;
+  const href = previewMode ? undefined : (buildBookmakerSearchUrl(bookmakerKey, {}) || buildBookmakerSearchUrl(bookmaker, {}) || undefined);
+  const b = previewMode ? BLUR : '';
 
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0">
-        <BookLogo bookKey={bookmakerKey} size={24} />
+        {previewMode ? (
+          <div className="w-6 h-6 rounded bg-gray-600 shrink-0" />
+        ) : (
+          <BookLogo bookKey={bookmakerKey} size={24} />
+        )}
         <div className="min-w-0">
-          <div className="font-medium text-sm truncate" style={{ color: 'var(--foreground)' }}>
+          <div className={`font-medium text-sm truncate ${b}`} style={{ color: 'var(--foreground)' }}>
             {name}
           </div>
-          <div className="flex items-center gap-1 text-[10px]" style={{ color: 'var(--muted-foreground)' }}>
+          <div className={`flex items-center gap-1 text-[10px] ${b}`} style={{ color: 'var(--muted-foreground)' }}>
             {href ? (
               <a href={href} target="_blank" rel="noreferrer" className="hover:underline truncate">
                 {getBookmakerName(bookmakerKey)}
               </a>
             ) : (
-              <span className="truncate">{getBookmakerName(bookmakerKey)}</span>
+              <span className="truncate">{previewMode ? '••••••••' : getBookmakerName(bookmakerKey)}</span>
             )}
-            {showRegion && <RegionBadge bookmaker={bookmakerKey} />}
+            {showRegion && !previewMode && <RegionBadge bookmaker={bookmakerKey} />}
           </div>
         </div>
       </div>
@@ -357,15 +381,18 @@ function ArbRow({
   onSelect,
   globalMode,
   userRegion,
+  previewMode = false,
 }: {
   opp: ArbOpportunity;
   onSelect: (arb: ArbOpportunity) => void;
   globalMode: boolean;
   userRegion: UserRegion;
+  previewMode?: boolean;
 }) {
   const eventDate = new Date(opp.event.commenceTime);
   const soon = isEventSoon(eventDate);
   const timeUntil = getTimeUntil(eventDate);
+  const b = previewMode ? BLUR : '';
 
   return (
     <tr className="hover:bg-[var(--background)] transition-colors" style={{ borderBottom: '1px solid var(--border)' }}>
@@ -377,11 +404,11 @@ function ArbRow({
       </td>
 
       <td className="px-4 py-3">
-        <div className="font-medium" style={{ color: 'var(--foreground)' }}>
+        <div className={`font-medium ${b}`} style={{ color: 'var(--foreground)' }}>
           {opp.event.homeTeam}
         </div>
-        <div style={{ color: 'var(--muted)' }}>vs {opp.event.awayTeam}</div>
-        <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>
+        <div className={b} style={{ color: 'var(--muted)' }}>vs {opp.event.awayTeam}</div>
+        <div className={`text-xs mt-1 ${b}`} style={{ color: 'var(--muted-foreground)' }}>
           {opp.event.sportTitle}
         </div>
       </td>
@@ -405,6 +432,7 @@ function ArbRow({
               bookmakerKey={opp.outcome1.bookmakerKey}
               showRegion={globalMode}
               userRegion={userRegion}
+              previewMode={previewMode}
             />
             <BetLine
               name={opp.outcome2.name}
@@ -413,6 +441,7 @@ function ArbRow({
               bookmakerKey={opp.outcome2.bookmakerKey}
               showRegion={globalMode}
               userRegion={userRegion}
+              previewMode={previewMode}
             />
             {opp.outcome3 && (
               <BetLine
@@ -422,6 +451,7 @@ function ArbRow({
                 bookmakerKey={opp.outcome3.bookmakerKey}
                 showRegion={globalMode}
                 userRegion={userRegion}
+                previewMode={previewMode}
               />
             )}
           </div>
@@ -434,9 +464,14 @@ function ArbRow({
               bookmakerKey={opp.backOutcome.bookmakerKey}
               showRegion={globalMode}
               userRegion={userRegion}
+              previewMode={previewMode}
             />
             <div className="flex items-center gap-2">
-              <BookLogo bookKey="betfair_ex_au" size={24} />
+              {previewMode ? (
+                <div className="w-6 h-6 rounded bg-gray-600" />
+              ) : (
+                <BookLogo bookKey="betfair_ex_au" size={24} />
+              )}
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-purple-400">Lay</span>
@@ -444,7 +479,7 @@ function ArbRow({
                     {formatDecimalOddsForRegion(opp.layOutcome.odds, userRegion)}
                   </span>
                 </div>
-                <div className="text-xs" style={{ color: 'var(--muted-foreground)' }}>
+                <div className={`text-xs ${b}`} style={{ color: 'var(--muted-foreground)' }}>
                   Betfair Exchange
                 </div>
               </div>
@@ -468,18 +503,18 @@ function ArbRow({
           onClick={() => onSelect(opp)}
           className="px-3 py-1 text-xs font-medium rounded transition-colors"
           style={{
-            backgroundColor: 'var(--foreground)',
-            color: 'var(--background)',
+            backgroundColor: previewMode ? '#14b8a6' : 'var(--foreground)',
+            color: previewMode ? '#fff' : 'var(--background)',
           }}
         >
-          Calculate
+          {previewMode ? 'Sign Up' : 'Calculate'}
         </button>
       </td>
     </tr>
   );
 }
 
-// Desktop bet line - links to bookmaker homepage
+// Desktop bet line
 function BetLine({
   name,
   odds,
@@ -487,6 +522,7 @@ function BetLine({
   bookmakerKey,
   showRegion,
   userRegion = 'AU',
+  previewMode = false,
 }: {
   name: string;
   odds: number;
@@ -494,15 +530,21 @@ function BetLine({
   bookmakerKey: string;
   showRegion?: boolean;
   userRegion?: UserRegion;
+  previewMode?: boolean;
 }) {
-  const href = buildBookmakerSearchUrl(bookmakerKey, {}) || buildBookmakerSearchUrl(bookmaker, {}) || undefined;
+  const href = previewMode ? undefined : (buildBookmakerSearchUrl(bookmakerKey, {}) || buildBookmakerSearchUrl(bookmaker, {}) || undefined);
+  const b = previewMode ? BLUR : '';
 
   return (
     <div className="flex items-center gap-2">
-      <BookLogo bookKey={bookmakerKey} size={28} />
+      {previewMode ? (
+        <div className="w-7 h-7 rounded bg-gray-600 shrink-0" />
+      ) : (
+        <BookLogo bookKey={bookmakerKey} size={28} />
+      )}
       <div>
         <div className="flex items-center gap-2">
-          <span className="font-medium" style={{ color: 'var(--foreground)' }}>
+          <span className={`font-medium ${b}`} style={{ color: 'var(--foreground)' }}>
             {name}
           </span>
           <span className="font-mono" style={{ color: 'var(--foreground)' }}>
@@ -510,15 +552,15 @@ function BetLine({
           </span>
         </div>
 
-        <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
+        <div className={`flex items-center gap-1 text-xs ${b}`} style={{ color: 'var(--muted-foreground)' }}>
           {href ? (
             <a href={href} target="_blank" rel="noreferrer" className="hover:underline">
               {getBookmakerName(bookmakerKey)}
             </a>
           ) : (
-            <span>{getBookmakerName(bookmakerKey)}</span>
+            <span>{previewMode ? '••••••••' : getBookmakerName(bookmakerKey)}</span>
           )}
-          {showRegion && <RegionBadge bookmaker={bookmakerKey} />}
+          {showRegion && !previewMode && <RegionBadge bookmaker={bookmakerKey} />}
         </div>
       </div>
     </div>

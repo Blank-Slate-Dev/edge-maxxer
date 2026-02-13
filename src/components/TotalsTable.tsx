@@ -16,7 +16,13 @@ interface TotalsTableProps {
   showMiddles: boolean;
   globalMode?: boolean;
   userRegion?: UserRegion;
+  previewMode?: boolean;
 }
+
+// =========================================================================
+// PREVIEW MODE BLUR HELPER
+// =========================================================================
+const BLUR = 'blur-sm select-none';
 
 function RegionBadge({ bookmaker }: { bookmaker: string }) {
   const region = getBookmakerRegion(bookmaker);
@@ -80,7 +86,7 @@ function getTimeUntil(date: Date): string {
   return `${minutes}m`;
 }
 
-export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, showMiddles, globalMode = false, userRegion = 'AU' }: TotalsTableProps) {
+export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, showMiddles, globalMode = false, userRegion = 'AU', previewMode = false }: TotalsTableProps) {
   const hasContent = totals.length > 0 || (showMiddles && middles.length > 0);
   const totalsMiddles = middles.filter(m => m.marketType === 'totals');
 
@@ -122,7 +128,7 @@ export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, s
           {/* Mobile Card View */}
           <div className="md:hidden space-y-3 border border-t-0 rounded-b-lg p-3" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}>
             {totals.map((total, idx) => (
-              <TotalsCard key={`${total.event.id}-${idx}`} total={total} onSelect={onSelectTotals} globalMode={globalMode} userRegion={userRegion} />
+              <TotalsCard key={`${total.event.id}-${idx}`} total={total} onSelect={onSelectTotals} globalMode={globalMode} userRegion={userRegion} previewMode={previewMode} />
             ))}
           </div>
 
@@ -148,7 +154,7 @@ export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, s
               </thead>
               <tbody>
                 {totals.map((total, idx) => (
-                  <TotalsRow key={`${total.event.id}-${idx}`} total={total} onSelect={onSelectTotals} globalMode={globalMode} userRegion={userRegion} />
+                  <TotalsRow key={`${total.event.id}-${idx}`} total={total} onSelect={onSelectTotals} globalMode={globalMode} userRegion={userRegion} previewMode={previewMode} />
                 ))}
               </tbody>
             </table>
@@ -174,7 +180,7 @@ export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, s
           {/* Mobile Card View */}
           <div className="md:hidden space-y-3 border border-t-0 rounded-b-lg p-3" style={{ borderColor: 'var(--border)', backgroundColor: 'var(--surface)' }}>
             {totalsMiddles.map((middle, idx) => (
-              <MiddleCard key={`${middle.event.id}-totals-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} globalMode={globalMode} userRegion={userRegion} />
+              <MiddleCard key={`${middle.event.id}-totals-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} globalMode={globalMode} userRegion={userRegion} previewMode={previewMode} />
             ))}
           </div>
 
@@ -200,7 +206,7 @@ export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, s
               </thead>
               <tbody>
                 {totalsMiddles.map((middle, idx) => (
-                  <MiddleRow key={`${middle.event.id}-totals-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} globalMode={globalMode} userRegion={userRegion} />
+                  <MiddleRow key={`${middle.event.id}-totals-middle-${idx}`} middle={middle} onSelect={onSelectMiddle} globalMode={globalMode} userRegion={userRegion} previewMode={previewMode} />
                 ))}
               </tbody>
             </table>
@@ -212,10 +218,11 @@ export function TotalsTable({ totals, middles, onSelectTotals, onSelectMiddle, s
 }
 
 // Mobile Totals Card
-function TotalsCard({ total, onSelect, globalMode, userRegion }: { total: TotalsArb; onSelect: (t: TotalsArb) => void; globalMode: boolean; userRegion: UserRegion }) {
+function TotalsCard({ total, onSelect, globalMode, userRegion, previewMode = false }: { total: TotalsArb; onSelect: (t: TotalsArb) => void; globalMode: boolean; userRegion: UserRegion; previewMode?: boolean }) {
   const eventDate = new Date(total.event.commenceTime);
   const soon = isEventSoon(eventDate);
   const timeUntil = getTimeUntil(eventDate);
+  const b = previewMode ? BLUR : '';
 
   return (
     <div 
@@ -246,11 +253,11 @@ function TotalsCard({ total, onSelect, globalMode, userRegion }: { total: Totals
 
       {/* Event Info */}
       <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
-        <div className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
+        <div className={`font-medium text-sm ${b}`} style={{ color: 'var(--foreground)' }}>
           {total.event.homeTeam} vs {total.event.awayTeam}
         </div>
         <div className="flex items-center justify-between mt-1">
-          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{total.event.sportTitle}</span>
+          <span className={`text-xs ${b}`} style={{ color: 'var(--muted-foreground)' }}>{total.event.sportTitle}</span>
           <span className={`text-xs ${soon ? 'text-yellow-500' : ''}`} style={soon ? {} : { color: 'var(--muted)' }}>
             {formatEventTimeShort(eventDate)} ({timeUntil})
           </span>
@@ -267,6 +274,7 @@ function TotalsCard({ total, onSelect, globalMode, userRegion }: { total: Totals
           showRegion={globalMode}
           event={total.event}
           userRegion={userRegion}
+          previewMode={previewMode}
         />
         <TotalsBetLineMobile 
           type="under"
@@ -276,6 +284,7 @@ function TotalsCard({ total, onSelect, globalMode, userRegion }: { total: Totals
           showRegion={globalMode}
           event={total.event}
           userRegion={userRegion}
+          previewMode={previewMode}
         />
       </div>
 
@@ -285,11 +294,11 @@ function TotalsCard({ total, onSelect, globalMode, userRegion }: { total: Totals
           onClick={() => onSelect(total)}
           className="w-full py-2 text-sm font-medium rounded-lg transition-colors"
           style={{
-            backgroundColor: 'var(--foreground)',
-            color: 'var(--background)'
+            backgroundColor: previewMode ? '#14b8a6' : 'var(--foreground)',
+            color: previewMode ? '#fff' : 'var(--background)'
           }}
         >
-          Calculate Stakes
+          {previewMode ? 'Sign Up to Calculate' : 'Calculate Stakes'}
         </button>
       </div>
     </div>
@@ -297,9 +306,10 @@ function TotalsCard({ total, onSelect, globalMode, userRegion }: { total: Totals
 }
 
 // Mobile Middle Card
-function MiddleCard({ middle, onSelect, globalMode, userRegion }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void; globalMode: boolean; userRegion: UserRegion }) {
+function MiddleCard({ middle, onSelect, globalMode, userRegion, previewMode = false }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void; globalMode: boolean; userRegion: UserRegion; previewMode?: boolean }) {
   const eventDate = new Date(middle.event.commenceTime);
   const soon = isEventSoon(eventDate);
+  const b = previewMode ? BLUR : '';
 
   return (
     <div 
@@ -325,11 +335,11 @@ function MiddleCard({ middle, onSelect, globalMode, userRegion }: { middle: Midd
 
       {/* Event Info */}
       <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
-        <div className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
+        <div className={`font-medium text-sm ${b}`} style={{ color: 'var(--foreground)' }}>
           {middle.event.homeTeam} vs {middle.event.awayTeam}
         </div>
         <div className="flex items-center justify-between mt-1">
-          <span className="text-xs" style={{ color: 'var(--muted-foreground)' }}>{middle.event.sportTitle}</span>
+          <span className={`text-xs ${b}`} style={{ color: 'var(--muted-foreground)' }}>{middle.event.sportTitle}</span>
           <span className={`text-xs ${soon ? 'text-yellow-500' : ''}`} style={soon ? {} : { color: 'var(--muted)' }}>
             {formatEventTimeShort(eventDate)}
           </span>
@@ -338,7 +348,7 @@ function MiddleCard({ middle, onSelect, globalMode, userRegion }: { middle: Midd
 
       {/* Middle Zone */}
       <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
-        <div className="text-yellow-400 font-medium text-sm">
+        <div className={`text-yellow-400 font-medium text-sm ${b}`}>
           {middle.middleRange.description}
         </div>
       </div>
@@ -347,7 +357,11 @@ function MiddleCard({ middle, onSelect, globalMode, userRegion }: { middle: Midd
       <div className="px-3 py-2 space-y-2 text-xs">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <BookLogo bookKey={middle.side1.bookmaker} size={20} />
+            {previewMode ? (
+              <div className="w-5 h-5 rounded bg-gray-600 shrink-0" />
+            ) : (
+              <BookLogo bookKey={middle.side1.bookmaker} size={20} />
+            )}
             <div className="flex items-center gap-1">
               <span className="text-green-400 font-medium">Over</span>
               <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side1.point}</span>
@@ -355,13 +369,17 @@ function MiddleCard({ middle, onSelect, globalMode, userRegion }: { middle: Midd
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <span style={{ color: 'var(--muted-foreground)' }}>{getBookmakerName(middle.side1.bookmaker)}</span>
-            {globalMode && <RegionBadge bookmaker={middle.side1.bookmaker} />}
+            <span className={b} style={{ color: 'var(--muted-foreground)' }}>{previewMode ? '••••••••' : getBookmakerName(middle.side1.bookmaker)}</span>
+            {globalMode && !previewMode && <RegionBadge bookmaker={middle.side1.bookmaker} />}
           </div>
         </div>
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <BookLogo bookKey={middle.side2.bookmaker} size={20} />
+            {previewMode ? (
+              <div className="w-5 h-5 rounded bg-gray-600 shrink-0" />
+            ) : (
+              <BookLogo bookKey={middle.side2.bookmaker} size={20} />
+            )}
             <div className="flex items-center gap-1">
               <span className="text-red-400 font-medium">Under</span>
               <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side2.point}</span>
@@ -369,8 +387,8 @@ function MiddleCard({ middle, onSelect, globalMode, userRegion }: { middle: Midd
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <span style={{ color: 'var(--muted-foreground)' }}>{getBookmakerName(middle.side2.bookmaker)}</span>
-            {globalMode && <RegionBadge bookmaker={middle.side2.bookmaker} />}
+            <span className={b} style={{ color: 'var(--muted-foreground)' }}>{previewMode ? '••••••••' : getBookmakerName(middle.side2.bookmaker)}</span>
+            {globalMode && !previewMode && <RegionBadge bookmaker={middle.side2.bookmaker} />}
           </div>
         </div>
       </div>
@@ -396,7 +414,7 @@ function MiddleCard({ middle, onSelect, globalMode, userRegion }: { middle: Midd
           onClick={() => onSelect(middle)}
           className="w-full py-2 text-sm font-medium rounded-lg border border-yellow-600 text-yellow-400 hover:bg-yellow-600 hover:text-black transition-colors"
         >
-          Calculate Stakes
+          {previewMode ? 'Sign Up to Calculate' : 'Calculate Stakes'}
         </button>
       </div>
     </div>
@@ -412,6 +430,7 @@ function TotalsBetLineMobile({
   showRegion,
   event,
   userRegion = 'AU',
+  previewMode = false,
 }: {
   type: 'over' | 'under';
   line: number;
@@ -420,18 +439,24 @@ function TotalsBetLineMobile({
   showRegion?: boolean;
   event: { homeTeam: string; awayTeam: string; sportTitle?: string; sportKey?: string; commenceTime?: any };
   userRegion?: UserRegion;
+  previewMode?: boolean;
 }) {
-  const href = buildBookmakerSearchUrl(bookmaker, {
+  const href = previewMode ? undefined : (buildBookmakerSearchUrl(bookmaker, {
     home_team: event.homeTeam,
     away_team: event.awayTeam,
     sport_title: event.sportTitle,
     commence_time: String(event.commenceTime),
-  }) ?? undefined;
+  }) ?? undefined);
+  const b = previewMode ? BLUR : '';
 
   return (
     <div className="flex items-center justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0">
-        <BookLogo bookKey={bookmaker} size={24} />
+        {previewMode ? (
+          <div className="w-6 h-6 rounded bg-gray-600 shrink-0" />
+        ) : (
+          <BookLogo bookKey={bookmaker} size={24} />
+        )}
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className={`font-medium text-sm ${type === 'over' ? 'text-green-400' : 'text-red-400'}`}>
@@ -439,16 +464,15 @@ function TotalsBetLineMobile({
             </span>
             <span className="font-mono text-sm" style={{ color: 'var(--foreground)' }}>{line}</span>
           </div>
-          <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:underline truncate"
-            >
-              {getBookmakerName(bookmaker)}
-            </a>
-            {showRegion && <RegionBadge bookmaker={bookmaker} />}
+          <div className={`flex items-center gap-1 text-xs ${b}`} style={{ color: 'var(--muted-foreground)' }}>
+            {href ? (
+              <a href={href} target="_blank" rel="noopener noreferrer" className="hover:underline truncate">
+                {getBookmakerName(bookmaker)}
+              </a>
+            ) : (
+              <span>{previewMode ? '••••••••' : getBookmakerName(bookmaker)}</span>
+            )}
+            {showRegion && !previewMode && <RegionBadge bookmaker={bookmaker} />}
           </div>
         </div>
       </div>
@@ -458,24 +482,25 @@ function TotalsBetLineMobile({
 }
 
 // Desktop Totals Row
-function TotalsRow({ total, onSelect, globalMode, userRegion }: { total: TotalsArb; onSelect: (t: TotalsArb) => void; globalMode: boolean; userRegion: UserRegion }) {
+function TotalsRow({ total, onSelect, globalMode, userRegion, previewMode = false }: { total: TotalsArb; onSelect: (t: TotalsArb) => void; globalMode: boolean; userRegion: UserRegion; previewMode?: boolean }) {
   const eventDate = new Date(total.event.commenceTime);
   const soon = isEventSoon(eventDate);
   const timeUntil = getTimeUntil(eventDate);
+  const b = previewMode ? BLUR : '';
 
-  const overHref = buildBookmakerSearchUrl(total.over.bookmaker, {
+  const overHref = previewMode ? undefined : (buildBookmakerSearchUrl(total.over.bookmaker, {
     home_team: total.event.homeTeam,
     away_team: total.event.awayTeam,
     sport_title: total.event.sportTitle,
     commence_time: String(total.event.commenceTime),
-  }) ?? undefined;
+  }) ?? undefined);
 
-  const underHref = buildBookmakerSearchUrl(total.under.bookmaker, {
+  const underHref = previewMode ? undefined : (buildBookmakerSearchUrl(total.under.bookmaker, {
     home_team: total.event.homeTeam,
     away_team: total.event.awayTeam,
     sport_title: total.event.sportTitle,
     commence_time: String(total.event.commenceTime),
-  }) ?? undefined;
+  }) ?? undefined);
 
   return (
     <tr 
@@ -486,9 +511,9 @@ function TotalsRow({ total, onSelect, globalMode, userRegion }: { total: TotalsA
         <TypeBadge type={total.type} />
       </td>
       <td className="px-4 py-3">
-        <div className="font-medium" style={{ color: 'var(--foreground)' }}>{total.event.homeTeam}</div>
-        <div style={{ color: 'var(--muted)' }}>vs {total.event.awayTeam}</div>
-        <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>{total.event.sportTitle}</div>
+        <div className={`font-medium ${b}`} style={{ color: 'var(--foreground)' }}>{total.event.homeTeam}</div>
+        <div className={b} style={{ color: 'var(--muted)' }}>vs {total.event.awayTeam}</div>
+        <div className={`text-xs mt-1 ${b}`} style={{ color: 'var(--muted-foreground)' }}>{total.event.sportTitle}</div>
       </td>
       <td className="px-4 py-3">
         <div className={soon ? 'text-yellow-500' : ''} style={soon ? {} : { color: 'var(--muted)' }}>
@@ -505,48 +530,50 @@ function TotalsRow({ total, onSelect, globalMode, userRegion }: { total: TotalsA
       <td className="px-4 py-3">
         <div className="space-y-2">
           <div className="flex items-center gap-2">
-            <BookLogo bookKey={total.over.bookmaker} size={28} />
+            {previewMode ? (
+              <div className="w-7 h-7 rounded bg-gray-600 shrink-0" />
+            ) : (
+              <BookLogo bookKey={total.over.bookmaker} size={28} />
+            )}
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-green-400 font-medium">Over</span>
                 <span className="font-mono" style={{ color: 'var(--foreground)' }}>{total.line}</span>
                 <span style={{ color: 'var(--muted)' }}>@ {formatDecimalOddsForRegion(total.over.odds, userRegion)}</span>
               </div>
-              <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                <a
-                  href={overHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:underline"
-                  style={{ color: 'var(--muted-foreground)' }}
-                  title="Open bookmaker search"
-                >
-                  {getBookmakerName(total.over.bookmaker)}
-                </a>
-                {globalMode && <RegionBadge bookmaker={total.over.bookmaker} />}
+              <div className={`flex items-center gap-1 text-xs ${b}`} style={{ color: 'var(--muted-foreground)' }}>
+                {overHref ? (
+                  <a href={overHref} target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: 'var(--muted-foreground)' }} title="Open bookmaker search">
+                    {getBookmakerName(total.over.bookmaker)}
+                  </a>
+                ) : (
+                  <span>{previewMode ? '••••••••' : getBookmakerName(total.over.bookmaker)}</span>
+                )}
+                {globalMode && !previewMode && <RegionBadge bookmaker={total.over.bookmaker} />}
               </div>
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <BookLogo bookKey={total.under.bookmaker} size={28} />
+            {previewMode ? (
+              <div className="w-7 h-7 rounded bg-gray-600 shrink-0" />
+            ) : (
+              <BookLogo bookKey={total.under.bookmaker} size={28} />
+            )}
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-red-400 font-medium">Under</span>
                 <span className="font-mono" style={{ color: 'var(--foreground)' }}>{total.line}</span>
                 <span style={{ color: 'var(--muted)' }}>@ {formatDecimalOddsForRegion(total.under.odds, userRegion)}</span>
               </div>
-              <div className="flex items-center gap-1 text-xs" style={{ color: 'var(--muted-foreground)' }}>
-                <a
-                  href={underHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:underline"
-                  style={{ color: 'var(--muted-foreground)' }}
-                  title="Open bookmaker search"
-                >
-                  {getBookmakerName(total.under.bookmaker)}
-                </a>
-                {globalMode && <RegionBadge bookmaker={total.under.bookmaker} />}
+              <div className={`flex items-center gap-1 text-xs ${b}`} style={{ color: 'var(--muted-foreground)' }}>
+                {underHref ? (
+                  <a href={underHref} target="_blank" rel="noopener noreferrer" className="hover:underline" style={{ color: 'var(--muted-foreground)' }} title="Open bookmaker search">
+                    {getBookmakerName(total.under.bookmaker)}
+                  </a>
+                ) : (
+                  <span>{previewMode ? '••••••••' : getBookmakerName(total.under.bookmaker)}</span>
+                )}
+                {globalMode && !previewMode && <RegionBadge bookmaker={total.under.bookmaker} />}
               </div>
             </div>
           </div>
@@ -565,11 +592,11 @@ function TotalsRow({ total, onSelect, globalMode, userRegion }: { total: TotalsA
           onClick={() => onSelect(total)}
           className="px-3 py-1 text-xs font-medium rounded transition-colors"
           style={{
-            backgroundColor: 'var(--foreground)',
-            color: 'var(--background)'
+            backgroundColor: previewMode ? '#14b8a6' : 'var(--foreground)',
+            color: previewMode ? '#fff' : 'var(--background)'
           }}
         >
-          Calculate
+          {previewMode ? 'Sign Up' : 'Calculate'}
         </button>
       </td>
     </tr>
@@ -577,9 +604,10 @@ function TotalsRow({ total, onSelect, globalMode, userRegion }: { total: TotalsA
 }
 
 // Desktop Middle Row
-function MiddleRow({ middle, onSelect, globalMode, userRegion }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void; globalMode: boolean; userRegion: UserRegion }) {
+function MiddleRow({ middle, onSelect, globalMode, userRegion, previewMode = false }: { middle: MiddleOpportunity; onSelect: (m: MiddleOpportunity) => void; globalMode: boolean; userRegion: UserRegion; previewMode?: boolean }) {
   const eventDate = new Date(middle.event.commenceTime);
   const soon = isEventSoon(eventDate);
+  const b = previewMode ? BLUR : '';
 
   return (
     <tr 
@@ -587,9 +615,9 @@ function MiddleRow({ middle, onSelect, globalMode, userRegion }: { middle: Middl
       style={{ borderBottom: '1px solid var(--border)' }}
     >
       <td className="px-4 py-3">
-        <div className="font-medium" style={{ color: 'var(--foreground)' }}>{middle.event.homeTeam}</div>
-        <div style={{ color: 'var(--muted)' }}>vs {middle.event.awayTeam}</div>
-        <div className="text-xs mt-1" style={{ color: 'var(--muted-foreground)' }}>{middle.event.sportTitle}</div>
+        <div className={`font-medium ${b}`} style={{ color: 'var(--foreground)' }}>{middle.event.homeTeam}</div>
+        <div className={b} style={{ color: 'var(--muted)' }}>vs {middle.event.awayTeam}</div>
+        <div className={`text-xs mt-1 ${b}`} style={{ color: 'var(--muted-foreground)' }}>{middle.event.sportTitle}</div>
       </td>
       <td className="px-4 py-3">
         <div className={soon ? 'text-yellow-500' : ''} style={soon ? {} : { color: 'var(--muted)' }}>
@@ -597,7 +625,7 @@ function MiddleRow({ middle, onSelect, globalMode, userRegion }: { middle: Middl
         </div>
       </td>
       <td className="px-4 py-3">
-        <div className="text-yellow-400 font-medium text-sm">
+        <div className={`text-yellow-400 font-medium text-sm ${b}`}>
           {middle.middleRange.description}
         </div>
         <div className="text-xs" style={{ color: 'var(--muted)' }}>
@@ -607,23 +635,31 @@ function MiddleRow({ middle, onSelect, globalMode, userRegion }: { middle: Middl
       <td className="px-4 py-3">
         <div className="space-y-2 text-xs">
           <div className="flex items-center gap-2">
-            <BookLogo bookKey={middle.side1.bookmaker} size={24} />
+            {previewMode ? (
+              <div className="w-6 h-6 rounded bg-gray-600 shrink-0" />
+            ) : (
+              <BookLogo bookKey={middle.side1.bookmaker} size={24} />
+            )}
             <div className="flex items-center gap-1 flex-wrap">
               <span className="text-green-400 font-medium">Over</span>
               <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side1.point}</span>
               <span style={{ color: 'var(--muted)' }}>@ {formatDecimalOddsForRegion(middle.side1.odds, userRegion)}</span>
-              <span style={{ color: 'var(--muted-foreground)' }}>({getBookmakerName(middle.side1.bookmaker)})</span>
-              {globalMode && <RegionBadge bookmaker={middle.side1.bookmaker} />}
+              <span className={b} style={{ color: 'var(--muted-foreground)' }}>({previewMode ? '••••••••' : getBookmakerName(middle.side1.bookmaker)})</span>
+              {globalMode && !previewMode && <RegionBadge bookmaker={middle.side1.bookmaker} />}
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <BookLogo bookKey={middle.side2.bookmaker} size={24} />
+            {previewMode ? (
+              <div className="w-6 h-6 rounded bg-gray-600 shrink-0" />
+            ) : (
+              <BookLogo bookKey={middle.side2.bookmaker} size={24} />
+            )}
             <div className="flex items-center gap-1 flex-wrap">
               <span className="text-red-400 font-medium">Under</span>
               <span className="font-mono" style={{ color: 'var(--foreground)' }}>{middle.side2.point}</span>
               <span style={{ color: 'var(--muted)' }}>@ {formatDecimalOddsForRegion(middle.side2.odds, userRegion)}</span>
-              <span style={{ color: 'var(--muted-foreground)' }}>({getBookmakerName(middle.side2.bookmaker)})</span>
-              {globalMode && <RegionBadge bookmaker={middle.side2.bookmaker} />}
+              <span className={b} style={{ color: 'var(--muted-foreground)' }}>({previewMode ? '••••••••' : getBookmakerName(middle.side2.bookmaker)})</span>
+              {globalMode && !previewMode && <RegionBadge bookmaker={middle.side2.bookmaker} />}
             </div>
           </div>
         </div>
@@ -646,7 +682,7 @@ function MiddleRow({ middle, onSelect, globalMode, userRegion }: { middle: Middl
           onClick={() => onSelect(middle)}
           className="px-3 py-1 text-xs border border-yellow-600 text-yellow-400 hover:bg-yellow-600 hover:text-black transition-colors rounded"
         >
-          Calculate
+          {previewMode ? 'Sign Up' : 'Calculate'}
         </button>
       </td>
     </tr>

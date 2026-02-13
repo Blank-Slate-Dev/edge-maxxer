@@ -2,7 +2,7 @@
 'use client';
 import { useState, useCallback, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { Loader2, X, CheckCircle, RefreshCw, Zap } from 'lucide-react';
+import { Loader2, X, CheckCircle, RefreshCw, Zap, Lock } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 // PERFORMANCE FIX: Direct imports instead of barrel exports
 import { Header } from '@/components/Header';
@@ -17,6 +17,7 @@ import { TotalsTable } from '@/components/TotalsTable';
 import { LineCalculatorModal } from '@/components/LineCalculatorModal';
 import { Flag } from '@/components/Flag';
 import { SubscriptionRequiredModal } from '@/components/SubscriptionRequiredModal';
+import { AuthModals } from '@/components/AuthModals';
 import { FlagIconsLoader } from '@/components/FlagIconsLoader';
 import { useBets } from '@/hooks/useBets';
 import { useAccounts } from '@/hooks/useAccounts';
@@ -51,6 +52,7 @@ interface GlobalArbsResponse {
   subscriptionRequired?: boolean;
   trialExpired?: boolean;
   freeTrialEndsAt?: string;
+  preview?: boolean;
 }
 
 interface ScanProgressBatch {
@@ -230,7 +232,7 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
-  const { data: session, update: updateSession } = useSession();
+  const { data: session, status: sessionStatus, update: updateSession } = useSession();
   const searchParams = useSearchParams();
   const router = useRouter();
   
@@ -275,6 +277,12 @@ function DashboardContent() {
   // Free trial countdown state
   const [freeTrialEndsAt, setFreeTrialEndsAt] = useState<Date | null>(null);
   const [freeTrialRemainingMs, setFreeTrialRemainingMs] = useState<number>(0);
+
+  // =========================================================================
+  // PREVIEW MODE: For unauthenticated visitors
+  // =========================================================================
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [authModal, setAuthModal] = useState<'login' | 'signup' | null>(null);
   
   const [scanProgress, setScanProgress] = useState<{
     isActive: boolean;
@@ -312,6 +320,22 @@ function DashboardContent() {
 
   const hasAccess = (session?.user as { hasAccess?: boolean } | undefined)?.hasAccess ?? false;
   const freeTrialActive = (session?.user as { freeTrialActive?: boolean } | undefined)?.freeTrialActive ?? false;
+  const isAuthenticated = sessionStatus === 'authenticated' && !!session;
+
+  // =========================================================================
+  // PREVIEW MODE DETECTION
+  // Once session status resolves, determine if we're in preview mode
+  // =========================================================================
+  useEffect(() => {
+    if (sessionStatus === 'loading') return;
+    
+    if (!isAuthenticated) {
+      setIsPreviewMode(true);
+      setSettingsLoaded(true); // Skip settings fetch for preview
+    } else {
+      setIsPreviewMode(false);
+    }
+  }, [sessionStatus, isAuthenticated]);
 
   // Initialize free trial countdown from session
   useEffect(() => {
@@ -385,8 +409,10 @@ function DashboardContent() {
     }
   }, [searchParams, updateSession, router]);
 
-  // Load user's default region
+  // Load user's default region (skip for preview mode)
   useEffect(() => {
+    if (isPreviewMode) return; // Already set settingsLoaded in preview detection
+    
     const fetchSettings = async () => {
       try {
         const res = await fetch('/api/settings');
@@ -403,10 +429,12 @@ function DashboardContent() {
         setSettingsLoaded(true);
       }
     };
-    fetchSettings();
-  }, []);
+    if (isAuthenticated) {
+      fetchSettings();
+    }
+  }, [isPreviewMode, isAuthenticated]);
 
-  // Scan progress polling
+  // Scan progress polling (only for authenticated users)
   const pollScanProgress = useCallback(async () => {
     if (isRegionSwitchingRef.current) return;
     
@@ -523,18 +551,20 @@ function DashboardContent() {
     }
   }, []);
 
-  // Start/stop progress polling
+  // Start/stop progress polling (only for authenticated users with access)
   useEffect(() => {
-    if (!settingsLoaded || !hasAccess) return;
+    if (!settingsLoaded || !hasAccess || isPreviewMode) return;
     progressIntervalRef.current = setInterval(pollScanProgress, PROGRESS_POLL_INTERVAL_MS);
     return () => {
       if (progressIntervalRef.current) {
         clearInterval(progressIntervalRef.current);
       }
     };
-  }, [settingsLoaded, hasAccess, pollScanProgress]);
+  }, [settingsLoaded, hasAccess, pollScanProgress, isPreviewMode]);
 
-  // Fetch global arbs
+  // =========================================================================
+  // FETCH DATA: Uses /api/global-arbs for authenticated, /api/preview-arbs for preview
+  // =========================================================================
   const fetchGlobalArbs = useCallback(async (
     mode: 'initial' | 'background' | 'manual' = 'background',
     explicitRegion?: UserRegion
@@ -552,10 +582,16 @@ function DashboardContent() {
 
     try {
       const region = explicitRegion ?? selectedRegionRef.current;
-      const res = await fetch(`/api/global-arbs?region=${region}`);
+      
+      // Use preview endpoint for unauthenticated users
+      const endpoint = isPreviewMode 
+        ? `/api/preview-arbs?region=${region}`
+        : `/api/global-arbs?region=${region}`;
+      
+      const res = await fetch(endpoint);
       const data: GlobalArbsResponse = await res.json();
 
-      if (data.subscriptionRequired) {
+      if (data.subscriptionRequired && !isPreviewMode) {
         setTrialExpiredFlag(!!data.trialExpired);
         setShowSubscriptionModal(true);
         return;
@@ -566,7 +602,7 @@ function DashboardContent() {
         setFreeTrialEndsAt(new Date(data.freeTrialEndsAt));
       }
 
-      if (!res.ok) {
+      if (!res.ok && !isPreviewMode) {
         throw new Error(data.error || 'Failed to fetch opportunities');
       }
 
@@ -618,7 +654,7 @@ function DashboardContent() {
         if (data.remainingCredits !== undefined) setRemainingCredits(data.remainingCredits);
         setHasFetchedArbs(true);
         setError(null);
-        console.log(`[Dashboard] ${region}: ${parsedOpportunities.length} H2H, ${parsedSpreadArbs.length} spreads, ${parsedTotalsArbs.length} totals, ${parsedMiddles.length} middles (${data.ageSeconds}s old)${isNewData ? ' [NEW]' : ''}`);
+        console.log(`[Dashboard] ${region}: ${parsedOpportunities.length} H2H, ${parsedSpreadArbs.length} spreads, ${parsedTotalsArbs.length} totals, ${parsedMiddles.length} middles (${data.ageSeconds}s old)${isNewData ? ' [NEW]' : ''}${isPreviewMode ? ' [PREVIEW]' : ''}`);
       }
     } catch (err) {
       console.error('Failed to fetch global arbs:', err);
@@ -632,17 +668,20 @@ function DashboardContent() {
       setIsRegionSwitching(false);
       isRegionSwitchingRef.current = false;
     }
-  }, []);
+  }, [isPreviewMode]);
 
   // Initial fetch and polling
   useEffect(() => {
     if (!settingsLoaded) return;
     fetchGlobalArbs('initial', selectedRegionRef.current);
+    
+    // Poll less frequently in preview mode (30s vs 15s)
+    const interval = isPreviewMode ? 30 : POLL_INTERVAL_SECONDS;
     const pollInterval = setInterval(() => {
       fetchGlobalArbs('background');
-    }, POLL_INTERVAL_SECONDS * 1000);
+    }, interval * 1000);
     return () => clearInterval(pollInterval);
-  }, [fetchGlobalArbs, settingsLoaded]);
+  }, [fetchGlobalArbs, settingsLoaded, isPreviewMode]);
 
   // Region selection
   const selectRegion = useCallback((region: UserRegion) => {
@@ -693,8 +732,39 @@ function DashboardContent() {
   }, []);
 
   const handleRefresh = useCallback(() => {
+    if (isPreviewMode) {
+      setAuthModal('signup');
+      return;
+    }
     fetchGlobalArbs('manual', selectedRegion);
-  }, [fetchGlobalArbs, selectedRegion]);
+  }, [fetchGlobalArbs, selectedRegion, isPreviewMode]);
+
+  // =========================================================================
+  // PREVIEW MODE: Intercept calculator opens → show auth modal instead
+  // =========================================================================
+  const handleSelectArb = useCallback((arb: ArbOpportunity) => {
+    if (isPreviewMode) {
+      setAuthModal('signup');
+      return;
+    }
+    setSelectedArb(arb);
+  }, [isPreviewMode]);
+
+  const handleSelectValueBet = useCallback((vb: ValueBet) => {
+    if (isPreviewMode) {
+      setAuthModal('signup');
+      return;
+    }
+    setSelectedValueBet(vb);
+  }, [isPreviewMode]);
+
+  const handleSelectLineOpp = useCallback((opp: SpreadArb | TotalsArb | MiddleOpportunity) => {
+    if (isPreviewMode) {
+      setAuthModal('signup');
+      return;
+    }
+    setSelectedLineOpp(opp);
+  }, [isPreviewMode]);
 
   const handleLogBet = (bet: Omit<PlacedBet, 'id' | 'createdAt'>) => {
     addBet(bet);
@@ -773,16 +843,26 @@ function DashboardContent() {
       {/* PERFORMANCE FIX: Load flag-icons CSS only on dashboard */}
       <FlagIconsLoader />
 
-      <Header
-        lastUpdated={lastUpdated}
-        isLoading={isLoading}
-        isUsingMockData={false}
-        remainingRequests={remainingCredits}
-        onRefresh={handleRefresh}
-        onQuickScan={handleRefresh}
-        freeTrialRemainingMs={freeTrialRemainingMs}
-        freeTrialActive={freeTrialActive}
-      />
+      {/* ================================================================= */}
+      {/* PREVIEW MODE: Show simplified header with sign-up CTA              */}
+      {/* ================================================================= */}
+      {isPreviewMode ? (
+        <PreviewHeader 
+          onSignUp={() => setAuthModal('signup')} 
+          onLogin={() => setAuthModal('login')} 
+        />
+      ) : (
+        <Header
+          lastUpdated={lastUpdated}
+          isLoading={isLoading}
+          isUsingMockData={false}
+          remainingRequests={remainingCredits}
+          onRefresh={handleRefresh}
+          onQuickScan={handleRefresh}
+          freeTrialRemainingMs={freeTrialRemainingMs}
+          freeTrialActive={freeTrialActive}
+        />
+      )}
 
       {/* Session Refresh Overlay (after checkout) */}
       {isRefreshingSession && (
@@ -811,6 +891,49 @@ function DashboardContent() {
       )}
 
       <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8 space-y-4 sm:space-y-6">
+        {/* ================================================================= */}
+        {/* PREVIEW MODE BANNER                                                */}
+        {/* ================================================================= */}
+        {isPreviewMode && hasFetchedArbs && !isInitialLoading && (
+          <div 
+            className="border px-4 py-4 rounded-lg"
+            style={{
+              borderColor: '#14b8a6',
+              backgroundColor: 'color-mix(in srgb, #14b8a6 10%, transparent)'
+            }}
+          >
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Lock className="w-5 h-5 shrink-0" style={{ color: '#14b8a6' }} />
+                <div>
+                  <div className="font-medium text-sm" style={{ color: '#14b8a6' }}>
+                    Preview Mode — Live Data, Blurred Details
+                  </div>
+                  <div className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                    Sign up to reveal team names, sportsbooks, and unlock the stake calculator
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2 shrink-0 sm:ml-auto">
+                <button
+                  onClick={() => setAuthModal('signup')}
+                  className="px-4 py-2 text-sm font-medium rounded-lg transition-all hover:opacity-90"
+                  style={{ backgroundColor: '#14b8a6', color: '#fff' }}
+                >
+                  Sign Up Free
+                </button>
+                <button
+                  onClick={() => setAuthModal('login')}
+                  className="px-4 py-2 text-sm font-medium rounded-lg transition-colors border hover:bg-[var(--surface)]"
+                  style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
+                >
+                  Login
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Checkout Success Banner */}
         {checkoutSuccess && !isRefreshingSession && (
           <div 
@@ -841,8 +964,8 @@ function DashboardContent() {
           </div>
         )}
 
-        {/* Live Scan Status Banner */}
-        {hasFetchedArbs && !isInitialLoading && !isRegionSwitching && (
+        {/* Live Scan Status Banner (only for authenticated users) */}
+        {!isPreviewMode && hasFetchedArbs && !isInitialLoading && !isRegionSwitching && (
           <div 
             className={`border px-4 py-3 rounded-lg transition-all duration-500 ${showNewResultsFlash ? 'ring-2 ring-green-500' : ''}`}
             style={{
@@ -1017,7 +1140,7 @@ function DashboardContent() {
               Loading {selectedRegion} Opportunities...
             </h3>
             <p className="text-sm" style={{ color: 'var(--muted)' }}>
-              Connecting to the live arbitrage scanner
+              {isPreviewMode ? 'Loading live arbitrage preview...' : 'Connecting to the live arbitrage scanner'}
             </p>
           </div>
         )}
@@ -1107,20 +1230,24 @@ function DashboardContent() {
             >
               Value
             </TabButton>
-            <TabButton 
-              active={activeTab === 'history'} 
-              onClick={() => setActiveTab('history')}
-              count={bets.length}
-            >
-              History
-            </TabButton>
-            <TabButton 
-              active={activeTab === 'accounts'} 
-              onClick={() => setActiveTab('accounts')}
-              count={activeAccountsCount}
-            >
-              Accounts
-            </TabButton>
+            {!isPreviewMode && (
+              <>
+                <TabButton 
+                  active={activeTab === 'history'} 
+                  onClick={() => setActiveTab('history')}
+                  count={bets.length}
+                >
+                  History
+                </TabButton>
+                <TabButton 
+                  active={activeTab === 'accounts'} 
+                  onClick={() => setActiveTab('accounts')}
+                  count={activeAccountsCount}
+                >
+                  Accounts
+                </TabButton>
+              </>
+            )}
           </div>
         )}
 
@@ -1154,9 +1281,10 @@ function DashboardContent() {
           {hasFetchedArbs && !isRegionSwitching && activeTab === 'opportunities' && (
             <ArbTable
               opportunities={filteredOpportunities}
-              onSelectArb={setSelectedArb}
+              onSelectArb={handleSelectArb}
               globalMode={false}
               userRegion={selectedRegion}
+              previewMode={isPreviewMode}
             />
           )}
 
@@ -1164,11 +1292,12 @@ function DashboardContent() {
             <SpreadsTable
               spreads={filteredSpreads}
               middles={spreadMiddles}
-              onSelectSpread={(s) => setSelectedLineOpp(s)}
-              onSelectMiddle={(m) => setSelectedLineOpp(m)}
+              onSelectSpread={(s) => handleSelectLineOpp(s)}
+              onSelectMiddle={(m) => handleSelectLineOpp(m)}
               showMiddles={showMiddles}
               globalMode={false}
               userRegion={selectedRegion}
+              previewMode={isPreviewMode}
             />
           )}
 
@@ -1176,20 +1305,21 @@ function DashboardContent() {
             <TotalsTable
               totals={filteredTotals}
               middles={totalsMiddles}
-              onSelectTotals={(t) => setSelectedLineOpp(t)}
-              onSelectMiddle={(m) => setSelectedLineOpp(m)}
+              onSelectTotals={(t) => handleSelectLineOpp(t)}
+              onSelectMiddle={(m) => handleSelectLineOpp(m)}
               showMiddles={showMiddles}
               globalMode={false}
               userRegion={selectedRegion}
+              previewMode={isPreviewMode}
             />
           )}
 
           {hasFetchedArbs && !isRegionSwitching && activeTab === 'value-bets' && (
-            <ValueBetsTable valueBets={filteredValueBets} onSelectValueBet={setSelectedValueBet} userRegion={selectedRegion} />
+            <ValueBetsTable valueBets={filteredValueBets} onSelectValueBet={handleSelectValueBet} userRegion={selectedRegion} previewMode={isPreviewMode} />
           )}
         </div>
 
-        {activeTab === 'history' && betsLoaded && (
+        {!isPreviewMode && activeTab === 'history' && betsLoaded && (
           <BetTracker
             bets={bets}
             onUpdateBet={updateBet}
@@ -1198,7 +1328,7 @@ function DashboardContent() {
           />
         )}
 
-        {activeTab === 'accounts' && accountsLoaded && (
+        {!isPreviewMode && activeTab === 'accounts' && accountsLoaded && (
           <AccountsManager
             accounts={accounts}
             transactions={transactions}
@@ -1208,27 +1338,69 @@ function DashboardContent() {
             region={userDefaultRegion}
           />
         )}
+
+        {/* ================================================================= */}
+        {/* PREVIEW MODE: Bottom CTA                                           */}
+        {/* ================================================================= */}
+        {isPreviewMode && hasFetchedArbs && (
+          <div 
+            className="border rounded-lg p-6 sm:p-8 text-center"
+            style={{
+              borderColor: '#14b8a6',
+              backgroundColor: 'color-mix(in srgb, #14b8a6 5%, var(--surface))'
+            }}
+          >
+            <Lock className="w-8 h-8 mx-auto mb-3" style={{ color: '#14b8a6' }} />
+            <h3 className="text-lg sm:text-xl font-semibold mb-2" style={{ color: 'var(--foreground)' }}>
+              Ready to see the full picture?
+            </h3>
+            <p className="text-sm mb-4 max-w-md mx-auto" style={{ color: 'var(--muted)' }}>
+              Sign up to reveal all team names, sportsbooks, and access the stake calculator. 
+              Start with a free 10-minute trial — no credit card required.
+            </p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <button
+                onClick={() => setAuthModal('signup')}
+                className="px-6 py-3 text-sm font-medium rounded-lg transition-all hover:opacity-90"
+                style={{ backgroundColor: '#14b8a6', color: '#fff' }}
+              >
+                Sign Up Free
+              </button>
+              <button
+                onClick={() => setAuthModal('login')}
+                className="px-6 py-3 text-sm font-medium rounded-lg transition-colors border hover:bg-[var(--surface)]"
+                style={{ borderColor: 'var(--border)', color: 'var(--foreground)' }}
+              >
+                Already have an account? Login
+              </button>
+            </div>
+          </div>
+        )}
       </main>
 
-      {/* Calculator Modals */}
-      <StakeCalculatorModal
-        arb={selectedArb}
-        onClose={() => setSelectedArb(null)}
-        onLogBet={handleLogBet}
-        userRegion={selectedRegion}
-      />
-      <ValueBetCalculatorModal
-        valueBet={selectedValueBet}
-        onClose={() => setSelectedValueBet(null)}
-        onLogBet={handleLogBet}
-        userRegion={selectedRegion}
-      />
-      <LineCalculatorModal
-        opportunity={selectedLineOpp}
-        onClose={() => setSelectedLineOpp(null)}
-        onLogBet={handleLogBet}
-        userRegion={selectedRegion}
-      />
+      {/* Calculator Modals (only for authenticated users) */}
+      {!isPreviewMode && (
+        <>
+          <StakeCalculatorModal
+            arb={selectedArb}
+            onClose={() => setSelectedArb(null)}
+            onLogBet={handleLogBet}
+            userRegion={selectedRegion}
+          />
+          <ValueBetCalculatorModal
+            valueBet={selectedValueBet}
+            onClose={() => setSelectedValueBet(null)}
+            onLogBet={handleLogBet}
+            userRegion={selectedRegion}
+          />
+          <LineCalculatorModal
+            opportunity={selectedLineOpp}
+            onClose={() => setSelectedLineOpp(null)}
+            onLogBet={handleLogBet}
+            userRegion={selectedRegion}
+          />
+        </>
+      )}
 
       {/* Subscription Required Modal */}
       <SubscriptionRequiredModal
@@ -1236,7 +1408,70 @@ function DashboardContent() {
         onClose={() => setShowSubscriptionModal(false)}
         trialExpired={trialExpiredFlag}
       />
+
+      {/* Auth Modals (for preview mode sign-up/login prompts) */}
+      <AuthModals
+        isOpen={authModal}
+        onClose={() => setAuthModal(null)}
+        onSwitch={setAuthModal}
+        onAuthSuccess={() => {
+          setAuthModal(null);
+          // Reload to switch from preview to full mode
+          window.location.reload();
+        }}
+      />
     </div>
+  );
+}
+
+// =========================================================================
+// PREVIEW MODE HEADER — Simplified header for unauthenticated visitors
+// =========================================================================
+function PreviewHeader({ onSignUp, onLogin }: { onSignUp: () => void; onLogin: () => void }) {
+  return (
+    <header
+      className="border-b sticky top-0 z-50 transition-colors"
+      style={{
+        borderColor: 'var(--border)',
+        backgroundColor: 'var(--background)',
+      }}
+    >
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
+        <div className="flex items-center justify-between gap-4">
+          <div className="flex items-center shrink-0">
+            <a href="/" className="flex items-center">
+              <img
+                src="/logo_thin_dark_version.png"
+                alt="Edge Maxxer"
+                className="h-10 sm:h-12 lg:h-16 w-auto logo-dark"
+              />
+              <img
+                src="/logo_thin_light_version.png"
+                alt="Edge Maxxer"
+                className="h-10 sm:h-12 lg:h-16 w-auto logo-light"
+              />
+            </a>
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              onClick={onLogin}
+              className="px-3 sm:px-4 py-2 text-sm font-medium rounded-lg transition-colors hover:bg-[var(--surface)]"
+              style={{ color: 'var(--foreground)' }}
+            >
+              Login
+            </button>
+            <button
+              onClick={onSignUp}
+              className="px-4 sm:px-5 py-2 sm:py-2.5 text-sm font-medium rounded-lg transition-all hover:opacity-90"
+              style={{ backgroundColor: '#14b8a6', color: '#fff' }}
+            >
+              Sign Up Free
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
   );
 }
 
@@ -1310,7 +1545,7 @@ function TabButton({
   );
 }
 
-function ValueBetsTable({ valueBets, onSelectValueBet, userRegion }: { valueBets: ValueBet[]; onSelectValueBet: (vb: ValueBet) => void; userRegion: UserRegion }) {
+function ValueBetsTable({ valueBets, onSelectValueBet, userRegion, previewMode = false }: { valueBets: ValueBet[]; onSelectValueBet: (vb: ValueBet) => void; userRegion: UserRegion; previewMode?: boolean }) {
   if (valueBets.length === 0) {
     return (
       <div 
@@ -1327,6 +1562,8 @@ function ValueBetsTable({ valueBets, onSelectValueBet, userRegion }: { valueBets
       </div>
     );
   }
+
+  const blurClass = previewMode ? 'blur-sm select-none' : '';
 
   return (
     <div 
@@ -1355,12 +1592,12 @@ function ValueBetsTable({ valueBets, onSelectValueBet, userRegion }: { valueBets
               style={{ borderBottom: '1px solid var(--border)' }}
             >
               <td className="px-2 sm:px-4 py-2 sm:py-3">
-                <div className="font-medium text-xs sm:text-sm" style={{ color: 'var(--foreground)' }}>{vb.event.homeTeam}</div>
-                <div className="text-[10px] sm:text-xs" style={{ color: 'var(--muted)' }}>vs {vb.event.awayTeam}</div>
-                <div className="text-[10px] sm:hidden mt-1" style={{ color: 'var(--muted-foreground)' }}>{vb.outcome.bookmaker}</div>
+                <div className={`font-medium text-xs sm:text-sm ${blurClass}`} style={{ color: 'var(--foreground)' }}>{vb.event.homeTeam}</div>
+                <div className={`text-[10px] sm:text-xs ${blurClass}`} style={{ color: 'var(--muted)' }}>vs {vb.event.awayTeam}</div>
+                <div className={`text-[10px] sm:hidden mt-1 ${blurClass}`} style={{ color: 'var(--muted-foreground)' }}>{vb.outcome.bookmaker}</div>
               </td>
-              <td className="px-2 sm:px-4 py-2 sm:py-3 hidden sm:table-cell" style={{ color: 'var(--foreground)' }}>{vb.outcome.bookmaker}</td>
-              <td className="px-2 sm:px-4 py-2 sm:py-3" style={{ color: 'var(--foreground)' }}>{vb.outcome.name}</td>
+              <td className={`px-2 sm:px-4 py-2 sm:py-3 hidden sm:table-cell ${blurClass}`} style={{ color: 'var(--foreground)' }}>{vb.outcome.bookmaker}</td>
+              <td className={`px-2 sm:px-4 py-2 sm:py-3 ${blurClass}`} style={{ color: 'var(--foreground)' }}>{vb.outcome.name}</td>
               <td className="px-2 sm:px-4 py-2 sm:py-3 text-right font-mono" style={{ color: 'var(--foreground)' }}>{formatDecimalOddsForRegion(vb.outcome.odds, userRegion)}</td>
               <td className="px-2 sm:px-4 py-2 sm:py-3 text-right font-mono" style={{ color: '#22c55e' }}>+{vb.valuePercentage.toFixed(1)}%</td>
               <td className="px-2 sm:px-4 py-2 sm:py-3 text-right">
@@ -1372,7 +1609,7 @@ function ValueBetsTable({ valueBets, onSelectValueBet, userRegion }: { valueBets
                     color: 'var(--background)'
                   }}
                 >
-                  Calc
+                  {previewMode ? 'Sign Up' : 'Calc'}
                 </button>
               </td>
             </tr>

@@ -8,24 +8,15 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: '*',
-        allow: '/',
+        allow: ['/', '/dashboard/'],
         disallow: [
-          // Protected/authenticated routes
+          // Protected API routes
           '/api/',
-          '/dashboard/',
+          // Authenticated-only pages
           '/settings/',
-          
-          // Auth-related pages (optional - you may want these indexed)
-          // '/login/',
-          // '/signup/',
-          // '/forgot-password/',
-          
           // Private/admin routes
           '/admin/',
           '/private/',
-          
-          // Prevent crawling of query parameters that create duplicate content
-          '/*?*', // Block all URLs with query parameters (optional, aggressive)
         ],
       },
       {
