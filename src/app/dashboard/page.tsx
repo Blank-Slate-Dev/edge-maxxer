@@ -232,7 +232,7 @@ export default function DashboardPage() {
 }
 
 function DashboardContent() {
-  const { data: session, status: sessionStatus, update: updateSession } = useSession();
+  const { data: session, status: sessionStatus, update: updateSession } = useSession({ required: false });
   const searchParams = useSearchParams();
   const router = useRouter();
   
