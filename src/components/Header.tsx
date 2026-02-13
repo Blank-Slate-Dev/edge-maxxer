@@ -1,21 +1,7 @@
 // src/components/Header.tsx
 'use client';
 
-import {
-  RefreshCw,
-  Sun,
-  Moon,
-  LogOut,
-  Settings,
-  Zap,
-  Menu,
-  X,
-  Clock,
-  Sparkles,
-  Calendar,
-  Repeat,
-  Crown,
-} from 'lucide-react';
+import { Sun, Moon, LogOut, Settings, Menu, X, Clock, Sparkles, Calendar, Repeat, Crown } from 'lucide-react';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useSession, signOut } from 'next-auth/react';
 import Image from 'next/image';
@@ -36,18 +22,14 @@ interface HeaderProps {
   freeTrialActive?: boolean;
 }
 
-export function Header({
-  lastUpdated,
-  isLoading,
-  isUsingMockData,
-  remainingRequests,
-  onRefresh,
-  onQuickScan,
-  freeTrialRemainingMs = 0,
-  freeTrialActive = false,
-}: HeaderProps) {
+export function Header(props: HeaderProps) {
+  // NOTE: We keep these props in the interface so you don't have to update callers,
+  // but the scan buttons are removed because the app auto-scans now.
+  const { isUsingMockData, freeTrialRemainingMs = 0, freeTrialActive = false } = props;
+
   const { theme, toggleTheme } = useTheme();
   const { data: session } = useSession();
+
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -109,7 +91,7 @@ export function Header({
     setShowCheckoutModal(true);
   };
 
-  const subscription = (session?.user as { subscription?: string })?.subscription;
+  const subscription = (session?.user as { subscription?: string } | undefined)?.subscription;
 
   // Format free trial remaining time as M:SS
   const formatTrialRemaining = (ms: number) => {
@@ -132,9 +114,7 @@ export function Header({
   const PlanPickerDropdown = ({ isMobile = false }: { isMobile?: boolean }) => (
     <div
       className={
-        isMobile
-          ? 'space-y-2'
-          : 'absolute right-0 mt-2 w-64 rounded-xl border shadow-xl overflow-hidden'
+        isMobile ? 'space-y-2' : 'absolute right-0 mt-2 w-64 rounded-xl border shadow-xl overflow-hidden'
       }
       style={
         isMobile
@@ -146,14 +126,8 @@ export function Header({
       }
     >
       {!isMobile && (
-        <div
-          className="px-4 py-3 border-b"
-          style={{ borderColor: 'var(--border)' }}
-        >
-          <p
-            className="text-sm font-semibold"
-            style={{ color: 'var(--foreground)' }}
-          >
+        <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+          <p className="text-sm font-semibold" style={{ color: 'var(--foreground)' }}>
             Choose a plan
           </p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
@@ -187,10 +161,7 @@ export function Header({
             <Calendar className="w-4 h-4" style={{ color: '#f97316' }} />
           </div>
           <div className="flex-1 min-w-0">
-            <div
-              className="text-sm font-medium"
-              style={{ color: 'var(--foreground)' }}
-            >
+            <div className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
               3-Day Trial
             </div>
             <div className="text-xs" style={{ color: 'var(--muted)' }}>
@@ -224,10 +195,7 @@ export function Header({
           </div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
-              <span
-                className="text-sm font-medium"
-                style={{ color: 'var(--foreground)' }}
-              >
+              <span className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                 Monthly
               </span>
               <span
@@ -241,9 +209,7 @@ export function Header({
               </span>
             </div>
             <div className="text-xs" style={{ color: 'var(--muted)' }}>
-              <span style={{ textDecoration: 'line-through', opacity: 0.6 }}>
-                $9.99
-              </span>{' '}
+              <span style={{ textDecoration: 'line-through', opacity: 0.6 }}>$9.99</span>{' '}
               $4.99 first month
             </div>
           </div>
@@ -273,10 +239,7 @@ export function Header({
             <Crown className="w-4 h-4" style={{ color: '#a855f7' }} />
           </div>
           <div className="flex-1 min-w-0">
-            <div
-              className="text-sm font-medium"
-              style={{ color: 'var(--foreground)' }}
-            >
+            <div className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
               Yearly
             </div>
             <div className="text-xs" style={{ color: 'var(--muted)' }}>
@@ -322,7 +285,7 @@ export function Header({
             </div>
 
             {/* Center: Free Trial Countdown (desktop — centered with flex-1) */}
-            {freeTrialActive && freeTrialRemainingMs > 0 && (
+            {freeTrialActive && freeTrialRemainingMs > 0 ? (
               <div className="hidden lg:flex flex-1 items-center justify-center gap-2">
                 <div
                   className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
@@ -331,23 +294,15 @@ export function Header({
                     border: `1px solid color-mix(in srgb, ${trialColor} 40%, transparent)`,
                   }}
                 >
-                  <Clock
-                    className="w-3.5 h-3.5 shrink-0"
-                    style={{ color: trialColor }}
-                  />
-                  <span
-                    className="text-xs font-medium"
-                    style={{ color: trialColor }}
-                  >
+                  <Clock className="w-3.5 h-3.5 shrink-0" style={{ color: trialColor }} />
+                  <span className="text-xs font-medium" style={{ color: trialColor }}>
                     Free Trial
                   </span>
-                  <span
-                    className="font-mono text-sm font-semibold tabular-nums"
-                    style={{ color: trialColor }}
-                  >
+                  <span className="font-mono text-sm font-semibold tabular-nums" style={{ color: trialColor }}>
                     {formatTrialRemaining(freeTrialRemainingMs)}
                   </span>
                 </div>
+
                 <div className="relative" ref={planPickerRef}>
                   <button
                     onClick={() => setShowPlanPicker(!showPlanPicker)}
@@ -362,11 +317,23 @@ export function Header({
                   {showPlanPicker && <PlanPickerDropdown />}
                 </div>
               </div>
-            )}
-
-            {/* If no trial active, still need flex-1 spacer for centering */}
-            {!(freeTrialActive && freeTrialRemainingMs > 0) && (
-              <div className="hidden lg:flex flex-1" />
+            ) : (
+              // Center: subtle “Auto scanning” pill (desktop only)
+              <div className="hidden lg:flex flex-1 items-center justify-center">
+                <div
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-lg border"
+                  style={{
+                    backgroundColor: 'color-mix(in srgb, #22c55e 6%, transparent)',
+                    borderColor: 'color-mix(in srgb, #22c55e 25%, transparent)',
+                    color: 'var(--muted)',
+                  }}
+                >
+                  <Sparkles className="w-3.5 h-3.5" style={{ color: '#22c55e' }} />
+                  <span className="text-xs font-medium" style={{ color: 'var(--muted)' }}>
+                    Auto scanning enabled
+                  </span>
+                </div>
+              </div>
             )}
 
             {/* Right Side Actions */}
@@ -380,14 +347,8 @@ export function Header({
                     border: `1px solid color-mix(in srgb, ${trialColor} 40%, transparent)`,
                   }}
                 >
-                  <Clock
-                    className="w-3 h-3"
-                    style={{ color: trialColor }}
-                  />
-                  <span
-                    className="font-mono text-xs font-semibold tabular-nums"
-                    style={{ color: trialColor }}
-                  >
+                  <Clock className="w-3 h-3" style={{ color: trialColor }} />
+                  <span className="font-mono text-xs font-semibold tabular-nums" style={{ color: trialColor }}>
                     {formatTrialRemaining(freeTrialRemainingMs)}
                   </span>
                 </div>
@@ -413,11 +374,7 @@ export function Header({
                 style={{ color: 'var(--muted)' }}
                 title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
               >
-                {theme === 'dark' ? (
-                  <Sun className="w-4 h-4" />
-                ) : (
-                  <Moon className="w-4 h-4" />
-                )}
+                {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
               </button>
 
               {/* User Menu - Desktop */}
@@ -437,9 +394,8 @@ export function Header({
                     >
                       {session.user.name?.charAt(0).toUpperCase() || 'U'}
                     </div>
-                    <span className="text-sm hidden lg:block">
-                      {session.user.name?.split(' ')[0] || 'User'}
-                    </span>
+                    <span className="text-sm hidden lg:block">{session.user.name?.split(' ')[0] || 'User'}</span>
+
                     {subscription && (
                       <span
                         className="text-xs px-1.5 py-0.5 rounded font-medium hidden md:block"
@@ -448,10 +404,7 @@ export function Header({
                             subscription === 'active'
                               ? 'color-mix(in srgb, #22c55e 15%, transparent)'
                               : 'color-mix(in srgb, var(--warning) 15%, transparent)',
-                          color:
-                            subscription === 'active'
-                              ? '#22c55e'
-                              : 'var(--warning)',
+                          color: subscription === 'active' ? '#22c55e' : 'var(--warning)',
                         }}
                       >
                         {subscription === 'active' ? 'PRO' : 'TRIAL'}
@@ -468,20 +421,11 @@ export function Header({
                         borderColor: 'var(--border)',
                       }}
                     >
-                      <div
-                        className="px-4 py-3 border-b"
-                        style={{ borderColor: 'var(--border)' }}
-                      >
-                        <p
-                          className="text-sm font-medium"
-                          style={{ color: 'var(--foreground)' }}
-                        >
+                      <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--border)' }}>
+                        <p className="text-sm font-medium" style={{ color: 'var(--foreground)' }}>
                           {session.user.name}
                         </p>
-                        <p
-                          className="text-xs truncate"
-                          style={{ color: 'var(--muted)' }}
-                        >
+                        <p className="text-xs truncate" style={{ color: 'var(--muted)' }}>
                           {session.user.email}
                         </p>
                       </div>
@@ -493,10 +437,7 @@ export function Header({
                           className="flex items-center gap-3 px-4 py-2.5 text-sm transition-colors hover:bg-[var(--background)]"
                           style={{ color: 'var(--foreground)' }}
                         >
-                          <Settings
-                            className="w-4 h-4"
-                            style={{ color: 'var(--muted)' }}
-                          />
+                          <Settings className="w-4 h-4" style={{ color: 'var(--muted)' }} />
                           Settings
                         </Link>
                         <button
@@ -513,47 +454,6 @@ export function Header({
                 </div>
               )}
 
-              {/* Quick Scan Button */}
-              {onQuickScan && (
-                <button
-                  onClick={onQuickScan}
-                  disabled={isLoading}
-                  className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed border"
-                  style={{
-                    backgroundColor: 'transparent',
-                    borderColor: '#7ac875',
-                    color: '#7ac875',
-                  }}
-                  title="Quick scan: NBA, NFL, NHL, MLB, EPL, Tennis, AFL, NRL"
-                >
-                  <span className={isLoading ? 'animate-pulse' : ''}>
-                    <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                  </span>
-                  <span className="hidden sm:inline">Quick Scan</span>
-                </button>
-              )}
-
-              {/* Full Scan Button */}
-              <button
-                onClick={onRefresh}
-                disabled={isLoading}
-                className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{
-                  backgroundColor: 'var(--foreground)',
-                  color: 'var(--background)',
-                }}
-              >
-                <span className={isLoading ? 'animate-spin' : ''}>
-                  <RefreshCw className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                </span>
-                <span className="hidden sm:inline">
-                  {isLoading ? 'Scanning...' : 'Full Scan'}
-                </span>
-                <span className="sm:hidden">
-                  {isLoading ? '...' : 'Scan'}
-                </span>
-              </button>
-
               {/* Mobile Menu Button */}
               <button
                 onClick={() => setMobileMenuOpen(true)}
@@ -569,10 +469,7 @@ export function Header({
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div
-          className="fixed inset-0 z-50 sm:hidden"
-          onClick={() => setMobileMenuOpen(false)}
-        >
+        <div className="fixed inset-0 z-50 sm:hidden" onClick={() => setMobileMenuOpen(false)}>
           {/* Backdrop */}
           <div
             className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -586,14 +483,8 @@ export function Header({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Drawer Header */}
-            <div
-              className="flex items-center justify-between px-4 py-4 border-b"
-              style={{ borderColor: 'var(--border)' }}
-            >
-              <span
-                className="font-medium"
-                style={{ color: 'var(--foreground)' }}
-              >
+            <div className="flex items-center justify-between px-4 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
+              <span className="font-medium" style={{ color: 'var(--foreground)' }}>
                 Menu
               </span>
               <button
@@ -607,10 +498,7 @@ export function Header({
 
             {/* User Info */}
             {session?.user && (
-              <div
-                className="px-4 py-4 border-b"
-                style={{ borderColor: 'var(--border)' }}
-              >
+              <div className="px-4 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
                 <div className="flex items-center gap-3">
                   <div
                     className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium"
@@ -622,16 +510,10 @@ export function Header({
                     {session.user.name?.charAt(0).toUpperCase() || 'U'}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p
-                      className="font-medium truncate"
-                      style={{ color: 'var(--foreground)' }}
-                    >
+                    <p className="font-medium truncate" style={{ color: 'var(--foreground)' }}>
                       {session.user.name}
                     </p>
-                    <p
-                      className="text-xs truncate"
-                      style={{ color: 'var(--muted)' }}
-                    >
+                    <p className="text-xs truncate" style={{ color: 'var(--muted)' }}>
                       {session.user.email}
                     </p>
                   </div>
@@ -643,10 +525,7 @@ export function Header({
                           subscription === 'active'
                             ? 'color-mix(in srgb, #22c55e 15%, transparent)'
                             : 'color-mix(in srgb, var(--warning) 15%, transparent)',
-                        color:
-                          subscription === 'active'
-                            ? '#22c55e'
-                            : 'var(--warning)',
+                        color: subscription === 'active' ? '#22c55e' : 'var(--warning)',
                       }}
                     >
                       {subscription === 'active' ? 'PRO' : 'TRIAL'}
@@ -658,33 +537,18 @@ export function Header({
 
             {/* Free Trial + Plan Picker (mobile drawer) */}
             {freeTrialActive && freeTrialRemainingMs > 0 && (
-              <div
-                className="px-4 py-4 border-b"
-                style={{ borderColor: 'var(--border)' }}
-              >
+              <div className="px-4 py-4 border-b" style={{ borderColor: 'var(--border)' }}>
                 <div className="flex items-center gap-2 mb-3">
-                  <Clock
-                    className="w-4 h-4"
-                    style={{ color: trialColor }}
-                  />
-                  <span
-                    className="text-sm font-medium"
-                    style={{ color: trialColor }}
-                  >
+                  <Clock className="w-4 h-4" style={{ color: trialColor }} />
+                  <span className="text-sm font-medium" style={{ color: trialColor }}>
                     Free Trial
                   </span>
-                  <span
-                    className="font-mono text-sm font-semibold tabular-nums"
-                    style={{ color: trialColor }}
-                  >
+                  <span className="font-mono text-sm font-semibold tabular-nums" style={{ color: trialColor }}>
                     {formatTrialRemaining(freeTrialRemainingMs)}
                   </span>
                 </div>
 
-                <p
-                  className="text-xs mb-3"
-                  style={{ color: 'var(--muted)' }}
-                >
+                <p className="text-xs mb-3" style={{ color: 'var(--muted)' }}>
                   Subscribe to keep access after your trial ends
                 </p>
 
@@ -700,10 +564,7 @@ export function Header({
                 className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-[var(--surface)]"
                 style={{ color: 'var(--foreground)' }}
               >
-                <Settings
-                  className="w-5 h-5"
-                  style={{ color: 'var(--muted)' }}
-                />
+                <Settings className="w-5 h-5" style={{ color: 'var(--muted)' }} />
                 Settings
               </Link>
               <button
