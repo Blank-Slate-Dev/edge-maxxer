@@ -8,42 +8,26 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: '*',
-        allow: ['/', '/learn', '/learn/', '/guides/', '/alternatives/', '/australia/', '/sports/'],
+        // IMPORTANT:
+        // We do NOT disallow /dashboard, /login, etc.
+        // Because disallow can prevent Google from seeing noindex directives.
+        // We rely on page-level noindex (metadata) + middleware X-Robots-Tag instead.
         disallow: [
-          // API
+          // API should not be crawled
           '/api/',
 
-          // Auth / private utility pages (should not be indexed)
-          '/dashboard',
-          '/dashboard/',
-          '/settings',
-          '/settings/',
-          '/login',
-          '/login/',
-          '/signup',
-          '/signup/',
-          '/forgot-password',
-          '/forgot-password/',
-
-          // Admin/private placeholders
+          // Admin/private placeholders (if these are real and should remain hidden)
           '/admin/',
           '/private/',
-
-          // Next internals
-          '/_next/',
-
-          // Best-effort parameter blocking (prevents crawling URL variants)
-          '/*?*',
-          '/*&*',
         ],
       },
       {
-        // Block aggressive SEO crawlers (keeps your infra calm)
+        // Block aggressive SEO crawlers (keeps infra calm)
         userAgent: ['AhrefsBot', 'SemrushBot', 'DotBot', 'MJ12bot'],
         disallow: ['/'],
       },
     ],
     sitemap: `${baseUrl}/sitemap.xml`,
-    host: baseUrl,
+    host: 'www.edgemaxxer.com',
   };
 }

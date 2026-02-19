@@ -14,92 +14,61 @@ const inter = Inter({
   fallback: ['system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Arial', 'sans-serif'],
 });
 
+const SITE_URL = 'https://www.edgemaxxer.com';
+
 // Comprehensive metadata for SEO
 export const metadata: Metadata = {
-  metadataBase: new URL('https://www.edgemaxxer.com'),
+  metadataBase: new URL(SITE_URL),
 
-  // Title configuration with template
   title: {
-    template: '%s | Edge Maxxer - Sports Arbitrage Scanner',
-    default: 'Edge Maxxer - #1 Affordable Sports Arbitrage Scanner | OddsJam & RebelBetting Alternative',
+    template: '%s | Edge Maxxer',
+    default: 'Edge Maxxer — Sports Arbitrage Scanner & Sure Bet Finder',
   },
 
-  // Primary description targeting key search terms + competitor keywords
   description:
-    'The most affordable sports betting arbitrage scanner. Find guaranteed profit sure bets across 80+ sportsbooks for just $9.99/mo — 33x cheaper than OddsJam or RebelBetting. Real-time arb scanning for AFL, NRL, NBA, NFL & more. Try free today.',
+    'Edge Maxxer is a sports arbitrage scanner and sure bet finder that monitors 80+ sportsbooks across AU, UK, US and EU. Find opportunities faster, track bets, and manage execution risks like limits and voids.',
 
-  // Keywords targeting competitors and high-intent search terms
+  // Meta keywords are largely ignored by Google; keep minimal to avoid looking spammy.
   keywords: [
-    // Core product terms
+    'sports arbitrage scanner',
     'arbitrage betting',
-    'sports arbitrage',
     'sure bet finder',
     'arb scanner',
-    'surebet calculator',
-    'sports betting arbitrage',
-    'betting arbitrage software',
-    // Competitor alternatives
-    'oddsjam alternative',
-    'rebelbetting alternative',
-    'betburger alternative',
-    'oddsjam cheaper',
-    'cheap arb scanner',
-    'affordable arbitrage software',
-    'best arbitrage betting software',
-    // Regional terms
-    'arbitrage betting Australia',
-    'matched betting Australia',
-    'odds comparison Australia',
-    'Sportsbet arbitrage',
-    'TAB arbitrage',
-    'Bet365 arbitrage',
-    'AFL arbitrage betting',
-    'NRL arbitrage betting',
-    // Action terms
-    'guaranteed betting profits',
-    'risk free betting',
-    'how to arb bet',
-    'sports betting tools',
-    'positive EV betting',
-    'middle betting',
-    'spread arbitrage',
+    'OddsJam alternative',
+    'RebelBetting alternative',
   ],
 
-  // Author and creator information
   authors: [{ name: 'Edge Maxxer' }],
   creator: 'Edge Maxxer',
   publisher: 'Edge Maxxer',
 
-  // Open Graph metadata for social sharing
   openGraph: {
     type: 'website',
     locale: 'en_AU',
-    url: 'https://www.edgemaxxer.com',
+    url: SITE_URL,
     siteName: 'Edge Maxxer',
-    title: 'Edge Maxxer - Cheapest Sports Arbitrage Scanner | $9.99/mo',
+    title: 'Edge Maxxer — Sports Arbitrage Scanner & Sure Bet Finder',
     description:
-      'Find guaranteed profit arbitrage opportunities across 80+ sportsbooks. 33x cheaper than OddsJam. Real-time scanning for AFL, NRL, NBA, NFL, EPL & more.',
+      'Find sports arbitrage opportunities across 80+ sportsbooks. Real-time scanning for AU, UK, US & EU markets with execution-focused tools.',
     images: [
       {
         url: '/og-image.png',
         width: 1200,
         height: 630,
-        alt: 'Edge Maxxer - Sports Arbitrage Betting Platform showing live arb opportunities',
+        alt: 'Edge Maxxer — Sports Arbitrage Scanner',
         type: 'image/png',
       },
     ],
   },
 
-  // Twitter Card metadata
   twitter: {
     card: 'summary_large_image',
-    title: 'Edge Maxxer - Sports Arbitrage Scanner | $9.99/mo',
-    description: 'Find sure bets across 80+ sportsbooks. 33x cheaper than competitors. Try free today.',
+    title: 'Edge Maxxer — Sports Arbitrage Scanner',
+    description: 'Find sure bets across 80+ sportsbooks. Real-time scanning across AU, UK, US & EU.',
     images: ['/twitter-image.png'],
     creator: '@edgemaxxer',
   },
 
-  // Robot directives
   robots: {
     index: true,
     follow: true,
@@ -114,16 +83,14 @@ export const metadata: Metadata = {
     },
   },
 
-  // Verification codes (add your actual codes)
+  // IMPORTANT: Replace with your real code when you add Search Console
   verification: {
-    google: 'your-google-site-verification-code', // Replace with actual code from Google Search Console
+    google: 'your-google-site-verification-code',
   },
 
-  // App-specific metadata
   applicationName: 'Edge Maxxer',
   category: 'Sports Betting Tools',
 
-  // Additional metadata
   other: {
     'mobile-web-app-capable': 'yes',
     'apple-mobile-web-app-status-bar-style': 'black-translucent',
@@ -131,7 +98,6 @@ export const metadata: Metadata = {
   },
 };
 
-// Viewport configuration with viewport-fit=cover for iOS safe areas
 export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
@@ -144,7 +110,6 @@ export const viewport: Viewport = {
 };
 
 // Inline script to prevent flash of wrong theme
-// This runs before React hydrates, applying the correct theme immediately
 const themeScript = `
   (function() {
     try {
@@ -156,15 +121,14 @@ const themeScript = `
   })();
 `;
 
-// Organization Schema for brand recognition
+// Organization Schema
 const organizationSchema = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
   name: 'Edge Maxxer',
-  url: 'https://www.edgemaxxer.com',
-  logo: 'https://www.edgemaxxer.com/logo_dark_version.png',
-  description:
-    'Australian sports arbitrage betting platform providing real-time odds comparison across 80+ sportsbooks',
+  url: SITE_URL,
+  logo: `${SITE_URL}/logo_dark_version.png`,
+  description: 'Sports arbitrage betting platform providing real-time odds comparison across 80+ sportsbooks.',
   foundingDate: '2024',
   address: {
     '@type': 'PostalAddress',
@@ -178,24 +142,16 @@ const organizationSchema = {
   sameAs: [],
 };
 
-// WebSite Schema for sitelinks search box potential
+// WebSite Schema (no SearchAction — you don’t have a public search page)
 const websiteSchema = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
   name: 'Edge Maxxer',
-  url: 'https://www.edgemaxxer.com',
-  description: 'Sports arbitrage betting scanner for Australian and international markets',
-  potentialAction: {
-    '@type': 'SearchAction',
-    target: {
-      '@type': 'EntryPoint',
-      urlTemplate: 'https://www.edgemaxxer.com/dashboard?search={search_term_string}',
-    },
-    'query-input': 'required name=search_term_string',
-  },
+  url: SITE_URL,
+  description: 'Sports arbitrage scanner and sure bet finder for AU, UK, US and EU markets.',
 };
 
-// SoftwareApplication Schema for rich results
+// SoftwareApplication Schema
 const softwareSchema = {
   '@context': 'https://schema.org',
   '@type': 'SoftwareApplication',
@@ -203,8 +159,8 @@ const softwareSchema = {
   applicationCategory: 'BusinessApplication',
   operatingSystem: 'Web Browser',
   description:
-    'Real-time sports arbitrage betting opportunity finder scanning 80+ Australian and international sportsbooks. The most affordable OddsJam and RebelBetting alternative at just $9.99/month.',
-  url: 'https://www.edgemaxxer.com',
+    'Real-time sports arbitrage betting opportunity finder scanning 80+ sportsbooks across AU, UK, US and EU. Affordable alternative to many enterprise scanners.',
+  url: SITE_URL,
   offers: {
     '@type': 'AggregateOffer',
     lowPrice: '2.99',
@@ -212,24 +168,9 @@ const softwareSchema = {
     priceCurrency: 'AUD',
     offerCount: 3,
     offers: [
-      {
-        '@type': 'Offer',
-        name: '3-Day Trial',
-        price: '2.99',
-        priceCurrency: 'AUD',
-      },
-      {
-        '@type': 'Offer',
-        name: 'Monthly Subscription',
-        price: '9.99',
-        priceCurrency: 'AUD',
-      },
-      {
-        '@type': 'Offer',
-        name: 'Yearly Subscription',
-        price: '99',
-        priceCurrency: 'AUD',
-      },
+      { '@type': 'Offer', name: '3-Day Trial', price: '2.99', priceCurrency: 'AUD' },
+      { '@type': 'Offer', name: 'Monthly Subscription', price: '9.99', priceCurrency: 'AUD' },
+      { '@type': 'Offer', name: 'Yearly Subscription', price: '99', priceCurrency: 'AUD' },
     ],
   },
 };
