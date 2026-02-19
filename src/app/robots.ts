@@ -8,28 +8,42 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: '*',
-        allow: ['/', '/dashboard/'],
+        allow: ['/', '/learn', '/learn/', '/guides/', '/alternatives/', '/australia/', '/sports/'],
         disallow: [
-          // Protected API routes
+          // API
           '/api/',
-          // Authenticated-only pages
+
+          // Auth / private utility pages (should not be indexed)
+          '/dashboard',
+          '/dashboard/',
+          '/settings',
           '/settings/',
-          // Private/admin routes
+          '/login',
+          '/login/',
+          '/signup',
+          '/signup/',
+          '/forgot-password',
+          '/forgot-password/',
+
+          // Admin/private placeholders
           '/admin/',
           '/private/',
+
+          // Next internals
+          '/_next/',
+
+          // Best-effort parameter blocking (prevents crawling URL variants)
+          '/*?*',
+          '/*&*',
         ],
       },
       {
-        // Block bad bots specifically
+        // Block aggressive SEO crawlers (keeps your infra calm)
         userAgent: ['AhrefsBot', 'SemrushBot', 'DotBot', 'MJ12bot'],
         disallow: ['/'],
       },
     ],
-    
-    // Point to your sitemap
     sitemap: `${baseUrl}/sitemap.xml`,
-    
-    // Specify the canonical host
     host: baseUrl,
   };
 }
