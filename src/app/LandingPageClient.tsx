@@ -918,32 +918,113 @@ export function LandingPageClient() {
       {/* Footer */}
       <footer className="py-8 sm:py-12 px-4 sm:px-6 border-t" style={{ borderColor: 'var(--border)' }}>
         <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
-            <div className="flex items-center">
-              <Image
-                src="/logo_thin_dark_version.png"
-                alt="Edge Maxxer"
-                width={100}
-                height={24}
-                className="h-4 sm:h-5 w-auto logo-footer"
-              />
+          {/* Footer Links Grid */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 sm:gap-8 mb-8 sm:mb-10">
+            {/* Product */}
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--foreground)' }}>
+                Product
+              </h4>
+              <nav aria-label="Product links" className="flex flex-col gap-2">
+                <Link href="/dashboard" className="text-xs sm:text-sm hover:opacity-70 transition-opacity" style={{ color: 'var(--muted)' }}>
+                  Dashboard
+                </Link>
+                <a href="#pricing" className="text-xs sm:text-sm hover:opacity-70 transition-opacity" style={{ color: 'var(--muted)' }}>
+                  Pricing
+                </a>
+                <a href="#features" className="text-xs sm:text-sm hover:opacity-70 transition-opacity" style={{ color: 'var(--muted)' }}>
+                  Features
+                </a>
+              </nav>
             </div>
-            <div className="flex items-center gap-4 sm:gap-6 text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
-              <Link href="/terms" className="hover:opacity-70 transition-opacity">
-                Terms
-              </Link>
-              <Link href="/privacy" className="hover:opacity-70 transition-opacity">
-                Privacy
-              </Link>
-              <a href="mailto:support@edgemaxxer.com" className="hover:opacity-70 transition-opacity">
-                Contact
-              </a>
+
+            {/* Learn */}
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--foreground)' }}>
+                Learn
+              </h4>
+              <nav aria-label="Learn links" className="flex flex-col gap-2">
+                <Link href="/learn" className="text-xs sm:text-sm hover:opacity-70 transition-opacity" style={{ color: 'var(--muted)' }}>
+                  Learn hub
+                </Link>
+                <Link href="/guides/arbitrage-betting" className="text-xs sm:text-sm hover:opacity-70 transition-opacity" style={{ color: 'var(--muted)' }}>
+                  Arbitrage betting guide
+                </Link>
+                <Link href="/sports/afl/arbitrage" className="text-xs sm:text-sm hover:opacity-70 transition-opacity" style={{ color: 'var(--muted)' }}>
+                  AFL arbitrage
+                </Link>
+              </nav>
+            </div>
+
+            {/* Compare */}
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--foreground)' }}>
+                Compare
+              </h4>
+              <nav aria-label="Comparison links" className="flex flex-col gap-2">
+                <Link href="/alternatives/oddsjam" className="text-xs sm:text-sm hover:opacity-70 transition-opacity" style={{ color: 'var(--muted)' }}>
+                  OddsJam alternative
+                </Link>
+                <Link href="/alternatives/rebelbetting" className="text-xs sm:text-sm hover:opacity-70 transition-opacity" style={{ color: 'var(--muted)' }}>
+                  RebelBetting alternative
+                </Link>
+                <Link href="/alternatives/betburger" className="text-xs sm:text-sm hover:opacity-70 transition-opacity" style={{ color: 'var(--muted)' }}>
+                  BetBurger alternative
+                </Link>
+              </nav>
+            </div>
+
+            {/* Regions */}
+            <div>
+              <h4 className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--foreground)' }}>
+                Regions
+              </h4>
+              <nav aria-label="Region links" className="flex flex-col gap-2">
+                <Link href="/australia/arbitrage-betting" className="text-xs sm:text-sm hover:opacity-70 transition-opacity" style={{ color: 'var(--muted)' }}>
+                  Australia
+                </Link>
+                <Link href="/uk/arbitrage-betting" className="text-xs sm:text-sm hover:opacity-70 transition-opacity" style={{ color: 'var(--muted)' }}>
+                  United Kingdom
+                </Link>
+                <Link href="/us/arbitrage-betting" className="text-xs sm:text-sm hover:opacity-70 transition-opacity" style={{ color: 'var(--muted)' }}>
+                  United States
+                </Link>
+                <Link href="/eu/arbitrage-betting" className="text-xs sm:text-sm hover:opacity-70 transition-opacity" style={{ color: 'var(--muted)' }}>
+                  Europe
+                </Link>
+              </nav>
             </div>
           </div>
-          <div className="text-center mt-6 sm:mt-8">
-            <p className="text-[10px] sm:text-xs" style={{ color: 'var(--muted)' }}>
-              © {new Date().getFullYear()} Edge Maxxer. Gambling involves risk. Please gamble responsibly.
-            </p>
+
+          {/* Bottom bar */}
+          <div className="pt-6 sm:pt-8 border-t" style={{ borderColor: 'var(--border)' }}>
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-6">
+              <div className="flex items-center">
+                <Image
+                  src="/logo_thin_dark_version.png"
+                  alt="Edge Maxxer"
+                  width={100}
+                  height={24}
+                  className="h-4 sm:h-5 w-auto logo-footer"
+                />
+              </div>
+              <div className="flex items-center gap-4 sm:gap-6 text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
+                <Link href="/terms" className="hover:opacity-70 transition-opacity">
+                  Terms
+                </Link>
+                <Link href="/privacy" className="hover:opacity-70 transition-opacity">
+                  Privacy
+                </Link>
+                <a href="mailto:support@edgemaxxer.com" className="hover:opacity-70 transition-opacity">
+                  Contact
+                </a>
+              </div>
+            </div>
+            <div className="text-center mt-6 sm:mt-8">
+              <p className="text-[10px] sm:text-xs" style={{ color: 'var(--muted)' }}>
+                © {new Date().getFullYear()} Edge Maxxer. Gambling involves risk. Please gamble responsibly.
+              </p>
+            </div>
           </div>
         </div>
       </footer>
