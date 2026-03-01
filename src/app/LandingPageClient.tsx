@@ -31,55 +31,89 @@ import { useGeoRegion } from '@/components/SportsbooksModal';
 // These are loaded on-demand and don't block initial page render.
 // =========================================================================
 const SportsbookSlider = dynamic(
-  () => import('@/components/SportsbookSlider').then(mod => ({ default: mod.SportsbookSlider })),
+  () =>
+    import('@/components/SportsbookSlider').then((mod) => ({
+      default: mod.SportsbookSlider,
+    })),
   { ssr: false }
 );
 
 const LiveFeedPreview = dynamic(
-  () => import('@/components/LiveFeedPreview').then(mod => ({ default: mod.LiveFeedPreview })),
+  () =>
+    import('@/components/LiveFeedPreview').then((mod) => ({
+      default: mod.LiveFeedPreview,
+    })),
   { ssr: false, loading: () => <LiveFeedPlaceholder /> }
 );
 
 const ProfitCounter = dynamic(
-  () => import('@/components/ProfitCounter').then(mod => ({ default: mod.ProfitCounter })),
-  { ssr: false, loading: () => <span style={{ color: '#22c55e' }} className="text-xl font-semibold font-mono">$0.00</span> }
+  () =>
+    import('@/components/ProfitCounter').then((mod) => ({
+      default: mod.ProfitCounter,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <span
+        style={{ color: '#22c55e' }}
+        className="text-xl font-semibold font-mono"
+      >
+        $0.00
+      </span>
+    ),
+  }
 );
 
 const StepsSection = dynamic(
-  () => import('@/components/StepsSection').then(mod => ({ default: mod.StepsSection })),
+  () =>
+    import('@/components/StepsSection').then((mod) => ({
+      default: mod.StepsSection,
+    })),
   { ssr: false }
 );
 
 const FeaturesShowcase = dynamic(
-  () => import('@/components/FeaturesShowcase').then(mod => ({ default: mod.FeaturesShowcase })),
+  () =>
+    import('@/components/FeaturesShowcase').then((mod) => ({
+      default: mod.FeaturesShowcase,
+    })),
   { ssr: false }
 );
 
 const TestimonialsSection = dynamic(
-  () => import('@/components/TestimonialsSection').then(mod => ({ default: mod.TestimonialsSection })),
+  () =>
+    import('@/components/TestimonialsSection').then((mod) => ({
+      default: mod.TestimonialsSection,
+    })),
   { ssr: false }
 );
 
 const SportsbooksModal = dynamic(
-  () => import('@/components/SportsbooksModal').then(mod => ({ default: mod.SportsbooksModal })),
+  () =>
+    import('@/components/SportsbooksModal').then((mod) => ({
+      default: mod.SportsbooksModal,
+    })),
   { ssr: false }
 );
 
 const ResponsibleGambling = dynamic(
-  () => import('@/components/ResponsibleGambling').then(mod => ({ default: mod.ResponsibleGambling })),
+  () =>
+    import('@/components/ResponsibleGambling').then((mod) => ({
+      default: mod.ResponsibleGambling,
+    })),
   { ssr: false }
 );
 
 // Lightweight placeholder for the LiveFeedPreview while it loads
 function LiveFeedPlaceholder() {
   return (
-    <div 
+    <div
       className="w-full rounded-2xl animate-pulse"
-      style={{ 
+      style={{
         backgroundColor: 'var(--surface)',
         border: '1px solid var(--border)',
         height: '500px',
-      }} 
+      }}
     />
   );
 }
@@ -170,7 +204,7 @@ export function LandingPageClient() {
   const handleSelectPlan = async (planId: PlanType) => {
     // Close pricing modal if open
     setPricingModalOpen(false);
-    
+
     if (!session) {
       setPendingPlan(planId);
       setAuthModal('signup');
@@ -441,31 +475,53 @@ export function LandingPageClient() {
                 <span className="truncate">INSTANT MARKET REFRESHING</span>
               </div>
 
-              {/* Headline */}
+              {/* Headline (UPDATED) */}
               <h1
                 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl font-bold tracking-tight leading-[1.1] mb-4 sm:mb-6"
                 style={{ color: 'var(--foreground)' }}
               >
-                Beat the <span className="gradient-text">House.</span>
+                Find arbitrage bets{' '}
+                <span className="gradient-text">in seconds.</span>
               </h1>
 
-              {/* Subheadline */}
+              {/* Subheadline (UPDATED) */}
               <p
-                className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold mb-3 sm:mb-4"
+                className="text-sm sm:text-base md:text-lg lg:text-xl font-semibold mb-4 sm:mb-5"
                 style={{ color: 'var(--foreground)' }}
               >
-                Stop Guessing. Start Profiting. Bet both sides—profit no matter
-                the outcome.
+                Bet both sides. Lock in profit — no matter who wins.
               </p>
 
+              {/* One-line clarity (UPDATED) */}
               <p
-                className="text-sm sm:text-base mb-6 sm:mb-8 leading-relaxed"
+                className="text-sm sm:text-base mb-4 sm:mb-5 leading-relaxed"
                 style={{ color: 'var(--muted)' }}
               >
-                We spent years mastering arbitrage betting. We built the tool we
-                always needed, now we&apos;re sharing it with you. Our software
-                scans over 80 sportsbooks for profitable discrepancies 24/7.
+                We scan 80+ sportsbooks 24/7 to surface profitable odds
+                mismatches and show the exact stakes to lock your edge.
               </p>
+
+              {/* Clarity bullets (NEW) */}
+              <div className="space-y-2 mb-6 sm:mb-8">
+                {[
+                  'Real-time arbitrage opportunities across AU, UK, US & EU',
+                  'Exact stake breakdowns so you can place bets fast',
+                  'Designed for mobile — clean, simple, and quick to act',
+                ].map((text, idx) => (
+                  <div key={idx} className="flex items-start gap-2">
+                    <Check
+                      className="w-4 h-4 mt-0.5 shrink-0"
+                      style={{ color: '#22c55e' }}
+                    />
+                    <span
+                      className="text-xs sm:text-sm leading-relaxed"
+                      style={{ color: 'var(--foreground)' }}
+                    >
+                      {text}
+                    </span>
+                  </div>
+                ))}
+              </div>
 
               {/* CTA Buttons */}
               <div className="flex flex-wrap items-center gap-3 sm:gap-4 mb-6 sm:mb-8">
@@ -544,8 +600,8 @@ export function LandingPageClient() {
                 ))}
               </div>
 
-              {/* Sportsbook logos slider */}
-              <div className="mb-4 overflow-hidden">
+              {/* Sportsbook logos slider (HIDE ON MOBILE to reduce above-fold clutter) */}
+              <div className="mb-4 overflow-hidden hidden sm:block">
                 <SportsbookSlider
                   onViewAll={() => setSportsbooksOpen(true)}
                   compact
@@ -611,7 +667,10 @@ export function LandingPageClient() {
                   <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
                     Monthly cost
                   </span>
-                  <span className="font-medium line-through text-sm" style={{ color: 'var(--foreground)' }}>
+                  <span
+                    className="font-medium line-through text-sm"
+                    style={{ color: 'var(--foreground)' }}
+                  >
                     $150 - $350
                   </span>
                 </div>
@@ -619,7 +678,10 @@ export function LandingPageClient() {
                   <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
                     Typical arbs
                   </span>
-                  <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
+                  <span
+                    className="font-medium text-sm"
+                    style={{ color: 'var(--foreground)' }}
+                  >
                     1-2% profit
                   </span>
                 </div>
@@ -627,7 +689,10 @@ export function LandingPageClient() {
                   <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
                     Hidden API fees
                   </span>
-                  <span className="font-medium text-sm" style={{ color: 'var(--danger)' }}>
+                  <span
+                    className="font-medium text-sm"
+                    style={{ color: 'var(--danger)' }}
+                  >
                     Always
                   </span>
                 </div>
@@ -643,7 +708,10 @@ export function LandingPageClient() {
               }}
             >
               <div className="flex items-center justify-between mb-3 sm:mb-4">
-                <div className="text-xs sm:text-sm font-medium" style={{ color: '#14b8a6' }}>
+                <div
+                  className="text-xs sm:text-sm font-medium"
+                  style={{ color: '#14b8a6' }}
+                >
                   Edge Maxxer
                 </div>
                 <span
@@ -658,7 +726,10 @@ export function LandingPageClient() {
                   <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
                     Monthly cost
                   </span>
-                  <span className="text-lg sm:text-xl font-semibold" style={{ color: '#22c55e' }}>
+                  <span
+                    className="text-lg sm:text-xl font-semibold"
+                    style={{ color: '#22c55e' }}
+                  >
                     $9.99
                   </span>
                 </div>
@@ -666,7 +737,10 @@ export function LandingPageClient() {
                   <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
                     Typical arbs
                   </span>
-                  <span className="font-medium text-sm" style={{ color: 'var(--foreground)' }}>
+                  <span
+                    className="font-medium text-sm"
+                    style={{ color: 'var(--foreground)' }}
+                  >
                     5-7% profit
                   </span>
                 </div>
@@ -674,7 +748,10 @@ export function LandingPageClient() {
                   <span className="text-xs sm:text-sm" style={{ color: 'var(--muted)' }}>
                     Hidden fees
                   </span>
-                  <span className="font-medium text-sm" style={{ color: '#22c55e' }}>
+                  <span
+                    className="font-medium text-sm"
+                    style={{ color: '#22c55e' }}
+                  >
                     Never
                   </span>
                 </div>
@@ -1072,13 +1149,13 @@ export function LandingPageClient() {
 // =========================================================================
 // PRICING MODAL — Quick-access pricing from hero CTA
 // =========================================================================
-function PricingModal({ 
-  isOpen, 
-  onClose, 
-  onSelectPlan 
-}: { 
-  isOpen: boolean; 
-  onClose: () => void; 
+function PricingModal({
+  isOpen,
+  onClose,
+  onSelectPlan,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
   onSelectPlan: (plan: PlanType) => void;
 }) {
   // Close on escape
@@ -1098,22 +1175,24 @@ function PricingModal({
     } else {
       document.body.style.overflow = 'unset';
     }
-    return () => { document.body.style.overflow = 'unset'; };
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
   }, [isOpen]);
 
   if (!isOpen) return null;
 
   return (
-    <div 
+    <div
       className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 animate-fade-in"
       style={{ backgroundColor: 'rgba(0, 0, 0, 0.8)' }}
       onClick={onClose}
     >
-      <div 
+      <div
         className="relative w-full max-w-3xl rounded-xl sm:rounded-2xl border animate-scale-in overflow-hidden max-h-[90vh] overflow-y-auto"
-        style={{ 
+        style={{
           backgroundColor: 'var(--surface)',
-          borderColor: 'var(--border)'
+          borderColor: 'var(--border)',
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1129,7 +1208,7 @@ function PricingModal({
         <div className="p-5 sm:p-8">
           {/* Header */}
           <div className="text-center mb-6">
-            <h2 
+            <h2
               className="text-xl sm:text-2xl font-bold mb-2"
               style={{ color: 'var(--foreground)' }}
             >
@@ -1185,11 +1264,17 @@ function PricingModal({
                   <div className="mb-2 sm:mb-3">
                     <div className="flex items-baseline gap-1">
                       {plan.originalPrice && (
-                        <span className="text-sm line-through" style={{ color: 'var(--muted)' }}>
+                        <span
+                          className="text-sm line-through"
+                          style={{ color: 'var(--muted)' }}
+                        >
                           ${plan.originalPrice}
                         </span>
                       )}
-                      <span className="text-2xl sm:text-3xl font-bold" style={{ color: 'var(--foreground)' }}>
+                      <span
+                        className="text-2xl sm:text-3xl font-bold"
+                        style={{ color: 'var(--foreground)' }}
+                      >
                         ${plan.price}
                       </span>
                       <span className="text-xs" style={{ color: 'var(--muted)' }}>
@@ -1197,13 +1282,19 @@ function PricingModal({
                       </span>
                     </div>
                     {plan.periodNote && (
-                      <p className="text-[10px] sm:text-xs mt-0.5" style={{ color: 'var(--muted)' }}>
+                      <p
+                        className="text-[10px] sm:text-xs mt-0.5"
+                        style={{ color: 'var(--muted)' }}
+                      >
                         {plan.periodNote}
                       </p>
                     )}
                   </div>
 
-                  <p className="text-[10px] sm:text-xs mb-3 sm:mb-4" style={{ color: 'var(--muted)' }}>
+                  <p
+                    className="text-[10px] sm:text-xs mb-3 sm:mb-4"
+                    style={{ color: 'var(--muted)' }}
+                  >
                     {plan.description}
                   </p>
 
@@ -1229,15 +1320,24 @@ function PricingModal({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-4">
             {FEATURES.map((feature, i) => (
               <div key={i} className="flex items-center gap-1.5">
-                <Check className="w-3 h-3 shrink-0" style={{ color: '#22c55e' }} />
-                <span className="text-[10px] sm:text-xs" style={{ color: 'var(--foreground)' }}>
+                <Check
+                  className="w-3 h-3 shrink-0"
+                  style={{ color: '#22c55e' }}
+                />
+                <span
+                  className="text-[10px] sm:text-xs"
+                  style={{ color: 'var(--foreground)' }}
+                >
                   {feature}
                 </span>
               </div>
             ))}
           </div>
 
-          <p className="text-center text-[10px] sm:text-xs" style={{ color: 'var(--muted)' }}>
+          <p
+            className="text-center text-[10px] sm:text-xs"
+            style={{ color: 'var(--muted)' }}
+          >
             Cancel anytime • Instant access • Secure payment via Stripe
           </p>
         </div>
