@@ -714,7 +714,6 @@ export function LiveFeedPreview() {
             templateWidth={368}
             templateHeight={759}
             maxRenderWidth={250}
-            templateSrc="/Phone_Display_Template.png"
           >
             <PhoneScreenFeedLazy />
           </PhoneOverlayPreview>

@@ -3,6 +3,7 @@
 
 import Image from "next/image";
 import React, { useCallback, useRef, useState, useEffect } from "react";
+import { useTheme } from "@/contexts/ThemeContext";
 
 /**
  * PhoneOverlayPreview
@@ -44,9 +45,6 @@ type PhoneOverlayPreviewProps = {
 
   /** Maximum rendered width of the phone in CSS px */
   maxRenderWidth?: number;
-
-  /** Template image path in /public */
-  templateSrc?: string;
 };
 
 export default function PhoneOverlayPreview({
@@ -59,8 +57,11 @@ export default function PhoneOverlayPreview({
   templateWidth = 368,
   templateHeight = 759,
   maxRenderWidth = 250,
-  templateSrc = "/Phone_Display_Template.png",
 }: PhoneOverlayPreviewProps) {
+  const { theme } = useTheme();
+  const templateSrc = theme === 'light'
+    ? '/Phone_Display_Template_Light_Mode.png'
+    : '/Phone_Display_Template_Dark_Mode.png';
   const containerRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(maxRenderWidth / templateWidth);
 
