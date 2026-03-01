@@ -16,6 +16,14 @@ import { getBookmaker, getBookmakerAbbr, getLogoPath } from '@/lib/bookmakers';
 import { useGeoRegion } from '@/components/SportsbooksModal';
 import { formatAmericanOddsForRegion } from '@/lib/oddsFormat';
 import type { UserRegion } from '@/lib/config';
+import dynamic from 'next/dynamic';
+
+// Lazy-load the phone overlay components (only used on mobile)
+const PhoneOverlayPreview = dynamic(() => import('@/components/PhoneOverlayPreview'), { ssr: false });
+const PhoneScreenFeedLazy = dynamic(
+  () => import('@/components/PhoneScreenFeed').then(mod => ({ default: mod.PhoneScreenFeed })),
+  { ssr: false }
+);
 
 // =============================================================================
 // TYPES
@@ -168,7 +176,6 @@ function getAustralianArbs(): ArbOpportunity[] {
   const books = REGION_BOOKMAKERS.AU.primary;
   return [
     {
-      // Arb 1: Sportsbet + TAB - AFL Match
       id: '1',
       matchup: 'COLLINGWOOD @ CARLTON',
       league: 'AFL',
@@ -180,26 +187,11 @@ function getAustralianArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Fri 7:50 PM',
       outcomes: [
-        {
-          label: 'Collingwood',
-          book: books[0].name,
-          bookKey: books[0].key,
-          odds: 150,
-          ev: 26.2,
-          stake: 268,
-        },
-        {
-          label: 'Carlton',
-          book: books[1].name,
-          bookKey: books[1].key,
-          odds: 190,
-          ev: 21.8,
-          stake: 232,
-        },
+        { label: 'Collingwood', book: books[0].name, bookKey: books[0].key, odds: 150, ev: 26.2, stake: 268 },
+        { label: 'Carlton', book: books[1].name, bookKey: books[1].key, odds: 190, ev: 21.8, stake: 232 },
       ],
     },
     {
-      // Arb 2: Bet365 + Ladbrokes - NRL Match
       id: '2',
       matchup: 'BRONCOS @ STORM',
       league: 'NRL',
@@ -211,28 +203,11 @@ function getAustralianArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Sat 7:35 PM',
       outcomes: [
-        {
-          label: 'Broncos +4.5',
-          book: books[2].name,
-          bookKey: books[2].key,
-          odds: 185,
-          ev: 24.5,
-          line: 4.5,
-          stake: 215,
-        },
-        {
-          label: 'Storm -3.5',
-          book: books[3].name,
-          bookKey: books[3].key,
-          odds: 115,
-          ev: 18.2,
-          line: -3.5,
-          stake: 285,
-        },
+        { label: 'Broncos +4.5', book: books[2].name, bookKey: books[2].key, odds: 185, ev: 24.5, line: 4.5, stake: 215 },
+        { label: 'Storm -3.5', book: books[3].name, bookKey: books[3].key, odds: 115, ev: 18.2, line: -3.5, stake: 285 },
       ],
     },
     {
-      // Arb 3: PointsBet + PlayUp - Cricket
       id: '3',
       matchup: 'AUSTRALIA @ ENGLAND',
       league: 'The Ashes',
@@ -244,26 +219,11 @@ function getAustralianArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Thu 10:30 AM',
       outcomes: [
-        {
-          label: 'Australia',
-          book: books[4].name,
-          bookKey: books[4].key,
-          odds: 160,
-          ev: 16.1,
-          stake: 226,
-        },
-        {
-          label: 'England',
-          book: books[5].name,
-          bookKey: books[5].key,
-          odds: 115,
-          ev: 2.5,
-          stake: 274,
-        },
+        { label: 'Australia', book: books[4].name, bookKey: books[4].key, odds: 160, ev: 16.1, stake: 226 },
+        { label: 'England', book: books[5].name, bookKey: books[5].key, odds: 115, ev: 2.5, stake: 274 },
       ],
     },
     {
-      // Arb 4: Neds + Unibet - A-League
       id: '4',
       matchup: 'SYDNEY FC @ MELBOURNE VICTORY',
       league: 'A-League',
@@ -274,26 +234,11 @@ function getAustralianArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Sun 5:00 PM',
       outcomes: [
-        {
-          label: 'Sydney FC',
-          book: books[6].name,
-          bookKey: books[6].key,
-          odds: 130,
-          ev: 14.5,
-          stake: 247,
-        },
-        {
-          label: 'Melbourne Victory',
-          book: books[7].name,
-          bookKey: books[7].key,
-          odds: 125,
-          ev: 11.2,
-          stake: 253,
-        },
+        { label: 'Sydney FC', book: books[6].name, bookKey: books[6].key, odds: 130, ev: 14.5, stake: 247 },
+        { label: 'Melbourne Victory', book: books[7].name, bookKey: books[7].key, odds: 125, ev: 11.2, stake: 253 },
       ],
     },
     {
-      // Arb 5: Betfair + Sportsbet - AFL
       id: '5',
       matchup: 'RICHMOND @ GEELONG',
       league: 'AFL',
@@ -304,24 +249,8 @@ function getAustralianArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Sat 4:35 PM',
       outcomes: [
-        {
-          label: 'Over 165.5',
-          book: books[8].name,
-          bookKey: books[8].key,
-          odds: 125,
-          ev: 12.3,
-          line: 165.5,
-          stake: 247,
-        },
-        {
-          label: 'Under 168.5',
-          book: books[0].name,
-          bookKey: books[0].key,
-          odds: 120,
-          ev: 11.0,
-          line: 168.5,
-          stake: 253,
-        },
+        { label: 'Over 165.5', book: books[8].name, bookKey: books[8].key, odds: 125, ev: 12.3, line: 165.5, stake: 247 },
+        { label: 'Under 168.5', book: books[0].name, bookKey: books[0].key, odds: 120, ev: 11.0, line: 168.5, stake: 253 },
       ],
     },
   ];
@@ -331,7 +260,6 @@ function getUKArbs(): ArbOpportunity[] {
   const books = REGION_BOOKMAKERS.UK.primary;
   return [
     {
-      // Arb 1: Bet365 + William Hill - EPL
       id: '1',
       matchup: 'ARSENAL @ CHELSEA',
       league: 'Premier League',
@@ -343,26 +271,11 @@ function getUKArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Sat 3:00 PM',
       outcomes: [
-        {
-          label: 'Arsenal',
-          book: books[0].name,
-          bookKey: books[0].key,
-          odds: 150,
-          ev: 26.2,
-          stake: 268,
-        },
-        {
-          label: 'Chelsea',
-          book: books[1].name,
-          bookKey: books[1].key,
-          odds: 190,
-          ev: 21.8,
-          stake: 232,
-        },
+        { label: 'Arsenal', book: books[0].name, bookKey: books[0].key, odds: 150, ev: 26.2, stake: 268 },
+        { label: 'Chelsea', book: books[1].name, bookKey: books[1].key, odds: 190, ev: 21.8, stake: 232 },
       ],
     },
     {
-      // Arb 2: Paddy Power + Sky Bet - EPL
       id: '2',
       matchup: 'LIVERPOOL @ MAN UNITED',
       league: 'Premier League',
@@ -374,28 +287,11 @@ function getUKArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Sun 4:30 PM',
       outcomes: [
-        {
-          label: 'Liverpool -1.5',
-          book: books[2].name,
-          bookKey: books[2].key,
-          odds: 185,
-          ev: 24.5,
-          line: -1.5,
-          stake: 215,
-        },
-        {
-          label: 'Man United +2.5',
-          book: books[3].name,
-          bookKey: books[3].key,
-          odds: 115,
-          ev: 18.2,
-          line: 2.5,
-          stake: 285,
-        },
+        { label: 'Liverpool -1.5', book: books[2].name, bookKey: books[2].key, odds: 185, ev: 24.5, line: -1.5, stake: 215 },
+        { label: 'Man United +2.5', book: books[3].name, bookKey: books[3].key, odds: 115, ev: 18.2, line: 2.5, stake: 285 },
       ],
     },
     {
-      // Arb 3: Ladbrokes + Betfair - Championship
       id: '3',
       matchup: 'LEEDS @ SHEFFIELD UTD',
       league: 'Championship',
@@ -407,26 +303,11 @@ function getUKArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Sat 12:30 PM',
       outcomes: [
-        {
-          label: 'Leeds',
-          book: books[4].name,
-          bookKey: books[4].key,
-          odds: 160,
-          ev: 16.1,
-          stake: 226,
-        },
-        {
-          label: 'Sheffield Utd',
-          book: books[5].name,
-          bookKey: books[5].key,
-          odds: 115,
-          ev: 2.5,
-          stake: 274,
-        },
+        { label: 'Leeds', book: books[4].name, bookKey: books[4].key, odds: 160, ev: 16.1, stake: 226 },
+        { label: 'Sheffield Utd', book: books[5].name, bookKey: books[5].key, odds: 115, ev: 2.5, stake: 274 },
       ],
     },
     {
-      // Arb 4: Coral + Betway - Rugby Union
       id: '4',
       matchup: 'ENGLAND @ IRELAND',
       league: 'Six Nations',
@@ -437,26 +318,11 @@ function getUKArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Sat 4:45 PM',
       outcomes: [
-        {
-          label: 'England',
-          book: books[6].name,
-          bookKey: books[6].key,
-          odds: 130,
-          ev: 14.5,
-          stake: 247,
-        },
-        {
-          label: 'Ireland',
-          book: books[7].name,
-          bookKey: books[7].key,
-          odds: 125,
-          ev: 11.2,
-          stake: 253,
-        },
+        { label: 'England', book: books[6].name, bookKey: books[6].key, odds: 130, ev: 14.5, stake: 247 },
+        { label: 'Ireland', book: books[7].name, bookKey: books[7].key, odds: 125, ev: 11.2, stake: 253 },
       ],
     },
     {
-      // Arb 5: 888sport + Bet365 - EPL
       id: '5',
       matchup: 'MAN CITY @ TOTTENHAM',
       league: 'Premier League',
@@ -467,24 +333,8 @@ function getUKArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Sun 2:00 PM',
       outcomes: [
-        {
-          label: 'Over 2.5',
-          book: books[8].name,
-          bookKey: books[8].key,
-          odds: 125,
-          ev: 12.3,
-          line: 2.5,
-          stake: 247,
-        },
-        {
-          label: 'Under 3.5',
-          book: books[0].name,
-          bookKey: books[0].key,
-          odds: 120,
-          ev: 11.0,
-          line: 3.5,
-          stake: 253,
-        },
+        { label: 'Over 2.5', book: books[8].name, bookKey: books[8].key, odds: 125, ev: 12.3, line: 2.5, stake: 247 },
+        { label: 'Under 3.5', book: books[0].name, bookKey: books[0].key, odds: 120, ev: 11.0, line: 3.5, stake: 253 },
       ],
     },
   ];
@@ -494,7 +344,6 @@ function getEUArbs(): ArbOpportunity[] {
   const books = REGION_BOOKMAKERS.EU.primary;
   return [
     {
-      // Arb 1: Pinnacle + Unibet - La Liga
       id: '1',
       matchup: 'REAL MADRID @ BARCELONA',
       league: 'La Liga',
@@ -506,26 +355,11 @@ function getEUArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Sat 9:00 PM',
       outcomes: [
-        {
-          label: 'Real Madrid',
-          book: books[0].name,
-          bookKey: books[0].key,
-          odds: 150,
-          ev: 26.2,
-          stake: 268,
-        },
-        {
-          label: 'Barcelona',
-          book: books[1].name,
-          bookKey: books[1].key,
-          odds: 190,
-          ev: 21.8,
-          stake: 232,
-        },
+        { label: 'Real Madrid', book: books[0].name, bookKey: books[0].key, odds: 150, ev: 26.2, stake: 268 },
+        { label: 'Barcelona', book: books[1].name, bookKey: books[1].key, odds: 190, ev: 21.8, stake: 232 },
       ],
     },
     {
-      // Arb 2: Betsson + 1xBet - Bundesliga
       id: '2',
       matchup: 'BAYERN @ DORTMUND',
       league: 'Bundesliga',
@@ -537,28 +371,11 @@ function getEUArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Sat 6:30 PM',
       outcomes: [
-        {
-          label: 'Bayern -1.5',
-          book: books[2].name,
-          bookKey: books[2].key,
-          odds: 185,
-          ev: 24.5,
-          line: -1.5,
-          stake: 215,
-        },
-        {
-          label: 'Dortmund +2.5',
-          book: books[3].name,
-          bookKey: books[3].key,
-          odds: 115,
-          ev: 18.2,
-          line: 2.5,
-          stake: 285,
-        },
+        { label: 'Bayern -1.5', book: books[2].name, bookKey: books[2].key, odds: 185, ev: 24.5, line: -1.5, stake: 215 },
+        { label: 'Dortmund +2.5', book: books[3].name, bookKey: books[3].key, odds: 115, ev: 18.2, line: 2.5, stake: 285 },
       ],
     },
     {
-      // Arb 3: Betclic + Winamax - Serie A
       id: '3',
       matchup: 'JUVENTUS @ AC MILAN',
       league: 'Serie A',
@@ -570,26 +387,11 @@ function getEUArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Sun 8:45 PM',
       outcomes: [
-        {
-          label: 'Juventus',
-          book: books[4].name,
-          bookKey: books[4].key,
-          odds: 160,
-          ev: 16.1,
-          stake: 226,
-        },
-        {
-          label: 'AC Milan',
-          book: books[5].name,
-          bookKey: books[5].key,
-          odds: 115,
-          ev: 2.5,
-          stake: 274,
-        },
+        { label: 'Juventus', book: books[4].name, bookKey: books[4].key, odds: 160, ev: 16.1, stake: 226 },
+        { label: 'AC Milan', book: books[5].name, bookKey: books[5].key, odds: 115, ev: 2.5, stake: 274 },
       ],
     },
     {
-      // Arb 4: Tipico + Marathonbet - Ligue 1
       id: '4',
       matchup: 'PSG @ MARSEILLE',
       league: 'Ligue 1',
@@ -600,26 +402,11 @@ function getEUArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Sun 8:45 PM',
       outcomes: [
-        {
-          label: 'PSG',
-          book: books[6].name,
-          bookKey: books[6].key,
-          odds: 130,
-          ev: 14.5,
-          stake: 247,
-        },
-        {
-          label: 'Marseille',
-          book: books[7].name,
-          bookKey: books[7].key,
-          odds: 125,
-          ev: 11.2,
-          stake: 253,
-        },
+        { label: 'PSG', book: books[6].name, bookKey: books[6].key, odds: 130, ev: 14.5, stake: 247 },
+        { label: 'Marseille', book: books[7].name, bookKey: books[7].key, odds: 125, ev: 11.2, stake: 253 },
       ],
     },
     {
-      // Arb 5: NordicBet + Pinnacle - Champions League
       id: '5',
       matchup: 'INTER @ ATLETICO',
       league: 'Champions League',
@@ -630,24 +417,8 @@ function getEUArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Wed 9:00 PM',
       outcomes: [
-        {
-          label: 'Over 2.5',
-          book: books[8].name,
-          bookKey: books[8].key,
-          odds: 125,
-          ev: 12.3,
-          line: 2.5,
-          stake: 247,
-        },
-        {
-          label: 'Under 3.5',
-          book: books[0].name,
-          bookKey: books[0].key,
-          odds: 120,
-          ev: 11.0,
-          line: 3.5,
-          stake: 253,
-        },
+        { label: 'Over 2.5', book: books[8].name, bookKey: books[8].key, odds: 125, ev: 12.3, line: 2.5, stake: 247 },
+        { label: 'Under 3.5', book: books[0].name, bookKey: books[0].key, odds: 120, ev: 11.0, line: 3.5, stake: 253 },
       ],
     },
   ];
@@ -657,7 +428,6 @@ function getUSArbs(): ArbOpportunity[] {
   const books = REGION_BOOKMAKERS.US.primary;
   return [
     {
-      // Arb 1: FanDuel + DraftKings - NBA
       id: '1',
       matchup: 'CELTICS @ KNICKS',
       league: 'NBA',
@@ -669,28 +439,11 @@ function getUSArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Today 7:30 PM',
       outcomes: [
-        {
-          label: 'Over 218.5',
-          book: books[0].name,
-          bookKey: books[0].key,
-          odds: 150,
-          ev: 26.2,
-          line: 218.5,
-          stake: 268,
-        },
-        {
-          label: 'Under 222.5',
-          book: books[1].name,
-          bookKey: books[1].key,
-          odds: 190,
-          ev: 21.8,
-          line: 222.5,
-          stake: 232,
-        },
+        { label: 'Over 218.5', book: books[0].name, bookKey: books[0].key, odds: 150, ev: 26.2, line: 218.5, stake: 268 },
+        { label: 'Under 222.5', book: books[1].name, bookKey: books[1].key, odds: 190, ev: 21.8, line: 222.5, stake: 232 },
       ],
     },
     {
-      // Arb 2: Caesars + BetMGM - NFL
       id: '2',
       matchup: 'CHIEFS @ BILLS',
       league: 'NFL',
@@ -702,28 +455,11 @@ function getUSArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Sun 6:30 PM',
       outcomes: [
-        {
-          label: 'Chiefs -3.5',
-          book: books[2].name,
-          bookKey: books[2].key,
-          odds: 185,
-          ev: 24.5,
-          line: -3.5,
-          stake: 215,
-        },
-        {
-          label: 'Bills +4.5',
-          book: books[3].name,
-          bookKey: books[3].key,
-          odds: 115,
-          ev: 18.2,
-          line: 4.5,
-          stake: 285,
-        },
+        { label: 'Chiefs -3.5', book: books[2].name, bookKey: books[2].key, odds: 185, ev: 24.5, line: -3.5, stake: 215 },
+        { label: 'Bills +4.5', book: books[3].name, bookKey: books[3].key, odds: 115, ev: 18.2, line: 4.5, stake: 285 },
       ],
     },
     {
-      // Arb 3: BetOnline + ESPN BET - NHL
       id: '3',
       matchup: 'RANGERS @ BRUINS',
       league: 'NHL',
@@ -735,28 +471,11 @@ function getUSArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Tomorrow 7:00 PM',
       outcomes: [
-        {
-          label: 'Over 5.5',
-          book: books[4].name,
-          bookKey: books[4].key,
-          odds: 160,
-          ev: 16.1,
-          line: 5.5,
-          stake: 226,
-        },
-        {
-          label: 'Under 6.5',
-          book: books[5].name,
-          bookKey: books[5].key,
-          odds: 115,
-          ev: 2.5,
-          line: 6.5,
-          stake: 274,
-        },
+        { label: 'Over 5.5', book: books[4].name, bookKey: books[4].key, odds: 160, ev: 16.1, line: 5.5, stake: 226 },
+        { label: 'Under 6.5', book: books[5].name, bookKey: books[5].key, odds: 115, ev: 2.5, line: 6.5, stake: 274 },
       ],
     },
     {
-      // Arb 4: BetRivers + PointsBet - MLB
       id: '4',
       matchup: 'YANKEES @ RED SOX',
       league: 'MLB',
@@ -767,26 +486,11 @@ function getUSArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Tomorrow 1:05 PM',
       outcomes: [
-        {
-          label: 'Yankees',
-          book: books[6].name,
-          bookKey: books[6].key,
-          odds: 130,
-          ev: 14.5,
-          stake: 247,
-        },
-        {
-          label: 'Red Sox',
-          book: books[7].name,
-          bookKey: books[7].key,
-          odds: 125,
-          ev: 11.2,
-          stake: 253,
-        },
+        { label: 'Yankees', book: books[6].name, bookKey: books[6].key, odds: 130, ev: 14.5, stake: 247 },
+        { label: 'Red Sox', book: books[7].name, bookKey: books[7].key, odds: 125, ev: 11.2, stake: 253 },
       ],
     },
     {
-      // Arb 5: Hard Rock + FanDuel - NBA
       id: '5',
       matchup: 'LAKERS @ WARRIORS',
       league: 'NBA',
@@ -797,24 +501,8 @@ function getUSArbs(): ArbOpportunity[] {
       status: 'pregame',
       gameTime: 'Sat 8:30 PM',
       outcomes: [
-        {
-          label: 'Warriors -5.5',
-          book: books[8].name,
-          bookKey: books[8].key,
-          odds: 125,
-          ev: 12.3,
-          line: -5.5,
-          stake: 247,
-        },
-        {
-          label: 'Lakers +6.5',
-          book: books[0].name,
-          bookKey: books[0].key,
-          odds: 120,
-          ev: 11.0,
-          line: 6.5,
-          stake: 253,
-        },
+        { label: 'Warriors -5.5', book: books[8].name, bookKey: books[8].key, odds: 125, ev: 12.3, line: -5.5, stake: 247 },
+        { label: 'Lakers +6.5', book: books[0].name, bookKey: books[0].key, odds: 120, ev: 11.0, line: 6.5, stake: 253 },
       ],
     },
   ];
@@ -1006,52 +694,48 @@ export function LiveFeedPreview() {
     };
   }, [mounted]);
 
-  const phoneSrc = theme === 'light'
-    ? '/mobilephone_light_version.png'
-    : '/mobilephone_dark_version.png';
-
   const formatOdds = (odds: number) => {
     return formatAmericanOddsForRegion(odds, userRegion);
   };
 
   return (
     <div className="w-full">
-      {/* Mobile Version */}
-      <div className="md:hidden w-full">
+      {/* ================================================================= */}
+      {/* Mobile Version — Phone overlay with live scrolling feed inside     */}
+      {/* ================================================================= */}
+      <div className="md:hidden w-full flex justify-center">
         {mounted ? (
-          <Image
-            src={phoneSrc}
-            alt="Edge Maxxer Mobile App Preview"
-            width={1082}
-            height={1944}
-            className="mx-auto h-auto"
-            style={{ width: '70%', maxWidth: '280px' }}
-            priority
-          />
+          <PhoneOverlayPreview
+            screenWidth={338}
+            screenHeight={734}
+            screenRadius={44}
+            screenLeft={15}
+            screenTop={13}
+            templateWidth={368}
+            templateHeight={759}
+            maxRenderWidth={250}
+            templateSrc="/Phone_Display_Template.png"
+          >
+            <PhoneScreenFeedLazy />
+          </PhoneOverlayPreview>
         ) : (
+          /* Placeholder while JS hydrates — matches phone aspect ratio */
           <div 
-            className="mx-auto rounded-[2rem] animate-pulse"
+            className="rounded-[2rem] animate-pulse"
             style={{ 
               width: '70%', 
               maxWidth: '280px',
-              aspectRatio: '1082 / 1944',
+              aspectRatio: '368 / 759',
               backgroundColor: 'var(--surface)',
               border: '1px solid var(--border)',
             }} 
-          >
-            <div 
-              className="mx-auto mt-[8%] rounded-lg"
-              style={{
-                width: '85%',
-                height: '75%',
-                backgroundColor: 'var(--surface-secondary)',
-              }}
-            />
-          </div>
+          />
         )}
       </div>
 
-      {/* Desktop Version */}
+      {/* ================================================================= */}
+      {/* Desktop Version — Full dashboard preview (unchanged)              */}
+      {/* ================================================================= */}
       <div ref={containerRef} className="hidden md:block w-full">
         {/* Outer wrapper for scaling */}
         <div style={{ zoom: scale }}>
