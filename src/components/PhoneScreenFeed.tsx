@@ -12,7 +12,7 @@
  * typography, tighter spacing, and vertical scrolling.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { TrendingUp } from 'lucide-react';
 import { getBookmaker, getBookmakerAbbr, getLogoPath } from '@/lib/bookmakers';
@@ -252,35 +252,96 @@ export function PhoneScreenFeed() {
 
   const fmt = (odds: number) => formatAmericanOddsForRegion(odds, region);
 
-  // ── Scroll-linked feed ─────────────────────────────────────────────
-  // As the user scrolls the page past the phone, the feed content
-  // translates upward inside the clipped container, creating the
-  // illusion of the phone scrolling in sync with the page.
+  // ── Scroll-linked feed (lerp-based for silky momentum) ──────────────
+  // Instead of snapping to the target position each frame, we use a
+  // lerp (linear interpolation) loop that smoothly chases the target.
+  // This creates buttery easing — the feed glides to a stop when the
+  // page stops scrolling, just like native momentum scroll.
   const feedContainerRef = useRef<HTMLDivElement>(null);
   const feedInnerRef = useRef<HTMLDivElement>(null);
-  const [feedTranslateY, setFeedTranslateY] = useState(0);
+  const targetY = useRef(0);
+  const currentY = useRef(0);
+  const animating = useRef(false);
+
+  // Lerp factor: 0.08 = silky smooth, 0.15 = snappier
+  const LERP = 0.08;
 
   useEffect(() => {
     const container = feedContainerRef.current;
     const inner = feedInnerRef.current;
     if (!container || !inner) return;
 
-    const onScroll = () => {
+    // Cache overflow once (recalc on resize)
+    let overflow = Math.max(0, inner.scrollHeight - container.clientHeight);
+    let containerTop = 0;
+    let containerH = 0;
+
+    const cacheLayout = () => {
       const rect = container.getBoundingClientRect();
+      containerTop = rect.top + window.scrollY;
+      containerH = rect.height;
+      overflow = Math.max(0, inner.scrollHeight - container.clientHeight);
+    };
+
+    cacheLayout();
+
+    const updateTarget = () => {
       const viewH = window.innerHeight;
+      const scrollY = window.scrollY;
+      const entered = scrollY + viewH - containerTop;
+      const total = viewH + containerH;
+      const progress = Math.max(0, Math.min(1, entered / total));
+      targetY.current = progress * overflow;
+    };
 
-      // How far the container has scrolled into / through the viewport
-      // 0 = just entering from bottom, 1 = fully past the top
-      const progress = Math.max(0, Math.min(1, (viewH - rect.top) / (viewH + rect.height)));
+    // Animation loop — runs independently of scroll events
+    const animate = () => {
+      const diff = targetY.current - currentY.current;
 
-      // Max we can translate = how much the inner content overflows the container
-      const overflow = Math.max(0, inner.scrollHeight - container.clientHeight);
-      setFeedTranslateY(progress * overflow);
+      // Stop animating when close enough (sub-pixel)
+      if (Math.abs(diff) < 0.5) {
+        currentY.current = targetY.current;
+        inner.style.transform = `translate3d(0, -${currentY.current}px, 0)`;
+        animating.current = false;
+        return;
+      }
+
+      currentY.current += diff * LERP;
+      inner.style.transform = `translate3d(0, -${currentY.current}px, 0)`;
+      requestAnimationFrame(animate);
+    };
+
+    const startAnimation = () => {
+      if (!animating.current) {
+        animating.current = true;
+        requestAnimationFrame(animate);
+      }
+    };
+
+    const onScroll = () => {
+      updateTarget();
+      startAnimation();
+    };
+
+    const onResize = () => {
+      cacheLayout();
+      updateTarget();
+      startAnimation();
     };
 
     window.addEventListener('scroll', onScroll, { passive: true });
-    onScroll(); // initial position
-    return () => window.removeEventListener('scroll', onScroll);
+    window.addEventListener('resize', onResize, { passive: true });
+
+    // Initial position
+    updateTarget();
+    currentY.current = targetY.current;
+    inner.style.transform = `translate3d(0, -${currentY.current}px, 0)`;
+
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      window.removeEventListener('resize', onResize);
+      animating.current = false;
+    };
   }, [arbs]);
 
   return (
@@ -358,8 +419,8 @@ export function PhoneScreenFeed() {
           ref={feedInnerRef}
           className="space-y-2"
           style={{
-            transform: `translateY(-${feedTranslateY}px)`,
             willChange: 'transform',
+            transform: 'translate3d(0, 0, 0)',
           }}
         >
           {arbs.map((arb) => (
