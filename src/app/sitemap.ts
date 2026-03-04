@@ -17,6 +17,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // Hub
     { path: '/learn', changeFrequency: 'weekly', priority: 0.85 },
 
+    // Tools (high-intent, linkable assets — prioritise for backlinks)
+    { path: '/tools', changeFrequency: 'weekly', priority: 0.85 },
+    { path: '/tools/arbitrage-calculator', changeFrequency: 'monthly', priority: 0.9 },
+    { path: '/tools/odds-converter', changeFrequency: 'monthly', priority: 0.8 },
+
     // Guides
     { path: '/guides/arbitrage-betting', changeFrequency: 'weekly', priority: 0.8 },
 
